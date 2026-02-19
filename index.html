@@ -51,30 +51,25 @@ async function login() {
   try {
     const response = await fetch(API, {
       method: "POST",
-      mode: "cors", // Penting!
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "login",
         user: document.getElementById('user').value,
         pass: document.getElementById('pass').value
       })
     });
-
-    const data = await response.json();
     
-    if (data.status === "ok") {
+    const data = await response.json();
+    if (data.status === 'ok') {
       localStorage.setItem('token', data.token);
       localStorage.setItem('nama', data.nama);
       localStorage.setItem('role', data.role);
-      window.location.href = "dashboard.html";
+      window.location.href = 'dashboard.html';
     } else {
-      alert(data.message || "Login gagal");
+      alert(data.message);
     }
-  } catch (error) {
-    console.error('Error:', error);
-    alert("Koneksi error: " + error.message);
+  } catch (err) {
+    alert('Network error: ' + err.message);
   }
 }
 
