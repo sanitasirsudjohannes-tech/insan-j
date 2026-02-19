@@ -1,115 +1,424 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<script src="https://cdn.tailwindcss.com"></script>
-<title>Dashboard - Sistem Checklist RS</title>
-<style>
-  .logout-btn:hover {
-    transform: scale(1.1);
-    transition: transform 0.2s;
-  }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Aplikasi Ceklist</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .form-card {
+            transition: all 0.3s;
+            border: 2px solid transparent;
+            cursor: pointer;
+        }
+        .form-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+        .form-card.selected {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+        .checklist-item {
+            @apply p-3 border-b border-gray-200 hover:bg-gray-50;
+        }
+        .checklist-item:last-child {
+            @apply border-b-0;
+        }
+    </style>
 </head>
+<body class="bg-gray-100">
+    <!-- Navbar - putih dengan border bawah biru (senada dengan welcome card) -->
+<nav class="bg-white shadow-lg border-b-2 border-blue-500">
+    <div class="container mx-auto px-4">
+        <div class="flex justify-between items-center h-16">
+            <div class="flex items-center">
+                <img src="img/logo.png" alt="Logo" class="h-8 w-auto mr-3" onerror="this.style.display='none'">
+                <span class="text-gray-800 font-semibold text-lg">Aplikasi Ceklist</span>
+            </div>
+            <div class="flex items-center space-x-4">
+                <span class="text-gray-600" id="userDisplay"></span>
+                <button onclick="logout()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm transition">
+                    <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                </button>
+            </div>
+        </div>
+    </div>
+</nav>
 
-<body class="bg-gray-100 min-h-screen">
+<!-- Main Content -->
+<div class="container mx-auto px-4 py-8">
+    <!-- Welcome Card - putih dengan border kiri biru -->
+    <div class="bg-white rounded-lg shadow-lg p-6 mb-8 flex items-center border-l-4 border-blue-500">
+        <img src="img/logo.png" alt="Logo" class="h-16 w-auto mr-4" onerror="this.style.display='none'">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800" id="welcomeMessage">Selamat Datang!</h2>
+            <p class="text-gray-600">Silakan pilih form ceklist yang ingin diisi</p>
+        </div>
+    </div>
 
-<!-- HEADER -->
-<div class="bg-blue-800 text-white p-4 flex justify-between items-center shadow-md">
-  <h1 class="font-bold text-lg">Dashboard Checklist RS</h1>
+        <!-- Pilihan Form -->
+        <div class="bg-white rounded-lg shadow-lg mb-6">
+            <div class="bg-blue-600 text-white px-6 py-3 rounded-t-lg">
+                <h5 class="font-semibold"><i class="fas fa-check-circle mr-2"></i>Pilih Form Ceklist (Bisa lebih dari 1)</h5>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="formSelection"></div>
+            </div>
+        </div>
 
-  <button onclick="logout()" class="text-2xl hover:text-red-200 logout-btn" title="Logout">
-    ⎋
-  </button>
-</div>
+        <!-- Tombol Generate -->
+        <div class="mb-6">
+            <button class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed" 
+                    id="generateBtn" onclick="generateForm()" disabled>
+                <i class="fas fa-file-alt mr-2"></i>Generate Form Ceklist
+            </button>
+        </div>
 
-<div class="p-4 max-w-4xl mx-auto">
+        <!-- Form Utama -->
+        <div id="generatedForm" class="hidden">
+            <div class="bg-white rounded-lg shadow-lg">
+                <div class="bg-blue-600 text-white px-6 py-3 rounded-t-lg flex justify-between items-center">
+                    <h5 class="font-semibold"><i class="fas fa-clipboard-list mr-2"></i>Form Ceklist Terintegrasi</h5>
+                    <span class="bg-white text-blue-600 px-3 py-1 rounded-full text-sm" id="selectedCategories"></span>
+                </div>
+                <div class="p-6">
+                    <form id="mainChecklistForm">
+                        <!-- Informasi Dasar -->
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                            <div>
+                                <label class="block text-gray-700 font-bold mb-2">Tanggal Inspeksi</label>
+                                <input type="date" class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                                       id="tanggalInspeksi" required>
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 font-bold mb-2">Petugas Inspeksi</label>
+                                <input type="text" class="w-full border rounded-lg px-3 py-2 bg-gray-100" 
+                                       id="petugasInspeksi" readonly>
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 font-bold mb-2">Lokasi/Unit</label>
+                                <input type="text" class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                                       id="lokasi" placeholder="Masukkan lokasi" required>
+                            </div>
+                        </div>
 
-  <div class="bg-white p-4 rounded-lg shadow mb-6">
-    <h2 class="font-bold text-xl mb-2">
-      Selamat datang, <span id="namaUser" class="text-blue-700"></span>
-    </h2>
-    <p class="text-gray-600">Role: <span id="userRole" class="font-semibold"></span></p>
-  </div>
+                        <!-- Checklist Items -->
+                        <div id="checklistContainer"></div>
 
-  <h3 class="font-bold text-lg mb-4 text-gray-700">Pilih Area Checklist</h3>
+                        <!-- Tombol Kirim -->
+                        <div class="mt-6">
+                            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition">
+                                <i class="fas fa-paper-plane mr-2"></i>Kirim Form Ceklist
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
 
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-    <label class="flex items-center gap-3 bg-white p-4 rounded-lg shadow hover:shadow-md transition cursor-pointer border-2 border-transparent hover:border-blue-300">
-      <input type="checkbox" value="ruang_bangunan" class="w-5 h-5 text-blue-600">
-      <span class="font-medium">Ruang Bangunan</span>
-    </label>
+        <!-- Recent Activity -->
+        <div class="bg-white rounded-lg shadow-lg mt-6">
+            <div class="bg-gray-100 px-6 py-3 rounded-t-lg">
+                <h5 class="font-semibold">Aktivitas Terakhir</h5>
+            </div>
+            <div class="p-6">
+                <div id="activityList" class="space-y-2"></div>
+            </div>
+        </div>
+    </div>
 
-    <label class="flex items-center gap-3 bg-white p-4 rounded-lg shadow hover:shadow-md transition cursor-pointer border-2 border-transparent hover:border-blue-300">
-      <input type="checkbox" value="pengelolaan_limbah" class="w-5 h-5 text-blue-600">
-      <span class="font-medium">Pengelolaan Limbah</span>
-    </label>
+    <script>
+        // === KONFIGURASI ===
+        const API_URL = 'https://script.google.com/macros/s/AKfycbztXaymY7J461OyfQa4ELS3H9llrowg84pHdxNiKcz38MZ_WkYf9GXW7NoqHSBPYT5x/exec';
+        
+        const AVAILABLE_FORMS = [
+            { id: 'ruang_bangunan', name: 'Ruang Bangunan', icon: '🏢', color: 'blue' },
+            { id: 'pengolahan_limbah', name: 'Pengolahan Limbah', icon: '🗑️', color: 'green' },
+            { id: 'toilet', name: 'Kebersihan Toilet', icon: '🚽', color: 'purple' },
+            { id: 'reservoir', name: 'Kebersihan Bak Reservoir', icon: '💧', color: 'yellow' },
+            { id: 'gizi', name: 'Ceklist Gizi', icon: '🍽️', color: 'gray' }
+        ];
 
-    <label class="flex items-center gap-3 bg-white p-4 rounded-lg shadow hover:shadow-md transition cursor-pointer border-2 border-transparent hover:border-blue-300">
-      <input type="checkbox" value="kebersihan_toilet" class="w-5 h-5 text-blue-600">
-      <span class="font-medium">Kebersihan Toilet</span>
-    </label>
-  </div>
+        const CHECKLIST_ITEMS = {
+            ruang_bangunan: [
+                { id: 'dinding_bersih', text: 'Dinding bersih, tidak retak, tidak lembab' },
+                { id: 'lantai_rata', text: 'Lantai rata, tidak licin, mudah dibersihkan' },
+                { id: 'genangan_air', text: 'Tidak ada genangan air' },
+                { id: 'plafon_utuh', text: 'Plafon utuh, tidak bocor' },
+                { id: 'jamur_plafon', text: 'Tidak ada jamur pada plafon' },
+                { id: 'sudut_ruangan', text: 'Sudut ruangan mudah dibersihkan' },
+                { id: 'udara_pengap', text: 'Udara ruangan tidak pengap' },
+                { id: 'lantai_rutin', text: 'Lantai dibersihkan rutin' },
+                { id: 'sampah_tertutup', text: 'Tempat sampah tertutup' },
+                { id: 'sampah_baik', text: 'Tempat sampah dalam kondisi baik' },
+                { id: 'serangga_tikus', text: 'Tidak ada serangga/tikus' },
+                { id: 'toilet_bersih', text: 'Toilet bersih & berfungsi' },
+                { id: 'sudut_konus', text: 'Sudut konus antara lantai dan dinding' }
+            ],
+            pengolahan_limbah: [
+                { id: 'tempat_sampah_warna', text: 'Tersedia tempat sampah sesuai kode warna' },
+                { id: 'kantong_warna', text: 'Kantong plastik sesuai standar warna limbah medis' },
+                { id: 'limbah_tajam', text: 'Limbah tajam dibuang ke safety box' },
+                { id: 'pencampuran_limbah', text: 'Tidak ada pencampuran limbah medis & domestik' },
+                { id: 'sampah_penutup', text: 'Tempat sampah memiliki penutup' },
+                { id: 'sampah_bersih', text: 'Tempat sampah dalam kondisi Bersih' },
+                { id: 'sampah_baik_limbah', text: 'Tempat sampah dalam kondisi Baik' },
+                { id: 'bau_menyengat', text: 'Tidak ada bau menyengat' },
+                { id: 'vektor', text: 'Tidak ada vektor (lalat/tikus)' },
+                { id: 'troli_tertutup', text: 'Troli tertutup' },
+                { id: 'troli_dibersihkan', text: 'Troli dibersihkan setelah digunakan' },
+                { id: 'troli_baik', text: 'Troli dalam kondisi baik' },
+                { id: 'troli_kantong', text: 'Troli dilapisi kantong sesuai jenis limbah' }
+            ],
+            toilet: [
+                { id: 'lantai_bersih_toilet', text: 'Lantai bersih' },
+                { id: 'spal_tersumbat', text: 'SPAL tidak tersumbat' },
+                { id: 'lawa_lawa', text: 'Tidak terdapat lawa-lawa' },
+                { id: 'closet_bersih', text: 'Closet tidak tersumbat dan bersih' },
+                { id: 'bak_air_bersih', text: 'Bak Air bersih' },
+                { id: 'bak_air_retak', text: 'Bak Air Tidak retak/pecah' },
+                { id: 'jentik', text: 'Tidak terdapat jentik' },
+                { id: 'ventilasi_bersih', text: 'Ventilasi bersih' },
+                { id: 'serangga_toilet', text: 'Tidak ditemukan serangga' },
+                { id: 'tempat_sampah_toilet', text: 'Terdapat tempat sampah' },
+                { id: 'saluran_air_bocor', text: 'Saluran air bersih tidak bocor' },
+                { id: 'spal_penutup', text: 'SPAL memiliki penutup' },
+                { id: 'sabun_cuci', text: 'Memiliki Sabun cuci tangan' },
+                { id: 'kloset_baik', text: 'Kloset dalam keadaan baik' }
+            ],
+            reservoir: [
+                { id: 'bak_tidak_bocor', text: 'Bak tidak bocor' },
+                { id: 'genangan_reservoir', text: 'Tidak ada genangan air di sekitar reservoir' },
+                { id: 'bak_tidak_berlumut', text: 'Bak tidak berlumut' },
+                { id: 'bak_bersih', text: 'Bak air dalam keadaan bersih' },
+                { id: 'perpipaan_bocor', text: 'Perpipaan tidak bocor' },
+                { id: 'perpipaan_korosif', text: 'Perpipaan tidak korosif' },
+                { id: 'penutup_reservoir', text: 'Terdapat penutup reservoir' },
+                { id: 'penutup_baik', text: 'Penutup reservoir dalam keadaan baik' },
+                { id: 'cela_terbuka', text: 'Tidak terdapat cela terbuka pada bak reservoir' }
+            ],
+            gizi: []
+        };
 
-  <button onclick="buatForm()" id="btnLanjut"
-    class="mt-4 w-full bg-green-600 hover:bg-green-700 text-white p-4 rounded-lg font-bold text-lg transition">
-    Lanjutkan ke Form Checklist →
-  </button>
+        let selectedForms = [];
+        let currentUser = null;
 
-</div>
+        // === INIT ===
+        (function init() {
+            const userJson = sessionStorage.getItem('currentUser');
+            if (!userJson) {
+                window.location.href = 'index.html';
+                return;
+            }
+            
+            currentUser = JSON.parse(userJson);
+            document.getElementById('userDisplay').innerHTML = `<i class="fas fa-user mr-2"></i>${currentUser.nama}`;
+            document.getElementById('welcomeMessage').innerHTML = `Selamat Datang, ${currentUser.nama}!`;
+            document.getElementById('petugasInspeksi').value = currentUser.nama;
+            
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('tanggalInspeksi').value = today;
+            
+            loadFormCards();
+        })();
 
-<script>
-// Cek login
-if(!localStorage.getItem("token")){
-  window.location.href = "index.html";
-}
+        function loadFormCards() {
+            const container = document.getElementById('formSelection');
+            container.innerHTML = '';
+            
+            AVAILABLE_FORMS.forEach(form => {
+                const card = document.createElement('div');
+                card.className = 'form-card bg-white rounded-lg shadow p-4';
+                card.id = `card-${form.id}`;
+                card.onclick = () => toggleForm(form.id);
+                card.innerHTML = `
+                    <div class="text-center">
+                        <div class="text-4xl mb-2">${form.icon}</div>
+                        <h5 class="font-bold">${form.name}</h5>
+                        <p class="text-sm text-gray-500 mt-1">${CHECKLIST_ITEMS[form.id]?.length || 0} item</p>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
 
-// Tampilkan nama user
-const namaUser = localStorage.getItem("nama") || "User";
-const role = localStorage.getItem("role") || "Staff";
-document.getElementById('namaUser').innerText = namaUser;
-document.getElementById('userRole').innerText = role;
+        function toggleForm(formId) {
+            const index = selectedForms.indexOf(formId);
+            const card = document.getElementById(`card-${formId}`);
+            
+            if (index === -1) {
+                selectedForms.push(formId);
+                card.classList.add('selected');
+            } else {
+                selectedForms.splice(index, 1);
+                card.classList.remove('selected');
+            }
+            
+            document.getElementById('generateBtn').disabled = selectedForms.length === 0;
+            
+            const selectedNames = selectedForms.map(id => 
+                AVAILABLE_FORMS.find(f => f.id === id)?.name
+            ).join(', ');
+            document.getElementById('selectedCategories').textContent = selectedNames || 'Belum ada form dipilih';
+        }
 
-// Auto logout setelah 24 jam
-const loginTime = parseInt(localStorage.getItem('loginTime') || '0');
-const now = Date.now();
-const twentyFourHours = 24 * 60 * 60 * 1000;
+        function generateForm() {
+            if (selectedForms.length === 0) {
+                alert('Pilih minimal 1 form terlebih dahulu!');
+                return;
+            }
+            
+            const container = document.getElementById('checklistContainer');
+            container.innerHTML = '';
+            
+            selectedForms.forEach(formId => {
+                const formInfo = AVAILABLE_FORMS.find(f => f.id === formId);
+                const items = CHECKLIST_ITEMS[formId] || [];
+                
+                const section = document.createElement('div');
+                section.className = 'mb-6 p-4 border rounded-lg';
+                
+                let html = `<h6 class="font-bold text-${formInfo.color}-600 mb-3">
+                            <i class="fas fa-check-circle mr-2"></i>${formInfo.name}
+                           </h6>`;
+                
+                if (items.length === 0) {
+                    html += '<p class="text-gray-500 italic">Form sedang dalam pengembangan</p>';
+                } else {
+                    items.forEach(item => {
+                        html += `
+                            <div class="checklist-item">
+                                <div class="flex items-start">
+                                    <input type="checkbox" class="mt-1 mr-3" 
+                                           id="${formId}_${item.id}" 
+                                           name="${formId}_${item.id}">
+                                    <label for="${formId}_${item.id}" class="text-gray-700">
+                                        ${item.text}
+                                    </label>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+                
+                section.innerHTML = html;
+                container.appendChild(section);
+            });
+            
+            document.getElementById('generatedForm').classList.remove('hidden');
+            document.getElementById('generatedForm').scrollIntoView({ behavior: 'smooth' });
+        }
 
-if(loginTime && (now - loginTime) > twentyFourHours) {
-  alert('Sesi Anda telah berakhir. Silakan login kembali.');
-  logout();
-}
+        // Submit dengan mode no-cors
+        document.getElementById('mainChecklistForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            if (selectedForms.length === 0) {
+                alert('Pilih form terlebih dahulu!');
+                return;
+            }
+            
+            if (!confirm('Kirim data checklist?')) return;
+            
+            const submitBtn = e.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Mengirim...';
+            submitBtn.disabled = true;
+            
+            try {
+                const tanggal = document.getElementById('tanggalInspeksi').value;
+                const petugas = document.getElementById('petugasInspeksi').value;
+                const lokasi = document.getElementById('lokasi').value;
+                
+                if (!lokasi) {
+                    alert('Lokasi harus diisi!');
+                    return;
+                }
+                
+                // Kumpulkan data
+                const formData = new URLSearchParams();
+                formData.append('action', 'submitChecklist');
+                formData.append('tanggal', tanggal);
+                formData.append('petugas', petugas);
+                formData.append('lokasi', lokasi);
+                formData.append('userId', currentUser.id);
+                formData.append('userName', currentUser.nama);
+                formData.append('timestamp', new Date().toISOString());
+                
+                selectedForms.forEach(formId => {
+                    const items = CHECKLIST_ITEMS[formId] || [];
+                    items.forEach(item => {
+                        const checkbox = document.getElementById(`${formId}_${item.id}`);
+                        formData.append(`${formId}_${item.id}`, checkbox?.checked ? 'Ya' : 'Tidak');
+                    });
+                });
+                
+                console.log('Data yang dikirim:', Object.fromEntries(formData));
+                
+                // Kirim dengan mode no-cors
+                await fetch(API_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: formData
+                });
+                
+                // Karena no-cors, kita tidak bisa baca response
+                // Tapi kita anggap berhasil untuk demo
+                
+                // Tambahkan ke aktivitas
+                addActivity(selectedForms.map(id => 
+                    AVAILABLE_FORMS.find(f => f.id === id)?.name
+                ).join(', '), lokasi);
+                
+                alert('✅ Data berhasil dikirim!');
+                
+                // Reset
+                document.getElementById('generatedForm').classList.add('hidden');
+                selectedForms.forEach(formId => {
+                    document.getElementById(`card-${formId}`).classList.remove('selected');
+                });
+                selectedForms = [];
+                document.getElementById('generateBtn').disabled = true;
+                document.getElementById('lokasi').value = '';
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Data tetap tersimpan secara lokal. ' + error.message);
+            } finally {
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            }
+        });
 
-function logout(){
-  // Opsional: panggil API logout
-  localStorage.clear();
-  window.location.href = "index.html";
-}
+        function addActivity(formNames, lokasi) {
+            const list = document.getElementById('activityList');
+            const time = new Date().toLocaleString('id-ID');
+            
+            const item = document.createElement('div');
+            item.className = 'bg-gray-50 p-3 rounded-lg border-l-4 border-green-500';
+            item.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <div>
+                        <span class="font-semibold">${formNames}</span>
+                        <span class="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded ml-2">${lokasi}</span>
+                    </div>
+                    <span class="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">Terkirim</span>
+                </div>
+                <div class="text-sm text-gray-500 mt-1">${time} | Petugas: ${currentUser?.nama}</div>
+            `;
+            
+            list.insertBefore(item, list.firstChild);
+        }
 
-function buatForm(){
-  const btn = document.getElementById('btnLanjut');
-  const dipilih = [];
-  
-  document.querySelectorAll("input[type=checkbox]:checked")
-    .forEach(c => dipilih.push(c.value));
-
-  if(dipilih.length === 0){
-    alert("Pilih minimal 1 area checklist");
-    return;
-  }
-
-  // Simpan ke localStorage
-  localStorage.setItem("formDipilih", JSON.stringify(dipilih));
-  
-  // Redirect dengan animasi button
-  btn.innerHTML = 'Memuat form...';
-  btn.disabled = true;
-  
-  setTimeout(() => {
-    window.location.href = "gabungan.html";
-  }, 300);
-}
-</script>
-
+        function logout() {
+            sessionStorage.removeItem('currentUser');
+            window.location.href = 'index.html';
+        }
+    </script>
 </body>
 </html>

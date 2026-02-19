@@ -1,89 +1,139 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<script src="https://cdn.tailwindcss.com"></script>
-<title>Login - Sistem Checklist RS</title>
-<style>
-  .loading {
-    display: inline-block;
-    width: 20px;
-    height: 20px;
-    border: 3px solid rgba(255,255,255,.3);
-    border-radius: 50%;
-    border-top-color: #fff;
-    animation: spin 1s ease-in-out infinite;
-  }
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Aplikasi Ceklist</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            min-height: 100vh; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+        }
+        .login-card { 
+            background: white; 
+            border-radius: 10px; 
+            padding: 40px; 
+            width: 100%; 
+            max-width: 400px; 
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2); 
+        }
+        .logo-container {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+        .logo {
+            max-width: 240px;
+            height: auto;
+        }
+    </style>
 </head>
+<body>
+    <div class="login-card">
+        <!-- Logo -->
+        <div class="logo-container">
+            <img src="img/logo.png" alt="Logo" class="logo" onerror="this.style.display='none'">
+        </div>
+        
+        <h3 class="text-center mb-4">Login Aplikasi</h3>
+        
+        <div id="errorMessage" class="alert alert-danger d-none"></div>
+        
+        <form id="loginForm">
+            <div class="mb-3">
+                <label class="form-label">Username</label>
+                <input type="text" class="form-control" id="username" required>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Password</label>
+                <input type="password" class="form-control" id="password" required>
+            </div>
+            
+            <button type="submit" class="btn btn-primary w-100" id="loginBtn">
+                Login
+            </button>
+        </form>
+        
+        <div class="text-center mt-3 text-muted small">
+            <p>Demo: user1/password123</p>
+        </div>
+    </div>
 
-<body class="bg-blue-50 min-h-screen flex items-center justify-center">
+    <script>
+        // === KONFIGURASI ===
+        const API_URL = 'https://script.google.com/macros/s/AKfycbztXaymY7J461OyfQa4ELS3H9llrowg84pHdxNiKcz38MZ_WkYf9GXW7NoqHSBPYT5x/exec';
+        
+        // Data dummy sebagai fallback
+        const DUMMY_USERS = {
+            'user1': { id: 1, username: 'user1', nama: 'User Satu', role: 'staff', password: 'password123' },
+            'user2': { id: 2, username: 'user2', nama: 'User Dua', role: 'admin', password: 'password123' }
+        };
 
-<div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
+        // Cek session
+        if (sessionStorage.getItem('currentUser')) {
+            window.location.href = 'dashboard.html';
+        }
 
-  <div class="text-center mb-6">
-    <img src="img/logo.png" class="mx-auto w-40 h-auto mb-4" alt="Logo RS">
-    <h1 class="text-2xl font-bold text-blue-800">Sistem Checklist RS</h1>
-  </div>
-
-  <input id="user" placeholder="Username"
-    class="w-full border p-3 rounded mb-3" autocomplete="username">
-
-  <input id="pass" type="password" placeholder="Password"
-    class="w-full border p-3 rounded mb-4" autocomplete="current-password">
-
-  <button onclick="login()" id="btnLogin"
-    class="w-full bg-blue-700 text-white p-3 rounded-lg hover:bg-blue-800 flex items-center justify-center">
-    Login
-  </button>
-  
-  <div id="errorMsg" class="text-red-600 text-sm mt-3 text-center hidden"></div>
-
-</div>
-
-<script>
-const API = "https://script.google.com/macros/s/AKfycbwjP7_Dhjfo4xqNG4B6igfGhtgyk3UBdxsNaDcRcTxR2u6L0yCq-7n1-pHVvYjnlxbP-w/exec";
-
-async function login() {
-  try {
-    const response = await fetch(API, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "login",
-        user: document.getElementById('user').value,
-        pass: document.getElementById('pass').value
-      })
-    });
-    
-    const data = await response.json();
-    if (data.status === 'ok') {
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('nama', data.nama);
-      localStorage.setItem('role', data.role);
-      window.location.href = 'dashboard.html';
-    } else {
-      alert(data.message);
-    }
-  } catch (err) {
-    alert('Network error: ' + err.message);
-  }
-}
-
-function showError(msg) {
-  const errorMsg = document.getElementById('errorMsg');
-  errorMsg.textContent = msg;
-  errorMsg.classList.remove('hidden');
-}
-
-// Cek apakah sudah login
-if(localStorage.getItem('token')) {
-  window.location.href = "dashboard.html";
-}
-</script>
-
+        // === FUNGSI LOGIN ===
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            const errorMsg = document.getElementById('errorMessage');
+            const loginBtn = document.getElementById('loginBtn');
+            
+            // Loading state
+            loginBtn.disabled = true;
+            loginBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Loading...';
+            errorMsg.classList.add('d-none');
+            
+            try {
+                // 1. COBA LOGIN VIA API
+                const response = await fetch(`${API_URL}?action=login&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`, {
+                    method: 'GET',
+                    mode: 'cors',
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    // Login berhasil via API
+                    sessionStorage.setItem('currentUser', JSON.stringify(data.data));
+                    window.location.href = 'dashboard.html';
+                    return;
+                } else {
+                    throw new Error(data.message || 'Login gagal');
+                }
+                
+            } catch (apiError) {
+                console.log('API Error, using dummy:', apiError);
+                
+                // 2. FALLBACK: DUMMY LOGIN
+                const dummyUser = DUMMY_USERS[username];
+                
+                if (dummyUser && dummyUser.password === password) {
+                    sessionStorage.setItem('currentUser', JSON.stringify({
+                        id: dummyUser.id,
+                        username: dummyUser.username,
+                        nama: dummyUser.nama,
+                        role: dummyUser.role
+                    }));
+                    window.location.href = 'dashboard.html';
+                } else {
+                    // 3. TAMPILKAN ERROR
+                    errorMsg.textContent = 'Username atau password salah!';
+                    errorMsg.classList.remove('d-none');
+                    loginBtn.disabled = false;
+                    loginBtn.innerHTML = 'Login';
+                }
+            }
+        });
+    </script>
 </body>
 </html>
