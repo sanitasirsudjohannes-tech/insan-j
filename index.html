@@ -63,28 +63,31 @@ async function login(){
   btn.innerHTML = '<span class="loading mr-2"></span>Loading...';
   errorMsg.classList.add('hidden');
 
-  const formData = new FormData();
-  formData.append("action","login");
-  formData.append("user",user.value);
-  formData.append("pass",pass.value);
-
   try{
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-    const r = await fetch(API, {
-      method:"POST",
-      body: formData,
+    // KIRIM SEBAGAI JSON, BUKAN FORMDATA
+    const response = await fetch(API, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json" // Penting: set header JSON
+      },
+      body: JSON.stringify({
+        action: "login",
+        user: user.value,
+        pass: pass.value
+      }),
       signal: controller.signal
     });
 
     clearTimeout(timeoutId);
 
-    if(!r.ok) {
-      throw new Error(`HTTP error! status: ${r.status}`);
+    if(!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
     }
 
-    const data = await r.json();
+    const data = await response.json();
 
     if(data.status === "ok"){
       localStorage.setItem("token", data.token);
@@ -118,7 +121,6 @@ function showError(msg) {
 
 // Cek apakah sudah login
 if(localStorage.getItem('token')) {
-  // Cek apakah token masih valid (opsional)
   window.location.href = "dashboard.html";
 }
 </script>

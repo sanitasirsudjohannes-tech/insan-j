@@ -184,8 +184,20 @@ const today = new Date().toISOString().split('T')[0];
 document.getElementById('tanggal').value = today;
 
 function logout(){
-  localStorage.clear();
-  window.location.href = "index.html";
+  // Panggil API logout (opsional)
+  fetch(API, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      action: "logout",
+      token: localStorage.getItem("token")
+    })
+  }).finally(() => {
+    localStorage.clear();
+    window.location.href = "index.html";
+  });
 }
 
 function batal() {
@@ -227,24 +239,26 @@ async function kirim(){
     let successCount = 0;
     const totalSheets = Object.keys(group).length;
 
-    // Kirim data per sheet
+    // Kirim data per sheet - MENGGUNAKAN JSON
     for(const sheet in group) {
-      const formData = new FormData();
-      formData.append("action", "save");
-      formData.append("sheet", sheet);
-      formData.append("token", localStorage.getItem("token"));
-      formData.append("data", JSON.stringify({
-        Tanggal: tanggal.value,
-        Ruangan: ruangan.value.trim(),
-        ...group[sheet]
-      }));
-
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
 
       const response = await fetch(API, {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json" // Penting: set header JSON
+        },
+        body: JSON.stringify({
+          action: "save",
+          sheet: sheet,
+          token: localStorage.getItem("token"),
+          data: {
+            Tanggal: tanggal.value,
+            Ruangan: ruangan.value.trim(),
+            ...group[sheet]
+          }
+        }),
         signal: controller.signal
       });
 
