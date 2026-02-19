@@ -47,69 +47,34 @@
 <script>
 const API = "https://script.google.com/macros/s/AKfycbwjP7_Dhjfo4xqNG4B6igfGhtgyk3UBdxsNaDcRcTxR2u6L0yCq-7n1-pHVvYjnlxbP-w/exec";
 
-async function login(){
-  const user = document.getElementById('user');
-  const pass = document.getElementById('pass');
-  const btn = document.getElementById('btnLogin');
-  const errorMsg = document.getElementById('errorMsg');
-
-  if(!user.value || !pass.value){
-    showError("Username & Password wajib diisi");
-    return;
-  }
-
-  // Disable button dan show loading
-  btn.disabled = true;
-  btn.innerHTML = '<span class="loading mr-2"></span>Loading...';
-  errorMsg.classList.add('hidden');
-
-  try{
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-
-    // KIRIM SEBAGAI JSON, BUKAN FORMDATA
+async function login() {
+  try {
     const response = await fetch(API, {
       method: "POST",
+      mode: "cors", // Penting!
       headers: {
-        "Content-Type": "application/json" // Penting: set header JSON
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
         action: "login",
-        user: user.value,
-        pass: pass.value
-      }),
-      signal: controller.signal
+        user: document.getElementById('user').value,
+        pass: document.getElementById('pass').value
+      })
     });
 
-    clearTimeout(timeoutId);
-
-    if(!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
     const data = await response.json();
-
-    if(data.status === "ok"){
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("nama", data.nama);
-      localStorage.setItem("role", data.role);
-      localStorage.setItem("loginTime", Date.now().toString());
+    
+    if (data.status === "ok") {
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('nama', data.nama);
+      localStorage.setItem('role', data.role);
       window.location.href = "dashboard.html";
     } else {
-      showError(data.message || "Login gagal. Periksa username dan password.");
+      alert(data.message || "Login gagal");
     }
-
-  } catch(err) {
-    if(err.name === 'AbortError') {
-      showError("Koneksi timeout. Silakan coba lagi.");
-    } else {
-      showError("Server error: " + err.message);
-    }
-    console.error(err);
-  } finally {
-    // Enable button kembali
-    btn.disabled = false;
-    btn.innerHTML = 'Login';
+  } catch (error) {
+    console.error('Error:', error);
+    alert("Koneksi error: " + error.message);
   }
 }
 
