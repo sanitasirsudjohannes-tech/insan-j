@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<script src="https://cdn.tailwindcss.com"></script>
+<title>Login</title>
+</head>
+
+<body class="bg-blue-50 min-h-screen flex items-center justify-center">
+
+<div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
+
+  <div class="text-center mb-6">
+    <img src="img/logo.png" class="mx-auto w-40 h-auto mb-4">
+    <h1 class="text-2xl font-bold text-blue-800">Sistem Checklist RS</h1>
+  </div>
+
+  <input id="user" placeholder="Username"
+    class="w-full border p-3 rounded mb-3">
+
+  <input id="pass" type="password" placeholder="Password"
+    class="w-full border p-3 rounded mb-4">
+
+  <button onclick="login()"
+    class="w-full bg-blue-700 text-white p-3 rounded-lg hover:bg-blue-800">
+    Login
+  </button>
+
+</div>
+
+<script>
+const API = "https://script.google.com/macros/s/AKfycbwjP7_Dhjfo4xqNG4B6igfGhtgyk3UBdxsNaDcRcTxR2u6L0yCq-7n1-pHVvYjnlxbP-w/exec";
+
+async function login(){
+
+  if(!user.value || !pass.value){
+    alert("Username & Password wajib diisi");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("action","login");
+  formData.append("user",user.value);
+  formData.append("pass",pass.value);
+
+  try{
+
+    const r = await fetch(API,{
+      method:"POST",
+      body: formData
+    });
+
+    const data = await r.json();
+
+    if(data.status=="ok"){
+      localStorage.setItem("token",data.token);
+      localStorage.setItem("nama",data.nama);
+      localStorage.setItem("role",data.role);
+      location="dashboard.html";
+    }else{
+      alert("Login gagal");
+    }
+
+  }catch(err){
+    alert("Server error");
+    console.log(err);
+  }
+}
+
+</script>
+
+</body>
+</html>

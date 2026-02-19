@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<script src="https://cdn.tailwindcss.com"></script>
+<title>Dashboard</title>
+</head>
+
+<body class="bg-gray-100 min-h-screen">
+
+<!-- HEADER -->
+<div class="bg-blue-800 text-white p-4 flex justify-between items-center">
+  <h1 class="font-bold text-lg">Dashboard Checklist</h1>
+
+  <button onclick="logout()" class="text-2xl">
+    ⎋
+  </button>
+</div>
+
+<div class="p-4">
+
+<h2 class="font-bold mb-2">
+Selamat datang, <span id="namaUser"></span>
+</h2>
+
+<h3 class="font-bold mb-4">Pilih Checklist</h3>
+
+
+<h2 class="font-bold mb-4">Pilih Checklist</h2>
+
+<div class="space-y-3">
+
+<label class="flex items-center gap-2 bg-white p-3 rounded shadow">
+<input type="checkbox" value="ruang_bangunan">
+Ruang Bangunan
+</label>
+
+<label class="flex items-center gap-2 bg-white p-3 rounded shadow">
+<input type="checkbox" value="pengelolaan_limbah">
+Pengelolaan Limbah
+</label>
+
+<label class="flex items-center gap-2 bg-white p-3 rounded shadow">
+<input type="checkbox" value="kebersihan_toilet">
+Kebersihan Toilet
+</label>
+
+</div>
+
+<button onclick="buatForm()"
+class="mt-6 w-full bg-green-600 text-white p-3 rounded-lg">
+Lanjutkan
+</button>
+
+</div>
+
+<script>
+if(!localStorage.getItem("token")){
+  location="index.html";
+}
+
+namaUser.innerText = localStorage.getItem("nama") || "";
+
+function logout(){
+  localStorage.clear();
+  location="index.html";
+}
+
+function buatForm(){
+  const dipilih = [];
+  document.querySelectorAll("input:checked")
+    .forEach(c=>dipilih.push(c.value));
+
+  if(dipilih.length==0){
+    alert("Pilih minimal 1 checklist");
+    return;
+  }
+
+  localStorage.setItem("formDipilih",JSON.stringify(dipilih));
+  location="gabungan.html";
+}
+</script>
+
+</body>
+</html>
