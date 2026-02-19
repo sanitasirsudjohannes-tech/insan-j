@@ -3,7 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <script src="https://cdn.tailwindcss.com"></script>
-<title>Login</title>
+<title>Login - Sistem Checklist RS</title>
+<style>
+  .loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid rgba(255,255,255,.3);
+    border-radius: 50%;
+    border-top-color: #fff;
+    animation: spin 1s ease-in-out infinite;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+</style>
 </head>
 
 <body class="bg-blue-50 min-h-screen flex items-center justify-center">
@@ -11,20 +25,22 @@
 <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
 
   <div class="text-center mb-6">
-    <img src="img/logo.png" class="mx-auto w-40 h-auto mb-4">
+    <img src="img/logo.png" class="mx-auto w-40 h-auto mb-4" alt="Logo RS">
     <h1 class="text-2xl font-bold text-blue-800">Sistem Checklist RS</h1>
   </div>
 
   <input id="user" placeholder="Username"
-    class="w-full border p-3 rounded mb-3">
+    class="w-full border p-3 rounded mb-3" autocomplete="username">
 
   <input id="pass" type="password" placeholder="Password"
-    class="w-full border p-3 rounded mb-4">
+    class="w-full border p-3 rounded mb-4" autocomplete="current-password">
 
-  <button onclick="login()"
-    class="w-full bg-blue-700 text-white p-3 rounded-lg hover:bg-blue-800">
+  <button onclick="login()" id="btnLogin"
+    class="w-full bg-blue-700 text-white p-3 rounded-lg hover:bg-blue-800 flex items-center justify-center">
     Login
   </button>
+  
+  <div id="errorMsg" class="text-red-600 text-sm mt-3 text-center hidden"></div>
 
 </div>
 
@@ -32,11 +48,20 @@
 const API = "https://script.google.com/macros/s/AKfycbwjP7_Dhjfo4xqNG4B6igfGhtgyk3UBdxsNaDcRcTxR2u6L0yCq-7n1-pHVvYjnlxbP-w/exec";
 
 async function login(){
+  const user = document.getElementById('user');
+  const pass = document.getElementById('pass');
+  const btn = document.getElementById('btnLogin');
+  const errorMsg = document.getElementById('errorMsg');
 
   if(!user.value || !pass.value){
-    alert("Username & Password wajib diisi");
+    showError("Username & Password wajib diisi");
     return;
   }
+
+  // Disable button dan show loading
+  btn.disabled = true;
+  btn.innerHTML = '<span class="loading mr-2"></span>Loading...';
+  errorMsg.classList.add('hidden');
 
   const formData = new FormData();
   formData.append("action","login");
@@ -44,29 +69,58 @@ async function login(){
   formData.append("pass",pass.value);
 
   try{
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-    const r = await fetch(API,{
+    const r = await fetch(API, {
       method:"POST",
-      body: formData
+      body: formData,
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
+
+    if(!r.ok) {
+      throw new Error(`HTTP error! status: ${r.status}`);
+    }
 
     const data = await r.json();
 
-    if(data.status=="ok"){
-      localStorage.setItem("token",data.token);
-      localStorage.setItem("nama",data.nama);
-      localStorage.setItem("role",data.role);
-      location="dashboard.html";
-    }else{
-      alert("Login gagal");
+    if(data.status === "ok"){
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("nama", data.nama);
+      localStorage.setItem("role", data.role);
+      localStorage.setItem("loginTime", Date.now().toString());
+      window.location.href = "dashboard.html";
+    } else {
+      showError(data.message || "Login gagal. Periksa username dan password.");
     }
 
-  }catch(err){
-    alert("Server error");
-    console.log(err);
+  } catch(err) {
+    if(err.name === 'AbortError') {
+      showError("Koneksi timeout. Silakan coba lagi.");
+    } else {
+      showError("Server error: " + err.message);
+    }
+    console.error(err);
+  } finally {
+    // Enable button kembali
+    btn.disabled = false;
+    btn.innerHTML = 'Login';
   }
 }
 
+function showError(msg) {
+  const errorMsg = document.getElementById('errorMsg');
+  errorMsg.textContent = msg;
+  errorMsg.classList.remove('hidden');
+}
+
+// Cek apakah sudah login
+if(localStorage.getItem('token')) {
+  // Cek apakah token masih valid (opsional)
+  window.location.href = "dashboard.html";
+}
 </script>
 
 </body>

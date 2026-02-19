@@ -3,81 +3,111 @@
 <head>
 <meta charset="UTF-8">
 <script src="https://cdn.tailwindcss.com"></script>
-<title>Dashboard</title>
+<title>Dashboard - Sistem Checklist RS</title>
+<style>
+  .logout-btn:hover {
+    transform: scale(1.1);
+    transition: transform 0.2s;
+  }
+</style>
 </head>
 
 <body class="bg-gray-100 min-h-screen">
 
 <!-- HEADER -->
-<div class="bg-blue-800 text-white p-4 flex justify-between items-center">
-  <h1 class="font-bold text-lg">Dashboard Checklist</h1>
+<div class="bg-blue-800 text-white p-4 flex justify-between items-center shadow-md">
+  <h1 class="font-bold text-lg">Dashboard Checklist RS</h1>
 
-  <button onclick="logout()" class="text-2xl">
+  <button onclick="logout()" class="text-2xl hover:text-red-200 logout-btn" title="Logout">
     ⎋
   </button>
 </div>
 
-<div class="p-4">
+<div class="p-4 max-w-4xl mx-auto">
 
-<h2 class="font-bold mb-2">
-Selamat datang, <span id="namaUser"></span>
-</h2>
+  <div class="bg-white p-4 rounded-lg shadow mb-6">
+    <h2 class="font-bold text-xl mb-2">
+      Selamat datang, <span id="namaUser" class="text-blue-700"></span>
+    </h2>
+    <p class="text-gray-600">Role: <span id="userRole" class="font-semibold"></span></p>
+  </div>
 
-<h3 class="font-bold mb-4">Pilih Checklist</h3>
+  <h3 class="font-bold text-lg mb-4 text-gray-700">Pilih Area Checklist</h3>
 
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+    <label class="flex items-center gap-3 bg-white p-4 rounded-lg shadow hover:shadow-md transition cursor-pointer border-2 border-transparent hover:border-blue-300">
+      <input type="checkbox" value="ruang_bangunan" class="w-5 h-5 text-blue-600">
+      <span class="font-medium">Ruang Bangunan</span>
+    </label>
 
-<h2 class="font-bold mb-4">Pilih Checklist</h2>
+    <label class="flex items-center gap-3 bg-white p-4 rounded-lg shadow hover:shadow-md transition cursor-pointer border-2 border-transparent hover:border-blue-300">
+      <input type="checkbox" value="pengelolaan_limbah" class="w-5 h-5 text-blue-600">
+      <span class="font-medium">Pengelolaan Limbah</span>
+    </label>
 
-<div class="space-y-3">
+    <label class="flex items-center gap-3 bg-white p-4 rounded-lg shadow hover:shadow-md transition cursor-pointer border-2 border-transparent hover:border-blue-300">
+      <input type="checkbox" value="kebersihan_toilet" class="w-5 h-5 text-blue-600">
+      <span class="font-medium">Kebersihan Toilet</span>
+    </label>
+  </div>
 
-<label class="flex items-center gap-2 bg-white p-3 rounded shadow">
-<input type="checkbox" value="ruang_bangunan">
-Ruang Bangunan
-</label>
-
-<label class="flex items-center gap-2 bg-white p-3 rounded shadow">
-<input type="checkbox" value="pengelolaan_limbah">
-Pengelolaan Limbah
-</label>
-
-<label class="flex items-center gap-2 bg-white p-3 rounded shadow">
-<input type="checkbox" value="kebersihan_toilet">
-Kebersihan Toilet
-</label>
-
-</div>
-
-<button onclick="buatForm()"
-class="mt-6 w-full bg-green-600 text-white p-3 rounded-lg">
-Lanjutkan
-</button>
+  <button onclick="buatForm()" id="btnLanjut"
+    class="mt-4 w-full bg-green-600 hover:bg-green-700 text-white p-4 rounded-lg font-bold text-lg transition">
+    Lanjutkan ke Form Checklist →
+  </button>
 
 </div>
 
 <script>
+// Cek login
 if(!localStorage.getItem("token")){
-  location="index.html";
+  window.location.href = "index.html";
 }
 
-namaUser.innerText = localStorage.getItem("nama") || "";
+// Tampilkan nama user
+const namaUser = localStorage.getItem("nama") || "User";
+const role = localStorage.getItem("role") || "Staff";
+document.getElementById('namaUser').innerText = namaUser;
+document.getElementById('userRole').innerText = role;
+
+// Auto logout setelah 24 jam
+const loginTime = parseInt(localStorage.getItem('loginTime') || '0');
+const now = Date.now();
+const twentyFourHours = 24 * 60 * 60 * 1000;
+
+if(loginTime && (now - loginTime) > twentyFourHours) {
+  alert('Sesi Anda telah berakhir. Silakan login kembali.');
+  logout();
+}
 
 function logout(){
+  // Opsional: panggil API logout
   localStorage.clear();
-  location="index.html";
+  window.location.href = "index.html";
 }
 
 function buatForm(){
+  const btn = document.getElementById('btnLanjut');
   const dipilih = [];
-  document.querySelectorAll("input:checked")
-    .forEach(c=>dipilih.push(c.value));
+  
+  document.querySelectorAll("input[type=checkbox]:checked")
+    .forEach(c => dipilih.push(c.value));
 
-  if(dipilih.length==0){
-    alert("Pilih minimal 1 checklist");
+  if(dipilih.length === 0){
+    alert("Pilih minimal 1 area checklist");
     return;
   }
 
-  localStorage.setItem("formDipilih",JSON.stringify(dipilih));
-  location="gabungan.html";
+  // Simpan ke localStorage
+  localStorage.setItem("formDipilih", JSON.stringify(dipilih));
+  
+  // Redirect dengan animasi button
+  btn.innerHTML = 'Memuat form...';
+  btn.disabled = true;
+  
+  setTimeout(() => {
+    window.location.href = "gabungan.html";
+  }, 300);
 }
 </script>
 
