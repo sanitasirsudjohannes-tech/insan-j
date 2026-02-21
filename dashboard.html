@@ -40,7 +40,6 @@
         <div class="flex justify-between items-center h-16">
             <div class="flex items-center">
                 <img src="img/logo.png" alt="Logo" class="h-8 w-auto mr-3" onerror="this.style.display='none'">
-                <span class="text-gray-800 font-semibold text-lg">Aplikasi Ceklist</span>
             </div>
             <div class="flex items-center space-x-4">
                 <span class="text-gray-600" id="userDisplay"></span>
@@ -56,7 +55,6 @@
 <div class="container mx-auto px-4 py-8">
     <!-- Welcome Card - putih dengan border kiri biru -->
     <div class="bg-white rounded-lg shadow-lg p-6 mb-8 flex items-center border-l-4 border-blue-500">
-        <img src="img/logo.png" alt="Logo" class="h-16 w-auto mr-4" onerror="this.style.display='none'">
         <div>
             <h2 class="text-2xl font-bold text-gray-800" id="welcomeMessage">Selamat Datang!</h2>
             <p class="text-gray-600">Silakan pilih form ceklist yang ingin diisi</p>
@@ -104,8 +102,48 @@
                             </div>
                             <div>
                                 <label class="block text-gray-700 font-bold mb-2">Lokasi/Unit</label>
-                                <input type="text" class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                                       id="lokasi" placeholder="Masukkan lokasi" required>
+                                <select class="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" 
+                                        id="lokasi" required>
+                                    <option value="" disabled selected>-- Silahkan Pilih Lokasi --</option>
+                                    <option value="IGD">IGD</option>
+                                    <option value="Cathlab">Cathlab</option>
+                                    <option value="ICVCU">ICVCU</option>
+                                    <option value="OK_cyto">OK Cyto</option>
+                                    <option value="Sasando">Sasando</option>
+                                    <option value="NICU">NICU</option>
+                                    <option value="Gizi">Gizi</option>
+                                    <option value="Kelimutu">Kelimutu</option>
+                                    <option value="Anggrek">Anggrek</option>
+                                    <option value="Asoka">Asoka</option>
+                                    <option value="IRM">IRM</option>
+                                    <option value="CT-Scan">CT-Scan</option>
+                                    <option value="Onkologi">Onkologi</option>
+                                    <option value="OK">OK</option>
+                                    <option value="ICU/HCU">ICU/HCU</option>
+                                    <option value="Poliklinik">Poliklinik</option>
+                                    <option value="CSSD">CSSD</option>
+                                    <option value="HD">HD</option>
+                                    <option value="Radiologi">Radiologi</option>
+                                    <option value="Laundry">Laundry</option>
+                                    <option value="IPJ">IPJ</option>
+                                    <option value="Tulip">Tulip</option>
+                                    <option value="Cempaka">Cempaka</option>
+                                    <option value="MCU">MCU</option>
+                                    <option value="Echo_Jantung">Echo Jantung</option>
+                                    <option value="Lab_Patologi_Klinik">Lab Patologi Klinik</option>
+                                    <option value="Lab_Patologi_Anatomi">Lab Patologi Anatomi</option>
+                                    <option value="Mutis">Mutis</option>
+                                    <option value="Paviliun">Paviliun</option>
+                                    <option value="Bugenvile_1">Bugenvile 1</option>
+                                    <option value="Bugenvile_2">Bugenvile 2</option>
+                                    <option value="Teratai">Teratai</option>
+                                    <option value="Edelweis">Edelweis</option>
+                                    <option value="Mawar">Mawar</option>
+                                    <option value="Kenanga">Kenanga</option>
+                                    <option value="VCT">VCT</option>
+                                    <option value="Kantor">Kantor</option>
+                                    <option value="Perlengkapan_dan_Perencanaan">Perlengkapan dan Perencanaan</option>
+                                </select>
                             </div>
                         </div>
 
