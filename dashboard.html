@@ -23,13 +23,30 @@
         .checklist-item {
             padding: 0.75rem;
             border-bottom: 1px solid #e5e7eb;
-            cursor: pointer;
         }
         .checklist-item:hover {
             background-color: #f9fafb;
         }
         .checklist-item:last-child {
             border-bottom: none;
+        }
+        .nilai-input {
+            width: 80px;
+            text-align: center;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            padding: 0.25rem 0.5rem;
+        }
+        .nilai-input:focus {
+            outline: none;
+            /* focus ring using box-shadow for visual focus indicator */
+            box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+            border-color: #3b82f6;
+        }
+        /* Sembunyikan spinner pada input number */
+        .nilai-input::-webkit-inner-spin-button, 
+        .nilai-input::-webkit-outer-spin-button { 
+            opacity: 0.5;
         }
     </style>
 </head>
@@ -57,14 +74,14 @@
     <div class="bg-white rounded-lg shadow-lg p-6 mb-8 flex items-center border-l-4 border-blue-500">
         <div>
             <h2 class="text-2xl font-bold text-gray-800" id="welcomeMessage">Selamat Datang!</h2>
-            <p class="text-gray-600">Silakan pilih form ceklist yang ingin diisi</p>
+            <p class="text-gray-600">Silakan pilih form isian nilai yang ingin diisi</p>
         </div>
     </div>
 
         <!-- Pilihan Form -->
         <div class="bg-white rounded-lg shadow-lg mb-6">
             <div class="bg-blue-600 text-white px-6 py-3 rounded-t-lg">
-                <h5 class="font-semibold"><i class="fas fa-check-circle mr-2"></i>Pilih Form Ceklist (Bisa lebih dari 1)</h5>
+                <h5 class="font-semibold"><i class="fas fa-check-circle mr-2"></i>Pilih Form Isian (Bisa lebih dari 1)</h5>
             </div>
             <div class="p-6">
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="formSelection"></div>
@@ -75,7 +92,7 @@
         <div class="mb-6">
             <button class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed" 
                     id="generateBtn" onclick="generateForm()" disabled>
-                <i class="fas fa-file-alt mr-2"></i>Generate
+                <i class="fas fa-file-alt mr-2"></i>Generate Form Isian
             </button>
         </div>
 
@@ -83,7 +100,7 @@
         <div id="generatedForm" class="hidden">
             <div class="bg-white rounded-lg shadow-lg">
                 <div class="bg-blue-600 text-white px-6 py-3 rounded-t-lg flex justify-between items-center">
-                    <h5 class="font-semibold"><i class="fas fa-clipboard-list mr-2"></i>Form Ceklist Terintegrasi</h5>
+                    <h5 class="font-semibold"><i class="fas fa-clipboard-list mr-2"></i>Form Isian Nilai Terintegrasi</h5>
                     <span class="bg-white text-blue-600 px-3 py-1 rounded-full text-sm" id="selectedCategories"></span>
                 </div>
                 <div class="p-6">
@@ -147,13 +164,13 @@
                             </div>
                         </div>
 
-                        <!-- Checklist Items -->
+                        <!-- Checklist Items - Diubah menjadi input nilai -->
                         <div id="checklistContainer"></div>
 
                         <!-- Tombol Kirim -->
                         <div class="mt-6">
                             <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition">
-                                <i class="fas fa-paper-plane mr-2"></i>Kirim Form Ceklist
+                                <i class="fas fa-paper-plane mr-2"></i>Kirim Form Isian
                             </button>
                         </div>
                     </form>
@@ -343,20 +360,31 @@
                 if (items.length === 0) {
                     html += '<p class="text-gray-500 italic">Form sedang dalam pengembangan</p>';
                 } else {
+                    html += '<div class="space-y-2">';
                     items.forEach(item => {
                         html += `
-                            <div class="checklist-item">
-                                <div class="flex items-start">
-                                    <input type="checkbox" class="mt-1 mr-3" 
+                            <div class="checklist-item flex items-center justify-between">
+                                <label for="${formId}_${item.id}" class="text-gray-700 flex-1 mr-4">
+                                    ${item.text}
+                                </label>
+                                <div class="flex items-center">
+                                    <input type="number" 
+                                           class="nilai-input" 
                                            id="${formId}_${item.id}" 
-                                           name="${formId}_${item.id}">
-                                    <label for="${formId}_${item.id}" class="text-gray-700">
-                                        ${item.text}
-                                    </label>
+                                           name="${formId}_${item.id}"
+                                           min="0"
+                                           max="100"
+                                           step="1"
+                                           value="0"
+                                           onkeypress="return (event.charCode >= 48 && event.charCode <= 57)"
+                                           oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                                           required>
+                                    <span class="ml-2 text-gray-500 text-sm">(0-100)</span>
                                 </div>
                             </div>
                         `;
                     });
+                    html += '</div>';
                 }
                 
                 section.innerHTML = html;
@@ -376,7 +404,24 @@
                 return;
             }
             
-            if (!confirm('Kirim data checklist?')) return;
+            // Validasi semua input nilai sudah diisi
+            let allFilled = true;
+            selectedForms.forEach(formId => {
+                const items = CHECKLIST_ITEMS[formId] || [];
+                items.forEach(item => {
+                    const input = document.getElementById(`${formId}_${item.id}`);
+                    if (!input || input.value === '' || input.value === null) {
+                        allFilled = false;
+                    }
+                });
+            });
+            
+            if (!allFilled) {
+                alert('Semua nilai harus diisi!');
+                return;
+            }
+            
+            if (!confirm('Kirim data isian?')) return;
             
             const submitBtn = e.target.querySelector('button[type="submit"]');
             const originalText = submitBtn.innerHTML;
@@ -406,8 +451,8 @@
                 selectedForms.forEach(formId => {
                     const items = CHECKLIST_ITEMS[formId] || [];
                     items.forEach(item => {
-                        const checkbox = document.getElementById(`${formId}_${item.id}`);
-                        formData.append(`${formId}_${item.id}`, checkbox?.checked ? 'Ya' : 'Tidak');
+                        const input = document.getElementById(`${formId}_${item.id}`);
+                        formData.append(`${formId}_${item.id}`, input?.value || '0');
                     });
                 });
                 
