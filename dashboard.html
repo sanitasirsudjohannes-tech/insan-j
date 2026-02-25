@@ -386,13 +386,13 @@
                                            id="${formId}_${item.id}" 
                                            name="${formId}_${item.id}"
                                            min="0"
-                                           max="100"
+                                           max="10"
                                            step="1"
                                            value="0"
                                            onkeypress="return (event.charCode >= 48 && event.charCode <= 57)"
                                            oninput="this.value = this.value.replace(/[^0-9]/g, '')"
                                            required>
-                                    <span class="ml-2 text-gray-500 text-sm">(0-100)</span>
+                                    <span class="ml-2 text-gray-500 text-sm">(0-10)</span>
                                 </div>
                             </div>
                         `;
@@ -460,12 +460,27 @@
                 formData.append('userId', currentUser.id);
                 formData.append('timestamp', new Date().toISOString());
                 
+                // Proses setiap form yang dipilih
                 selectedForms.forEach(formId => {
                     const items = CHECKLIST_ITEMS[formId] || [];
+                    let totalNilai = 0;
+                    let maksimalNilai = items.length * 10; // Maksimal per item adalah 10
+                    
+                    // Kumpulkan nilai setiap item
                     items.forEach(item => {
                         const input = document.getElementById(`${formId}_${item.id}`);
-                        formData.append(`${formId}_${item.id}`, input?.value || '0');
+                        const nilai = parseInt(input?.value || '0');
+                        totalNilai += nilai;
+                        formData.append(`${formId}_${item.id}`, nilai.toString());
                     });
+                    
+                    // Hitung persentase
+                    const persentase = maksimalNilai > 0 ? Math.round((totalNilai / maksimalNilai) * 100) : 0;
+                    
+                    // Tambahkan total dan persentase ke formData
+                    formData.append(`${formId}_total`, totalNilai.toString());
+                    formData.append(`${formId}_persentase`, persentase.toString());
+                    formData.append(`${formId}_maksimal`, maksimalNilai.toString());
                 });
                 
                 console.log('Data yang dikirim:', Object.fromEntries(formData));
@@ -479,9 +494,6 @@
                     },
                     body: formData
                 });
-                
-                // Karena no-cors, kita tidak bisa baca response
-                // Tapi kita anggap berhasil untuk demo
                 
                 // Tambahkan ke aktivitas
                 addActivity(selectedForms.map(id => 
