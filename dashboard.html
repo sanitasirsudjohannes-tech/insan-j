@@ -60,6 +60,9 @@
             </div>
             <div class="flex items-center space-x-4">
                 <span class="text-gray-600" id="userDisplay"></span>
+                <a href="riwayat.html" id="riwayatLink" class="hidden bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm transition">
+                    <i class="fas fa-history mr-2"></i>Riwayat
+                </a>
                 <button onclick="logout()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm transition">
                     <i class="fas fa-sign-out-alt mr-2"></i>Logout
                 </button>
@@ -291,6 +294,16 @@
             document.getElementById('welcomeMessage').innerHTML = `Selamat Datang, ${currentUser.nama}!`;
             document.getElementById('petugasInspeksi').value = currentUser.nama;
             
+            // Tampilkan link Riwayat hanya untuk admin
+            try {
+                if (currentUser.role && currentUser.role.toLowerCase() === 'admin') {
+                    const rlink = document.getElementById('riwayatLink');
+                    if (rlink) rlink.classList.remove('hidden');
+                }
+            } catch (e) {
+                console.warn('Gagal mengecek role user untuk menampilkan link riwayat', e);
+            }
+
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('tanggalInspeksi').value = today;
             

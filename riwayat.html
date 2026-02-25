@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Riwayat - INSAN-J</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <nav class="bg-white shadow-lg border-b-2 border-blue-500">
+        <div class="container mx-auto px-4">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <img src="img/logo.png" alt="Logo" class="h-8 w-auto mr-3" onerror="this.style.display='none'">
+                    <h1 class="font-bold text-lg">Riwayat Aktivitas</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <span class="text-gray-600" id="userDisplay"></span>
+                    <a href="dashboard.html" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg text-sm transition">
+                        <i class="fas fa-arrow-left mr-2"></i>Kembali
+                    </a>
+                    <button onclick="logout()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm transition">
+                        <i class="fas fa-sign-out-alt mr-2"></i>Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto px-4 py-8">
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-xl font-semibold mb-4">Riwayat Aktivitas (hanya untuk Admin)</h2>
+            <p class="text-sm text-gray-500 mb-4">Halaman ini hanya dapat diakses oleh user dengan peran <strong>admin</strong>. Jika Anda bukan admin, Anda akan diarahkan kembali.</p>
+
+            <div id="contentArea">
+                <!-- Placeholder: tabel riwayat atau fetch data server bisa ditambahkan di sini -->
+                <div class="text-center text-gray-500 py-12">
+                    <i class="fas fa-clock text-4xl mb-4"></i>
+                    <div>Tidak ada data riwayat.</div>
+                    <div class="text-xs mt-2 text-gray-400">(Implementasikan pengambilan data riwayat dari server sesuai kebutuhan)</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Cek session dan role admin
+        (function checkAdmin() {
+            const userJson = sessionStorage.getItem('currentUser');
+            if (!userJson) {
+                window.location.href = 'index.html';
+                return;
+            }
+
+            try {
+                const user = JSON.parse(userJson);
+                document.getElementById('userDisplay').innerHTML = `<i class="fas fa-user mr-2"></i>${user.nama || user.username || ''}`;
+                if (!user.role || user.role.toLowerCase() !== 'admin') {
+                    alert('Akses ditolak. Halaman ini hanya untuk admin.');
+                    window.location.href = 'dashboard.html';
+                    return;
+                }
+
+                // Jika diperlukan, lakukan fetch data riwayat di sini
+            } catch (e) {
+                console.error('Gagal memproses user session', e);
+                window.location.href = 'index.html';
+            }
+        })();
+
+        function logout() {
+            sessionStorage.removeItem('currentUser');
+            window.location.href = 'index.html';
+        }
+    </script>
+</body>
+</html>

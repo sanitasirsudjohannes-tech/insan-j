@@ -111,24 +111,14 @@
                 }
                 
             } catch (apiError) {
-                console.log('API Error, using dummy:', apiError);
-                
-                // 2. FALLBACK: DUMMY LOGIN
-                const dummyUser = DUMMY_USERS[username];
-                
-                if (dummyUser && dummyUser.password === password) {
-                    sessionStorage.setItem('currentUser', JSON.stringify({
-                        id: dummyUser.id,
-                        username: dummyUser.username,
-                        nama: dummyUser.nama,
-                        role: dummyUser.role
-                    }));
-                    window.location.href = 'dashboard.html';
+                console.error('Login API error:', apiError);
+                // Tampilkan pesan yang relevan kepada pengguna
+                if (apiError && apiError.message) {
+                    showError(apiError.message === 'Login gagal' ? 'Username atau password salah!' : apiError.message);
                 } else {
-                    // 3. TAMPILKAN ERROR
-                    showError('Username atau password salah!');
-                    resetButton();
+                    showError('Gagal terhubung ke server. Silakan coba lagi.');
                 }
+                resetButton();
             }
         });
         
