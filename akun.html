@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Akun - Ganti Password</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .password-input-group {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        
+        .password-input-group input {
+            flex: 1;
+            padding-right: 40px;
+        }
+        
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            cursor: pointer;
+            color: #6b7280;
+            user-select: none;
+            font-size: 1rem;
+        }
+        
+        .password-toggle:hover {
+            color: #374151;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <nav class="bg-white shadow-lg border-b-2 border-blue-500">
+        <div class="container mx-auto px-4">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center">
+                    <a href="dashboard.html" class="text-blue-600 font-bold mr-4">&larr; Kembali</a>
+                    <h1 class="text-lg font-semibold">Akun</h1>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-md mx-auto bg-white rounded-lg shadow p-6">
+            <h2 class="text-xl font-bold mb-4">Ganti Password</h2>
+            <form id="changePassForm">
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-bold mb-2">Username</label>
+                    <input type="text" id="username" class="w-full border rounded-lg px-3 py-2 bg-gray-100" readonly>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-bold mb-2">Password Saat Ini</label>
+                    <div class="password-input-group">
+                        <input type="password" id="currentPassword" class="w-full border rounded-lg px-3 py-2" required>
+                        <i class="fas fa-eye password-toggle" id="toggleCurrent" style="display: block;"></i>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-bold mb-2">Password Baru</label>
+                    <div class="password-input-group">
+                        <input type="password" id="newPassword" class="w-full border rounded-lg px-3 py-2" required minlength="6">
+                        <i class="fas fa-eye password-toggle" id="toggleNew" style="display: block;"></i>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-bold mb-2">Konfirmasi Password Baru</label>
+                    <div class="password-input-group">
+                        <input type="password" id="confirmPassword" class="w-full border rounded-lg px-3 py-2" required>
+                        <i class="fas fa-eye password-toggle" id="toggleConfirm" style="display: block;"></i>
+                    </div>
+                </div>
+
+                <div>
+                    <button type="submit" id="submitBtn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">
+                        <i class="fas fa-key mr-2"></i>Ganti Password
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://script.google.com/macros/s/AKfycbztXaymY7J461OyfQa4ELS3H9llrowg84pHdxNiKcz38MZ_WkYf9GXW7NoqHSBPYT5x/exec';
+
+        (function init() {
+            const userJson = sessionStorage.getItem('currentUser');
+            if (!userJson) {
+                window.location.href = 'index.html';
+                return;
+            }
+            window.currentUser = JSON.parse(userJson);
+            document.getElementById('username').value = window.currentUser.username || window.currentUser.nama || '';
+
+            // Setup password visibility toggles
+            const setupPasswordToggle = (inputId, toggleId) => {
+                const input = document.getElementById(inputId);
+                const toggle = document.getElementById(toggleId);
+                
+                toggle.addEventListener('click', () => {
+                    if (input.type === 'password') {
+                        input.type = 'text';
+                        toggle.classList.remove('fa-eye');
+                        toggle.classList.add('fa-eye-slash');
+                    } else {
+                        input.type = 'password';
+                        toggle.classList.remove('fa-eye-slash');
+                        toggle.classList.add('fa-eye');
+                    }
+                });
+            };
+
+            setupPasswordToggle('currentPassword', 'toggleCurrent');
+            setupPasswordToggle('newPassword', 'toggleNew');
+            setupPasswordToggle('confirmPassword', 'toggleConfirm');
+
+            document.getElementById('changePassForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+
+                const current = document.getElementById('currentPassword').value.trim();
+                const nw = document.getElementById('newPassword').value.trim();
+                const conf = document.getElementById('confirmPassword').value.trim();
+
+                if (nw !== conf) {
+                    alert('Password baru dan konfirmasi tidak cocok.');
+                    return;
+                }
+
+                if (nw.length < 6) {
+                    alert('Password minimal 6 karakter.');
+                    return;
+                }
+
+                // Jika session menyimpan password, lakukan pemeriksaan lokal
+                if (window.currentUser.password && current !== window.currentUser.password) {
+                    alert('Password saat ini salah.');
+                    return;
+                }
+
+                if (!confirm('Yakin akan mengganti password?')) return;
+
+                const submitBtn = document.getElementById('submitBtn');
+                const originalText = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Mengirim...';
+                submitBtn.disabled = true;
+
+                try {
+                    const formData = new URLSearchParams();
+                    formData.append('action', 'changePassword');
+                    formData.append('username', window.currentUser.username || '');
+                    formData.append('userId', window.currentUser.id || '');
+                    formData.append('oldPassword', current);
+                    formData.append('newPassword', nw);
+                    formData.append('timestamp', new Date().toISOString());
+
+                    // Kirim request (mengikuti pola dashboard - no-cors)
+                    await fetch(API_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: formData
+                    });
+
+                    // Update sessionStorage jika ada
+                    try {
+                        window.currentUser.password = nw;
+                        sessionStorage.setItem('currentUser', JSON.stringify(window.currentUser));
+                    } catch (err) {
+                        console.warn('Gagal update sessionStorage', err);
+                    }
+
+                    alert('✅ Password berhasil diganti.');
+                    window.location.href = 'dashboard.html';
+                } catch (err) {
+                    console.error(err);
+                    alert('Terjadi kesalahan saat mengirim data. Data tersimpan lokal.');
+                } finally {
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.disabled = false;
+                }
+            });
+        })();
+    </script>
+</body>
+</html>

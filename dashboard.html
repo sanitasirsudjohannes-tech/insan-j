@@ -58,8 +58,18 @@
             <div class="flex items-center">
                 <img src="img/logo.png" alt="Logo" class="h-8 w-auto mr-3" onerror="this.style.display='none'">
             </div>
-            <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-4 relative">
                 <span class="text-gray-600" id="userDisplay"></span>
+
+                <div class="relative">
+                    <button id="accountBtn" class="text-gray-600 hover:text-gray-800 focus:outline-none px-2">
+                        <i class="fas fa-user-cog"></i>
+                    </button>
+                    <div id="accountMenu" class="hidden absolute right-0 mt-2 w-44 bg-white border rounded shadow z-50">
+                        <a href="akun.html" id="gantiPassLink" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Ganti Password</a>
+                    </div>
+                </div>
+
                 <a href="riwayat.html" id="riwayatLink" class="hidden bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm transition">
                     <i class="fas fa-history mr-2"></i>Riwayat
                 </a>
@@ -322,6 +332,23 @@
             
             loadFormCards();
         })();
+
+            // Account menu toggle
+            try {
+                const accountBtn = document.getElementById('accountBtn');
+                const accountMenu = document.getElementById('accountMenu');
+                if (accountBtn && accountMenu) {
+                    accountBtn.addEventListener('click', (ev) => {
+                        ev.stopPropagation();
+                        accountMenu.classList.toggle('hidden');
+                    });
+                    // close when clicking outside
+                    document.addEventListener('click', () => accountMenu.classList.add('hidden'));
+                    accountMenu.addEventListener('click', (ev) => ev.stopPropagation());
+                }
+            } catch (e) {
+                console.warn('Account menu init error', e);
+            }
 
         function loadFormCards() {
             const container = document.getElementById('formSelection');

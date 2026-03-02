@@ -6,6 +6,31 @@
     <title>INSAN-J</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .password-input-group {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        
+        .password-input-group input {
+            flex: 1;
+            padding-right: 40px;
+        }
+        
+        .password-toggle {
+            position: absolute;
+            right: 10px;
+            cursor: pointer;
+            color: #6b7280;
+            user-select: none;
+            font-size: 1rem;
+        }
+        
+        .password-toggle:hover {
+            color: #374151;
+        }
+    </style>
 </head>
 <body class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
     <!-- Login Card -->
@@ -43,11 +68,11 @@
                 <label class="block text-gray-700 text-sm font-semibold mb-2" for="password">
                     <i class="fas fa-lock mr-2 text-blue-500"></i>Password
                 </label>
-                <div class="relative">
+                <div class="password-input-group">
                     <input type="password" id="password" required
-                           class="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                           class="w-full pl-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                            placeholder="Masukkan password">
-                    <i class="fas fa-lock absolute right-3 top-3.5 text-gray-400"></i>
+                    <i class="fas fa-eye password-toggle" id="togglePassword" style="display: block;"></i>
                 </div>
             </div>
             
@@ -70,6 +95,24 @@
         // Cek session
         if (sessionStorage.getItem('currentUser')) {
             window.location.href = 'dashboard.html';
+        }
+
+        // Setup password visibility toggle
+        const passwordInput = document.getElementById('password');
+        const toggleIcon = document.getElementById('togglePassword');
+
+        if (toggleIcon) {
+            toggleIcon.addEventListener('click', () => {
+                if (passwordInput.type === 'password') {
+                    passwordInput.type = 'text';
+                    toggleIcon.classList.remove('fa-eye');
+                    toggleIcon.classList.add('fa-eye-slash');
+                } else {
+                    passwordInput.type = 'password';
+                    toggleIcon.classList.remove('fa-eye-slash');
+                    toggleIcon.classList.add('fa-eye');
+                }
+            });
         }
 
         // === FUNGSI LOGIN ===
