@@ -12,5 +12,5 @@ export const getCurrentUser = () => {
 
 export const logoutUser = () => {
   sessionStorage.removeItem('currentUser');
-  window.location.href = '/';
+  window.location.href = import.meta.env.BASE_URL;
 };

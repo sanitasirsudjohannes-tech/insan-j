@@ -29,7 +29,7 @@ export default function Navbar({ title, showBackButton }) {
                 &larr; Kembali
               </button>
             ) : (
-              <img src="/img/logo.png" alt="Logo" className="h-8 w-auto mr-3" onError={(e) => e.target.style.display='none'} />
+              <img src={`${import.meta.env.BASE_URL}img/logo.png`} alt="Logo" className="h-8 w-auto mr-3" onError={(e) => e.target.style.display='none'} />
             )}
             {title && <h1 className="text-lg font-semibold">{title}</h1>}
           </div>
