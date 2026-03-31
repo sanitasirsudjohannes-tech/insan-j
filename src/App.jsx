@@ -10,20 +10,20 @@ function App() {
     <HashRouter>
       <Routes>
         <Route path="/" element={<Login />} />
-        
+
         {/* Protected Routes */}
         <Route path="/dashboard" element={
           <ProtectedRoute>
             <Dashboard />
           </ProtectedRoute>
         } />
-        
+
         <Route path="/akun" element={
           <ProtectedRoute>
             <Akun />
           </ProtectedRoute>
         } />
-        
+
         <Route path="/riwayat" element={
           <ProtectedRoute requiredRole="admin">
             <Riwayat />
