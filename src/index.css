@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  .password-input-group {
+    @apply relative flex items-center;
+  }
+  
+  .password-input-group input {
+    flex: 1;
+    padding-right: 40px;
+  }
+  
+  .password-toggle {
+    @apply absolute right-3 cursor-pointer text-gray-500 select-none text-base transition-colors duration-200;
+  }
+  
+  .password-toggle:hover {
+    @apply text-gray-700;
+  }
+
+  /* From Dashboard */
+  .form-card {
+    @apply transition-all duration-300 border-2 border-transparent cursor-pointer;
+  }
+  .form-card:hover {
+    @apply -translate-y-1 shadow-xl;
+  }
+  .form-card.selected {
+    @apply border-blue-500 bg-blue-50;
+  }
+  .checklist-item {
+    @apply p-3 border-b border-gray-200;
+  }
+  .checklist-item:hover {
+    @apply bg-gray-50;
+  }
+  .checklist-item:last-child {
+    @apply border-b-0;
+  }
+  .nilai-input {
+    @apply w-20 text-center border border-gray-300 rounded-md py-1 px-2;
+  }
+  .nilai-input:focus {
+    @apply outline-none ring-2 ring-blue-500 border-transparent shadow-[0_0_0_3px_rgba(59,130,246,0.15)];
+  }
+  .nilai-input::-webkit-inner-spin-button, 
+  .nilai-input::-webkit-outer-spin-button { 
+    @apply opacity-50;
+  }
+}
