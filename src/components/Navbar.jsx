@@ -29,12 +29,12 @@ export default function Navbar({ title, showBackButton }) {
                 &larr; Kembali
               </button>
             ) : (
-              <img src={`${import.meta.env.BASE_URL}img/logo.png`} alt="Logo" className="h-8 w-auto mr-3" onError={(e) => e.target.style.display='none'} />
+              <img src={`${import.meta.env.BASE_URL}img/logo.png`} alt="Logo" className="h-8 w-auto mr-3" onError={(e) => e.target.style.display = 'none'} />
             )}
             {title && <h1 className="text-lg font-semibold">{title}</h1>}
           </div>
           <div className="flex items-center space-x-4 relative">
-            <button 
+            <button
               onClick={() => setMenuOpen(!menuOpen)}
               className="text-gray-600 hover:text-gray-800 focus:outline-none px-2 cursor-pointer transition flex items-center"
             >
@@ -43,8 +43,16 @@ export default function Navbar({ title, showBackButton }) {
             </button>
 
             {menuOpen && (
-              <div ref={menuRef} className="absolute top-10 right-0 w-44 bg-white border rounded shadow-lg z-50">
-                <Link to="/akun" className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition">Ganti Password</Link>
+              <div
+                ref={menuRef}
+                className="absolute top-10 right-0 w-44 bg-white rounded shadow-lg z-50"
+              >
+                <Link
+                  to="/akun"
+                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition"
+                >
+                  Ganti Password
+                </Link>
               </div>
             )}
 
