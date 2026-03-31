@@ -288,7 +288,7 @@ export default function Dashboard() {
         </div>
 
         {/* Tombol Generate */}
-        <div className="mb-6 border">
+        <div className="mb-6">
           <button 
             onClick={handleGenerate}
             disabled={selectedForms.length === 0}
