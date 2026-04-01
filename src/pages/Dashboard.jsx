@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import Navbar from '../components/Navbar';
+import AppLayout from '../components/AppLayout';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { API_URL, getCurrentUser } from '../lib/api';
@@ -113,10 +113,25 @@ export default function Dashboard() {
   const formRef = useRef(null);
 
   const toggleForm = (formId) => {
+    const isRemoving = selectedForms.includes(formId);
     setSelectedForms(prev => 
-      prev.includes(formId) ? prev.filter(id => id !== formId) : [...prev, formId]
+      isRemoving ? prev.filter(id => id !== formId) : [...prev, formId]
     );
-    setShowForm(false); // Hide generated form if selection changes
+
+    // When adding a new form, initialize its values to 0 immediately
+    if (!isRemoving) {
+      setFormDataState(prev => {
+        const merged = { ...prev };
+        const items = CHECKLIST_ITEMS[formId] || [];
+        items.forEach(item => {
+          const key = `${formId}_${item.id}`;
+          if (!(key in merged)) {
+            merged[key] = 0;
+          }
+        });
+        return merged;
+      });
+    }
   };
 
   const selectedCategoriesText = selectedForms.map(id => 
@@ -129,15 +144,20 @@ export default function Dashboard() {
       return;
     }
     
-    // Initialize form values to 0
-    let initialData = {};
-    selectedForms.forEach(formId => {
-      const items = CHECKLIST_ITEMS[formId] || [];
-      items.forEach(item => {
-        initialData[`${formId}_${item.id}`] = 0;
+    // Merge new form values, preserve existing ones
+    setFormDataState(prev => {
+      const merged = { ...prev };
+      selectedForms.forEach(formId => {
+        const items = CHECKLIST_ITEMS[formId] || [];
+        items.forEach(item => {
+          const key = `${formId}_${item.id}`;
+          if (!(key in merged)) {
+            merged[key] = 0;
+          }
+        });
       });
+      return merged;
     });
-    setFormDataState(initialData);
     setShowForm(true);
 
     setTimeout(() => {
@@ -234,7 +254,7 @@ export default function Dashboard() {
         id: Date.now(),
         forms: selectedCategoriesText,
         lokasi,
-        time: new Date().toLocaleString('id-ID'),
+        time: new Date(tanggal).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
         petugas: user.nama
       }, ...prev]);
 
@@ -242,6 +262,7 @@ export default function Dashboard() {
       setShowForm(false);
       setSelectedForms([]);
       setLokasi('');
+      setFormDataState({});
       
     } catch (error) {
       console.error(error);
@@ -252,10 +273,8 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="bg-gray-100 min-h-screen pb-10">
-      <Navbar />
-
-      <main className="container mx-auto px-4 py-8">
+    <AppLayout>
+      <div className="container mx-auto px-4 py-8">
         <div className="bg-white rounded-lg shadow-lg p-6 mb-8 flex items-center border-l-4 border-blue-500">
           <div>
             <h2 className="text-2xl font-bold text-gray-800">Selamat Datang, {user?.nama}!</h2>
@@ -396,7 +415,7 @@ export default function Dashboard() {
                   <div key={act.id} className="bg-gray-50 p-4 rounded-lg border-l-4 border-green-500">
                       <div className="flex justify-between items-start flex-col sm:flex-row space-y-2 sm:space-y-0">
                           <div>
-                              <span className="font-semibold text-gray-800 break-words line-clamp-2" title={act.forms}>{act.forms}</span>
+                              <span className="font-semibold text-gray-800 wrap-break-word line-clamp-2" title={act.forms}>{act.forms}</span>
                               <span className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded mt-1 sm:mt-0 sm:ml-2 font-medium">{act.lokasi}</span>
                           </div>
                           <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded font-bold self-start"><i className="fas fa-check mr-1"></i>Terkirim</span>
@@ -408,7 +427,7 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppLayout>
   );
 }

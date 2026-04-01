@@ -2,11 +2,10 @@ import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getCurrentUser, logoutUser } from '../lib/api';
 
-export default function Navbar({ title, showBackButton }) {
+export default function Navbar({ title, showBackButton, onMenuToggle }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
   const user = getCurrentUser();
-  const isAdmin = user?.role?.toLowerCase() === 'admin';
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -20,20 +19,29 @@ export default function Navbar({ title, showBackButton }) {
   }, []);
 
   return (
-    <nav className="bg-white shadow-lg border-b-2 border-blue-500">
-      <div className="container mx-auto px-4">
+    <nav className="bg-white shadow-lg border-b-2 border-blue-500 sticky top-0 z-30">
+      <div className="px-4 sm:px-6">
         <div className="flex justify-between items-center h-16">
-          <div className="flex items-center">
+          <div className="flex items-center gap-2">
+            {/* Hamburger for mobile */}
+            <button
+              onClick={onMenuToggle}
+              className="text-gray-600 hover:text-gray-800 focus:outline-none p-2 rounded-lg hover:bg-gray-100 transition"
+              aria-label="Toggle sidebar"
+            >
+              <i className="fas fa-bars text-lg"></i>
+            </button>
+
             {showBackButton ? (
               <button onClick={() => navigate(-1)} className="text-blue-600 font-bold mr-4 hover:text-blue-800 transition">
                 &larr; Kembali
               </button>
             ) : (
-              <img src={`${import.meta.env.BASE_URL}img/logo.png`} alt="Logo" className="h-8 w-auto mr-3" onError={(e) => e.target.style.display = 'none'} />
+              <img src={`${import.meta.env.BASE_URL}img/logo.png`} alt="Logo" className="h-8 w-auto mr-3 hidden lg:block" onError={(e) => e.target.style.display = 'none'} />
             )}
             {title && <h1 className="text-lg font-semibold">{title}</h1>}
           </div>
-          <div className="flex items-center space-x-4 relative">
+          <div className="flex items-center space-x-3 relative">
             <button
               onClick={() => setMenuOpen(!menuOpen)}
               className="text-gray-600 hover:text-gray-800 focus:outline-none px-2 cursor-pointer transition flex items-center"
@@ -55,15 +63,6 @@ export default function Navbar({ title, showBackButton }) {
                 </Link>
               </div>
             )}
-
-            {isAdmin && !showBackButton && (
-              <Link to="/riwayat" className="hidden sm:inline-flex bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm transition items-center">
-                <i className="fas fa-history mr-2"></i>Riwayat
-              </Link>
-            )}
-
-            {/* If on riwayat page, show admin back button specifically or use standard logic */}
-            {showBackButton && isAdmin && window.location.pathname === '/riwayat' ? null : null}
 
             <button onClick={logoutUser} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm transition flex items-center">
               <i className="fas fa-sign-out-alt sm:mr-2"></i>

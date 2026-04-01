@@ -1,18 +1,16 @@
-import Navbar from '../components/Navbar';
+import AppLayout from '../components/AppLayout';
 import { getCurrentUser } from '../lib/api';
 
 export default function Riwayat() {
   const user = getCurrentUser();
 
   return (
-    <div className="bg-gray-100 min-h-screen">
-      <Navbar title="Riwayat Aktivitas" showBackButton={true} />
-
-      <main className="container mx-auto px-4 py-8">
+    <AppLayout title="Riwayat Aktivitas">
+      <div className="container mx-auto px-4 py-8">
         <div className="bg-white rounded-lg shadow-lg p-8">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 border-b pb-4">
             <div>
-              <h2 className="text-2xl font-bold text-gray-800">Semua Riwayat (Admin)</h2>
+              <h2 className="text-2xl font-bold text-gray-800">Semua Riwayat </h2>
               <p className="text-sm text-gray-500 mt-1">Daftar inspeksi rutin dan isian nilai sanitasi.</p>
             </div>
             <div className="mt-4 md:mt-0 flex items-center bg-blue-50 px-4 py-2 rounded-lg text-blue-700 font-medium">
@@ -29,14 +27,14 @@ export default function Riwayat() {
               <p className="text-sm mt-3 text-gray-400 max-w-md mx-auto">
                 Silakan implementasikan pengambilan data riwayat dari Google Apps Script server sesuai kebutuhan sistem Anda.
               </p>
-              
+
               <button className="mt-8 bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg text-sm transition shadow-sm hover:shadow active:scale-95 flex items-center mx-auto">
                 <i className="fas fa-sync-alt mr-2"></i>Refresh Data
               </button>
             </div>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppLayout>
   );
 }

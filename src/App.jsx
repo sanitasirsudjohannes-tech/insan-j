@@ -25,7 +25,7 @@ function App() {
         } />
 
         <Route path="/riwayat" element={
-          <ProtectedRoute requiredRole="admin">
+          <ProtectedRoute>
             <Riwayat />
           </ProtectedRoute>
         } />
