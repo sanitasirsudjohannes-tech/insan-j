@@ -26,4 +26,4 @@ dist-ssr
 # Legacy Files (Original HTML)
 # Hapus tanda pagar (#) di bawah ini jika tidak ingin folder legacy_html ikut dipush ke Git
 legacy_html/
-# backend/
+backend/
