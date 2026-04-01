@@ -263,15 +263,15 @@ export default function Riwayat() {
                             <div className="w-full bg-gray-200 rounded-full h-2.5 mr-3 max-w-20 overflow-hidden shadow-inner">
                               <div
                                 className={`h-full rounded-full transition-all duration-1000 ease-out ${item.persentase >= 80 ? 'bg-linear-to-r from-green-400 to-green-500' :
-                                    item.persentase >= 60 ? 'bg-linear-to-r from-yellow-400 to-yellow-500' :
-                                      'bg-linear-to-r from-red-400 to-red-500'
+                                  item.persentase >= 60 ? 'bg-linear-to-r from-yellow-400 to-yellow-500' :
+                                    'bg-linear-to-r from-red-400 to-red-500'
                                   }`}
                                 style={{ width: `${item.persentase}%` }}
                               ></div>
                             </div>
                             <span className={`text-sm font-black ${item.persentase >= 80 ? 'text-green-600' :
-                                item.persentase >= 60 ? 'text-yellow-600' :
-                                  'text-red-600'
+                              item.persentase >= 60 ? 'text-yellow-600' :
+                                'text-red-600'
                               }`}>
                               {item.persentase}%
                             </span>
