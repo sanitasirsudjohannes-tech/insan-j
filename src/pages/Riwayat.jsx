@@ -5,12 +5,12 @@ import { API_URL, getCurrentUser } from '../lib/api';
 export default function Riwayat() {
   const user = getCurrentUser();
   const isAdmin = user?.role?.toLowerCase() === 'admin' || user?.role === 'Admin';
-  
+
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState(isAdmin ? 'rekap' : 'detail');
-  
+
   // Default to current month YYYY-MM
   const currentMonth = new Date().toISOString().slice(0, 7);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
@@ -23,12 +23,12 @@ export default function Riwayat() {
       const response = await fetch(`${API_URL}?action=getRiwayat&userId=${fetchUserId}`);
       if (!response.ok) throw new Error('Respon jaringan tidak baik');
       const result = await response.json();
-      
+
       // Filter based on userId and/or petugas to satisfy "masing2 user hanya melihat hasil masing2" (kalau bukan admin)
-      const userOnly = Array.isArray(result) 
+      const userOnly = Array.isArray(result)
         ? (isAdmin ? result : result.filter(item => item.userId == user?.id || item.petugas === user?.nama))
         : [];
-      
+
       setData(userOnly);
     } catch (err) {
       console.error(err);
@@ -96,14 +96,14 @@ export default function Riwayat() {
               <h2 className="text-3xl font-extrabold text-gray-800 tracking-tight">Riwayat Inspeksi</h2>
               <p className="text-sm text-gray-500 mt-2 font-medium">Filter dan pantau nilai form yang telah diisi.</p>
             </div>
-            
+
             <div className="mt-4 md:mt-0 flex flex-col sm:flex-row gap-4 items-center">
               <div className="relative w-full sm:w-auto">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <i className="fas fa-calendar-alt text-gray-400"></i>
                 </div>
-                <input 
-                  type="month" 
+                <input
+                  type="month"
                   className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-shadow text-gray-700 font-semibold shadow-sm"
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(e.target.value)}
@@ -118,13 +118,13 @@ export default function Riwayat() {
 
           {isAdmin && (
             <div className="flex border-b border-gray-200 mb-6">
-              <button 
+              <button
                 onClick={() => setActiveTab('rekap')}
                 className={`py-3 px-6 font-bold text-sm focus:outline-none flex items-center transition-colors ${activeTab === 'rekap' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-gray-500 hover:text-gray-800'}`}
               >
                 <i className="fas fa-chart-bar mr-2"></i>Rekapitulasi Pengisian
               </button>
-              <button 
+              <button
                 onClick={() => setActiveTab('detail')}
                 className={`py-3 px-6 font-bold text-sm focus:outline-none flex items-center transition-colors ${activeTab === 'detail' ? 'border-b-2 border-indigo-600 text-indigo-600' : 'text-gray-500 hover:text-gray-800'}`}
               >
@@ -157,7 +157,7 @@ export default function Riwayat() {
                 <p className="text-sm mt-3 text-gray-500 max-w-md mx-auto font-medium">
                   {selectedMonth ? `Tidak ada pengisian form yang ditemukan pada bulan ${selectedMonth}.` : 'Belum ada data tersedia.'}
                 </p>
-                <button 
+                <button
                   onClick={fetchRiwayat}
                   className="mt-8 bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl text-sm font-bold transition-all shadow-lg hover:shadow-xl active:scale-95 flex items-center mx-auto"
                 >
@@ -182,27 +182,28 @@ export default function Riwayat() {
                     {rekapArray.map((rekap, idx) => {
                       const totalSubmit = rekap['Ruang Bangunan'] + rekap['Pengolahan Limbah'] + rekap['Kebersihan Toilet'] + rekap['Kebersihan Bak Reservoir'] + rekap['Ceklist Gizi'];
                       return (
-                      <tr key={idx} className="hover:bg-indigo-50/30 transition-colors duration-200 group">
-                        <td className="px-6 py-5 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="bg-linear-to-br from-indigo-100 to-purple-100 text-indigo-700 w-9 h-9 rounded-full flex items-center justify-center mr-3 font-extrabold text-lg shadow-sm border border-indigo-200">
-                              {rekap.nama.charAt(0).toUpperCase()}
+                        <tr key={idx} className="hover:bg-indigo-50/30 transition-colors duration-200 group">
+                          <td className="px-6 py-5 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="bg-linear-to-br from-indigo-100 to-purple-100 text-indigo-700 w-9 h-9 rounded-full flex items-center justify-center mr-3 font-extrabold text-lg shadow-sm border border-indigo-200">
+                                {rekap.nama.charAt(0).toUpperCase()}
+                              </div>
+                              <span className="text-sm font-bold text-gray-800">{rekap.nama}</span>
                             </div>
-                            <span className="text-sm font-bold text-gray-800">{rekap.nama}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-5 whitespace-nowrap text-center text-sm font-bold text-gray-700">{rekap['Ruang Bangunan']}</td>
-                        <td className="px-6 py-5 whitespace-nowrap text-center text-sm font-bold text-gray-700">{rekap['Pengolahan Limbah']}</td>
-                        <td className="px-6 py-5 whitespace-nowrap text-center text-sm font-bold text-gray-700">{rekap['Kebersihan Toilet']}</td>
-                        <td className="px-6 py-5 whitespace-nowrap text-center text-sm font-bold text-gray-700">{rekap['Kebersihan Bak Reservoir']}</td>
-                        <td className="px-6 py-5 whitespace-nowrap text-center text-sm font-bold text-gray-700">{rekap['Ceklist Gizi']}</td>
-                        <td className="px-6 py-5 whitespace-nowrap text-center">
-                          <span className="text-sm font-extrabold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-lg border border-indigo-100 inline-block shadow-sm">
-                            {totalSubmit}
-                          </span>
-                        </td>
-                      </tr>
-                    )})}
+                          </td>
+                          <td className="px-6 py-5 whitespace-nowrap text-center text-sm font-bold text-gray-700">{rekap['Ruang Bangunan']}</td>
+                          <td className="px-6 py-5 whitespace-nowrap text-center text-sm font-bold text-gray-700">{rekap['Pengolahan Limbah']}</td>
+                          <td className="px-6 py-5 whitespace-nowrap text-center text-sm font-bold text-gray-700">{rekap['Kebersihan Toilet']}</td>
+                          <td className="px-6 py-5 whitespace-nowrap text-center text-sm font-bold text-gray-700">{rekap['Kebersihan Bak Reservoir']}</td>
+                          <td className="px-6 py-5 whitespace-nowrap text-center text-sm font-bold text-gray-700">{rekap['Ceklist Gizi']}</td>
+                          <td className="px-6 py-5 whitespace-nowrap text-center">
+                            <span className="text-sm font-extrabold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-lg border border-indigo-100 inline-block shadow-sm">
+                              {totalSubmit}
+                            </span>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -260,20 +261,18 @@ export default function Riwayat() {
                         <td className="px-6 py-5 whitespace-nowrap">
                           <div className="flex items-center">
                             <div className="w-full bg-gray-200 rounded-full h-2.5 mr-3 max-w-20 overflow-hidden shadow-inner">
-                              <div 
-                                className={`h-full rounded-full transition-all duration-1000 ease-out ${
-                                  item.persentase >= 80 ? 'bg-linear-to-r from-green-400 to-green-500' : 
-                                  item.persentase >= 60 ? 'bg-linear-to-r from-yellow-400 to-yellow-500' : 
-                                  'bg-linear-to-r from-red-400 to-red-500'
-                                }`} 
+                              <div
+                                className={`h-full rounded-full transition-all duration-1000 ease-out ${item.persentase >= 80 ? 'bg-linear-to-r from-green-400 to-green-500' :
+                                    item.persentase >= 60 ? 'bg-linear-to-r from-yellow-400 to-yellow-500' :
+                                      'bg-linear-to-r from-red-400 to-red-500'
+                                  }`}
                                 style={{ width: `${item.persentase}%` }}
                               ></div>
                             </div>
-                            <span className={`text-sm font-black ${
-                              item.persentase >= 80 ? 'text-green-600' : 
-                              item.persentase >= 60 ? 'text-yellow-600' : 
-                              'text-red-600'
-                            }`}>
+                            <span className={`text-sm font-black ${item.persentase >= 80 ? 'text-green-600' :
+                                item.persentase >= 60 ? 'text-yellow-600' :
+                                  'text-red-600'
+                              }`}>
                               {item.persentase}%
                             </span>
                           </div>
