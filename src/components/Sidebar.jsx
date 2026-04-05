@@ -7,6 +7,7 @@ export default function Sidebar({ isOpen, onClose }) {
   const navItems = [
     { to: '/dashboard', label: 'Dashboard', icon: 'fas fa-th-large' },
     { to: '/riwayat', label: 'Riwayat', icon: 'fas fa-history' },
+    { to: '/akun', label: 'Setting Akun', icon: 'fas fa-cog' },
   ];
 
   return (

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { API_URL, getCurrentUser } from '../lib/api';
+import { supabase } from '../lib/supabase';
 
 const MySwal = withReactContent(Swal);
 
@@ -35,35 +36,53 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}?action=login&username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`, {
-        method: 'GET',
-        mode: 'cors',
-        headers: { 'Accept': 'application/json' }
+      const loginEmail = username.includes('@') ? username : `${username}@rs.com`;
+      
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+        email: loginEmail,
+        password: password,
       });
-      
-      const data = await response.json();
-      
-      if (data.status === 'success') {
-        sessionStorage.setItem('currentUser', JSON.stringify(data.data));
-        MySwal.fire({
-          icon: 'success',
-          title: 'Login Berhasil!',
-          text: `Selamat datang, ${data.data.nama}`,
-          timer: 1500,
-          showConfirmButton: false
-        }).then(() => {
-          navigate('/dashboard');
-        });
-      } else {
-        throw new Error(data.message || 'Login gagal');
+
+      if (authError) {
+        throw new Error(authError.message);
       }
+
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', authData.user.id)
+        .single();
+        
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+        // Teruskan meski profit tidak ketemu, namun lebih baik kita isi fallback
+      }
+
+      const userData = {
+        id: authData.user.id,
+        username: profileData?.username || username,
+        nama: profileData?.nama || username,
+        role: profileData?.role || 'User',
+      };
+
+      sessionStorage.setItem('currentUser', JSON.stringify(userData));
+      
+      MySwal.fire({
+        icon: 'success',
+        title: 'Login Berhasil!',
+        text: `Selamat datang, ${userData.nama}`,
+        timer: 1500,
+        showConfirmButton: false
+      }).then(() => {
+        navigate('/dashboard');
+      });
+
     } catch (error) {
-      console.error('Login error:', error);
-      const msg = error.message === 'Login gagal' ? 'Username atau password salah!' : error.message;
+      // Hapus console.error agar log teknis tidak muncul
       MySwal.fire({
         icon: 'error',
-        title: 'Gagal Login',
-        text: msg || 'Gagal terhubung ke server. Silakan coba lagi.',
+        title: 'Login Gagal',
+        text: 'Username atau password salah!',
         confirmButtonColor: '#3b82f6'
       });
     } finally {

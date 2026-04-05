@@ -1,22 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { getCurrentUser, logoutUser } from '../lib/api';
 
 export default function Navbar({ title, showBackButton, onMenuToggle }) {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef(null);
   const user = getCurrentUser();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setMenuOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   return (
     <nav className="bg-white shadow-lg border-b-2 border-blue-500 sticky top-0 z-30">
@@ -33,38 +20,25 @@ export default function Navbar({ title, showBackButton, onMenuToggle }) {
             </button>
 
             {showBackButton ? (
-              <button onClick={() => navigate(-1)} className="text-blue-600 font-bold mr-4 hover:text-blue-800 transition">
-                &larr; Kembali
+              <button
+                onClick={() => navigate(-1)}
+                className="text-blue-600 font-bold mr-4 hover:text-blue-800 transition"
+                aria-label="Kembali"
+              >
+                <i className="fas fa-arrow-left mr-1"></i> Kembali
               </button>
             ) : (
-              <img src={`${import.meta.env.BASE_URL}img/logo.png`} alt="Logo" className="h-8 w-auto mr-3 hidden lg:block" onError={(e) => e.target.style.display = 'none'} />
+              <img src={`${import.meta.env.BASE_URL}img/logo.webp`} alt="Logo" className="h-12 w-auto mr-3 hidden lg:block" onError={(e) => e.target.style.display = 'none'} />
             )}
             {title && <h1 className="text-lg font-semibold">{title}</h1>}
           </div>
-          <div className="flex items-center space-x-3 relative">
-            <button
-              onClick={() => setMenuOpen(!menuOpen)}
-              className="text-gray-600 hover:text-gray-800 focus:outline-none px-2 cursor-pointer transition flex items-center"
-            >
-              <i className="fas fa-user mr-2"></i>
-              <span className="hidden sm:inline">{user?.nama || user?.username}</span>
-            </button>
+          <div className="flex items-center space-x-3">
+            <div className="text-gray-600 flex items-center bg-gray-100 rounded-full py-1.5 px-3">
+              <i className="fas fa-user-circle text-lg text-blue-500 mr-2"></i>
+              <span className="hidden sm:inline font-medium capitalize">{user?.nama || user?.username}</span>
+            </div>
 
-            {menuOpen && (
-              <div
-                ref={menuRef}
-                className="absolute top-10 right-0 w-44 bg-white rounded shadow-lg z-50"
-              >
-                <Link
-                  to="/akun"
-                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition"
-                >
-                  Ganti Password
-                </Link>
-              </div>
-            )}
-
-            <button onClick={logoutUser} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm transition flex items-center">
+            <button onClick={logoutUser} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm transition flex items-center shadow-md">
               <i className="fas fa-sign-out-alt sm:mr-2"></i>
               <span className="hidden sm:inline">Logout</span>
             </button>

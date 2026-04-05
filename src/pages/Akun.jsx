@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import Navbar from '../components/Navbar';
+import AppLayout from '../components/AppLayout';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
-import { API_URL, getCurrentUser } from '../lib/api';
+import { getCurrentUser } from '../lib/api';
+import { supabase } from '../lib/supabase';
 
 const MySwal = withReactContent(Swal);
 
@@ -11,12 +12,14 @@ export default function Akun() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [loading, setLoading] = useState(false);
+  
+  const [loadingPass, setLoadingPass] = useState(false);
 
-  const handleSubmit = async (e) => {
+  const handlePasswordChange = async (e) => {
     e.preventDefault();
 
     if (newPassword !== confirmPassword) {
@@ -29,14 +32,8 @@ export default function Akun() {
       return;
     }
 
-    // Local check if password was stored in session
-    if (user.password && currentPassword !== user.password) {
-      MySwal.fire('Error', 'Password saat ini salah.', 'error');
-      return;
-    }
-
     const { isConfirmed } = await MySwal.fire({
-      title: 'Yakin?',
+      title: 'Yakin Ganti Password?',
       text: 'Anda akan mengganti password akun ini.',
       icon: 'warning',
       showCancelButton: true,
@@ -47,7 +44,7 @@ export default function Akun() {
 
     if (!isConfirmed) return;
 
-    setLoading(true);
+    setLoadingPass(true);
     MySwal.fire({
       title: 'Memproses...',
       allowOutsideClick: false,
@@ -57,24 +54,26 @@ export default function Akun() {
     });
 
     try {
-      const formData = new URLSearchParams();
-      formData.append('action', 'changePassword');
-      formData.append('username', user.username || '');
-      formData.append('userId', user.id || '');
-      formData.append('oldPassword', currentPassword);
-      formData.append('newPassword', newPassword);
-      formData.append('timestamp', new Date().toISOString());
-
-      await fetch(API_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: formData
+      const loginEmail = user.username?.includes('@') ? user.username : `${user.username}@rs.com`;
+      
+      // Verifikasi password lama dengan mencoba login ulang ke Supabase
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: loginEmail,
+        password: currentPassword
       });
 
-      // Update session locally
-      const updatedUser = { ...user, password: newPassword };
-      sessionStorage.setItem('currentUser', JSON.stringify(updatedUser));
+      if (signInError) {
+        throw new Error('Password saat ini salah!');
+      }
+
+      // Update password
+      const { error: updateError } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
 
       MySwal.fire({
         icon: 'success',
@@ -91,100 +90,105 @@ export default function Akun() {
 
     } catch (err) {
       console.error(err);
-      MySwal.fire('Info', 'Terjadi kesalahan saat mengirim data. Data tetap diproses secara lokal.', 'info');
+      MySwal.fire('Error', err.message || 'Terjadi kesalahan saat menyimpan password baru.', 'error');
     } finally {
-      setLoading(false);
+      setLoadingPass(false);
     }
   };
 
   return (
-    <div className="bg-gray-100 min-h-screen">
-      <Navbar title="Akun" showBackButton={true} />
-
+    <AppLayout title="Setting Akun" showBackButton={false}>
       <div className="container mx-auto px-4 py-8">
-        <div className="max-w-md mx-auto bg-white rounded-lg shadow-lg p-6">
+        <div className="max-w-md mx-auto bg-white rounded-lg shadow-lg p-6 h-fit">
           <h2 className="text-xl font-bold mb-6 text-gray-800 flex items-center">
-            <i className="fas fa-key mr-2 text-blue-500"></i>Ganti Password
+            <i className="fas fa-key mr-3 text-emerald-500"></i>Ganti Password
           </h2>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-gray-700 font-bold mb-2 text-sm">Username</label>
-              <input 
-                type="text" 
-                value={user?.username || user?.nama || ''} 
-                className="w-full border rounded-lg px-3 py-2 bg-gray-50 text-gray-500 cursor-not-allowed" 
-                disabled 
-              />
+          <div className="mb-6">
+            <label className="block text-gray-700 font-bold mb-2 text-sm">Username / Akun Aktif</label>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 flex items-center">
+              <i className="fas fa-id-badge text-gray-400 mr-3"></i>
+              <span className="text-gray-600 font-medium">{user.username}</span>
             </div>
+          </div>
 
+          <form onSubmit={handlePasswordChange} className="space-y-4">
             <div>
               <label className="block text-gray-700 font-bold mb-2 text-sm">Password Saat Ini</label>
-              <div className="password-input-group">
+              <div className="relative">
                 <input 
                   type={showCurrent ? "text" : "password"} 
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none" 
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none transition pr-12" 
                   required 
                 />
-                <i 
-                  className={`fas ${showCurrent ? 'fa-eye-slash' : 'fa-eye'} password-toggle`}
+                <button 
+                  type="button"
                   onClick={() => setShowCurrent(!showCurrent)}
-                ></i>
+                  className="absolute inset-y-0 right-0 px-4 text-gray-400 hover:text-gray-600"
+                >
+                  <i className={`fas ${showCurrent ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                </button>
               </div>
             </div>
 
             <div>
               <label className="block text-gray-700 font-bold mb-2 text-sm">Password Baru</label>
-              <div className="password-input-group">
+              <div className="relative">
                 <input 
                   type={showNew ? "text" : "password"} 
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none" 
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none transition pr-12" 
                   required minLength="6" 
                 />
-                <i 
-                  className={`fas ${showNew ? 'fa-eye-slash' : 'fa-eye'} password-toggle`}
+                <button 
+                  type="button"
                   onClick={() => setShowNew(!showNew)}
-                ></i>
+                  className="absolute inset-y-0 right-0 px-4 text-gray-400 hover:text-gray-600"
+                >
+                  <i className={`fas ${showNew ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                </button>
               </div>
             </div>
 
             <div>
               <label className="block text-gray-700 font-bold mb-2 text-sm">Konfirmasi Password Baru</label>
-              <div className="password-input-group">
+              <div className="relative">
                 <input 
                   type={showConfirm ? "text" : "password"} 
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none" 
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none transition pr-12" 
                   required 
                 />
-                <i 
-                  className={`fas ${showConfirm ? 'fa-eye-slash' : 'fa-eye'} password-toggle`}
+                <button 
+                  type="button"
                   onClick={() => setShowConfirm(!showConfirm)}
-                ></i>
+                  className="absolute inset-y-0 right-0 px-4 text-gray-400 hover:text-gray-600"
+                >
+                  <i className={`fas ${showConfirm ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                </button>
               </div>
             </div>
 
             <div className="pt-4">
               <button 
                 type="submit" 
-                disabled={loading}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition disabled:opacity-70 flex justify-center items-center shadow-md hover:shadow-lg active:scale-[0.98]"
+                disabled={loadingPass}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 px-4 rounded-lg transition disabled:opacity-70 flex justify-center items-center shadow-md active:scale-[0.98]"
               >
-                {loading ? (
+                {loadingPass ? (
                   <><i className="fas fa-spinner fa-spin mr-2"></i>Memproses...</>
                 ) : (
-                  <><i className="fas fa-save mr-2"></i>Simpan Perubahan</>
+                  <><i className="fas fa-shield-alt mr-2"></i>Simpan Password</>
                 )}
               </button>
             </div>
           </form>
         </div>
       </div>
-    </div>
+    </AppLayout>
   );
 }
