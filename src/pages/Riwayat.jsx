@@ -28,6 +28,13 @@ export default function Riwayat() {
   const currentMonth = new Date().toISOString().slice(0, 7);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
 
+  const formatMonthYear = (yyyy_mm) => {
+    if (!yyyy_mm) return '';
+    const [year, month] = yyyy_mm.split('-');
+    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    return `${months[parseInt(month, 10) - 1]} ${year}`;
+  };
+
   const fetchRiwayat = async () => {
     setLoading(true);
     setError(null);
@@ -99,7 +106,7 @@ export default function Riwayat() {
 
   useEffect(() => {
     fetchRiwayat();
-  }, [selectedMonth]); 
+  }, [selectedMonth]);
 
   const handleEditClick = (item) => {
     setEditingItem(item);
@@ -173,7 +180,7 @@ export default function Riwayat() {
 
           <div className="hidden print:block text-center font-bold text-lg mb-6 mt-4 uppercase">
             LAPORAN INSPEKSI SANITASI - {activeTab === 'rekap' ? 'REKAPITULASI PENGISIAN' : activeTab === 'rekap-ruangan' ? 'REKAPITULASI PER RUANGAN' : 'DETAIL RIWAYAT'}
-            {selectedMonth && <div className="text-sm font-normal mt-1">Periode Bulan: {selectedMonth}</div>}
+            {selectedMonth && <div className="text-sm font-normal mt-1">Periode Bulan: {formatMonthYear(selectedMonth)}</div>}
           </div>
 
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 border-b border-gray-100 pb-6 print:hidden">
@@ -254,7 +261,7 @@ export default function Riwayat() {
                 </div>
                 <h3 className="text-2xl font-bold text-gray-700">Tidak ada riwayat</h3>
                 <p className="text-sm mt-3 text-gray-500 max-w-md mx-auto font-medium">
-                  {selectedMonth ? `Tidak ada pengisian form yang ditemukan pada bulan ${selectedMonth}.` : 'Belum ada data tersedia.'}
+                  {selectedMonth ? `Tidak ada pengisian form yang ditemukan pada bulan ${formatMonthYear(selectedMonth)}.` : 'Belum ada data tersedia.'}
                 </p>
                 <button
                   onClick={fetchRiwayat}

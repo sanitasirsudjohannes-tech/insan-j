@@ -12,6 +12,13 @@ export default function DashboardAdmin() {
   const [chartData, setChartData] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
 
+  const formatMonthYear = (yyyy_mm) => {
+    if (!yyyy_mm) return '';
+    const [year, month] = yyyy_mm.split('-');
+    const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    return `${months[parseInt(month, 10) - 1]} ${year}`;
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
@@ -100,7 +107,7 @@ export default function DashboardAdmin() {
         <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between border-b border-gray-100 pb-6">
           <div>
             <h2 className="text-3xl font-extrabold text-gray-800">Dashboard Statistik</h2>
-            <p className="text-gray-500 mt-2 font-medium">Ringkasan inspeksi sanitasi RSUD Prof. DR. W.Z. Johannes Kupang pada {selectedMonth ? selectedMonth : 'sepanjang waktu'}</p>
+            <p className="text-gray-500 mt-2 font-medium">Ringkasan inspeksi sanitasi RSUD Prof. DR. W.Z. Johannes Kupang pada {selectedMonth ? formatMonthYear(selectedMonth) : 'sepanjang waktu'}</p>
           </div>
 
           <div className="mt-4 md:mt-0 relative w-full sm:w-auto">
@@ -146,9 +153,9 @@ export default function DashboardAdmin() {
                   </div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={chartData} margin={{ top: 30, right: 10, left: -20, bottom: 5 }}>
+                    <BarChart data={chartData} margin={{ top: 30, right: 10, left: -20, bottom: 40 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontWeight: '700', fontSize: 12 }} dy={15} />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontWeight: '700', fontSize: 11 }} height={60} dy={15} angle={-35} textAnchor="end" />
                       <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontWeight: '600', fontSize: 12 }} dx={-5} />
                       <RechartsTooltip
                         cursor={{ fill: '#f8fafc' }}
