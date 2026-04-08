@@ -1,6 +1,5 @@
 import { supabase } from './supabase';
 
-export const API_URL = ''; // Deprecated, will not be used
 export const getCurrentUser = () => {
   const userStr = sessionStorage.getItem('currentUser');
   if (!userStr) return null;

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
-import { API_URL, getCurrentUser } from '../lib/api';
+import { getCurrentUser } from '../lib/api';
 import { supabase } from '../lib/supabase';
 
 const MySwal = withReactContent(Swal);

@@ -1,4 +1,4 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { getCurrentUser, logoutUser } from '../lib/api';
 
 export default function Navbar({ title, showBackButton, onMenuToggle }) {
