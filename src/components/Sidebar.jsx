@@ -4,9 +4,12 @@ import { getCurrentUser } from '../lib/api';
 export default function Sidebar({ isOpen, onClose }) {
   const user = getCurrentUser();
 
+  const isAdmin = user?.role?.toLowerCase() === 'admin';
+
   const navItems = [
     { to: '/dashboard', label: 'Dashboard', icon: 'fas fa-th-large' },
     { to: '/riwayat', label: 'Riwayat', icon: 'fas fa-history' },
+    ...(isAdmin ? [{ to: '/kelola-admin', label: 'Kelola Pengguna', icon: 'fas fa-users-cog', adminOnly: true }] : []),
     { to: '/akun', label: 'Setting Akun', icon: 'fas fa-cog' },
   ];
 
@@ -61,7 +64,9 @@ export default function Sidebar({ isOpen, onClose }) {
               className={({ isActive }) =>
                 `group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                   isActive
-                    ? 'bg-blue-600/20 text-blue-400 shadow-inner'
+                    ? item.adminOnly
+                      ? 'bg-purple-600/20 text-purple-400 shadow-inner'
+                      : 'bg-blue-600/20 text-blue-400 shadow-inner'
                     : 'text-slate-300 hover:bg-white/5 hover:text-white'
                 }`
               }
@@ -71,21 +76,29 @@ export default function Sidebar({ isOpen, onClose }) {
                   <span
                     className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 ${
                       isActive
-                        ? 'bg-blue-500/30 text-blue-400'
+                        ? item.adminOnly
+                          ? 'bg-purple-500/30 text-purple-400'
+                          : 'bg-blue-500/30 text-blue-400'
                         : 'bg-white/5 text-slate-400 group-hover:bg-white/10 group-hover:text-white'
                     }`}
                   >
                     <i className={`${item.icon} text-xs`}></i>
                   </span>
                   <span>{item.label}</span>
+                  {item.adminOnly && !isActive && (
+                    <span className="ml-auto text-[9px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-bold border border-purple-500/30">
+                      ADMIN
+                    </span>
+                  )}
                   {isActive && (
-                    <span className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-400 shadow-lg shadow-blue-400/50"></span>
+                    <span className={`ml-auto w-1.5 h-1.5 rounded-full shadow-lg ${item.adminOnly ? 'bg-purple-400 shadow-purple-400/50' : 'bg-blue-400 shadow-blue-400/50'}`}></span>
                   )}
                 </>
               )}
             </NavLink>
           ))}
         </nav>
+
 
         {/* User info at bottom */}
         <div className="px-4 py-4 border-t border-white/10">

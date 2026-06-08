@@ -7,6 +7,7 @@ const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Akun = lazy(() => import('./pages/Akun'));
 const Riwayat = lazy(() => import('./pages/Riwayat'));
+const KelolaAdmin = lazy(() => import('./pages/KelolaAdmin'));
 
 // Loading component
 const LoadingScreen = () => (
@@ -39,6 +40,12 @@ function App() {
           <Route path="/riwayat" element={
             <ProtectedRoute>
               <Riwayat />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/kelola-admin" element={
+            <ProtectedRoute>
+              <KelolaAdmin />
             </ProtectedRoute>
           } />
 
