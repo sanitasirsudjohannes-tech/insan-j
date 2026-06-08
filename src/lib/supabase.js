@@ -1,6 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://pwfwtorgtzghpklfrmiw.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB3Znd0b3JndHpnaHBrbGZybWl3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUxNTcwNjIsImV4cCI6MjA5MDczMzA2Mn0.RqiykXT4qlMW8NmkRhQOZtJf7IsdUauRAMRJDgJ3rUA';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  throw new Error('Supabase URL dan Anon Key tidak ditemukan. Pastikan file .env sudah dikonfigurasi dengan benar.');
+}
 
 export const supabase = createClient(supabaseUrl, supabaseKey);

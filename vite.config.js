@@ -8,5 +8,5 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
-  base: '/insan-j/',
+  // base: '/' is default - cocok untuk Vercel
 })

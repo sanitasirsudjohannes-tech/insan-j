@@ -24,5 +24,27 @@ dist-ssr
 *.sw?
 
 # Legacy Files (Original HTML)
-# Hapus tanda pagar (#) di bawah ini jika tidak ingin folder legacy_html ikut dipush ke Git
 legacy_html/
+
+# ============================================
+# KEAMANAN - JANGAN HAPUS BAGIAN INI!
+# ============================================
+
+# Environment variables - berisi credentials rahasia
+# JANGAN pernah commit file ini ke Git!
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# File .env.example BOLEH di-commit (berisi template kosong)
+!.env.example
+
+# Vercel deployment
+.vercel
+
+# Temporary files
+temp-react-app/
+backend/
