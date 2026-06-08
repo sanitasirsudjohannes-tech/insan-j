@@ -156,22 +156,6 @@ export default function KelolaAdmin() {
           </div>
         </div>
 
-        {/* Info Box */}
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-start gap-3">
-          <i className="fas fa-info-circle text-amber-500 mt-0.5 shrink-0"></i>
-          <div className="text-sm text-amber-800">
-            <p className="font-semibold">Tentang Fitur Reset Password</p>
-            <p className="mt-1 text-amber-700">
-              Fitur ini akan mereset password pengguna ke{' '}
-              <strong className="font-mono">{DEFAULT_PASSWORD}</strong>. Pengguna disarankan untuk
-              mengganti password mereka setelah login. Pastikan{' '}
-              <strong>function SQL</strong>{' '}
-              <code className="bg-amber-100 px-1 rounded">admin_reset_user_password</code> sudah
-              dibuat di Supabase.
-            </p>
-          </div>
-        </div>
-
         {/* Main Card */}
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
           {/* Search Bar */}
