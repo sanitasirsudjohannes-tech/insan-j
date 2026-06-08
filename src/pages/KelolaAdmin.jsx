@@ -132,7 +132,7 @@ export default function KelolaAdmin() {
     <AppLayout title="Kelola Pengguna" showBackButton={false}>
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         {/* Header Card */}
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 mb-6 shadow-lg text-white">
+        <div className="bg-linear-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 mb-6 shadow-lg text-white">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl font-extrabold tracking-tight flex items-center gap-3">
@@ -234,7 +234,7 @@ export default function KelolaAdmin() {
                         <td className="px-6 py-4 text-gray-400 font-medium">{idx + 1}</td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white text-sm font-bold shadow-sm shrink-0">
+                            <div className="w-9 h-9 rounded-full bg-linear-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-white text-sm font-bold shadow-sm shrink-0">
                               {(u.nama || 'U').charAt(0).toUpperCase()}
                             </div>
                             <span className="font-semibold text-gray-800">{u.nama}</span>
@@ -276,7 +276,7 @@ export default function KelolaAdmin() {
                 {filteredUsers.map((u, idx) => (
                   <div key={u.id} className="p-4 hover:bg-indigo-50/20 transition-colors">
                     <div className="flex items-center gap-3 mb-3">
-                      <div className="w-11 h-11 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-sm shrink-0">
+                      <div className="w-11 h-11 rounded-full bg-linear-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-sm shrink-0">
                         {(u.nama || 'U').charAt(0).toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
