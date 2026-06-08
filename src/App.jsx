@@ -8,6 +8,8 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Akun = lazy(() => import('./pages/Akun'));
 const Riwayat = lazy(() => import('./pages/Riwayat'));
 const KelolaAdmin = lazy(() => import('./pages/KelolaAdmin'));
+const Inspeksi = lazy(() => import('./pages/Inspeksi'));
+const LimbahPadat = lazy(() => import('./pages/LimbahPadat'));
 
 // Loading component
 const LoadingScreen = () => (
@@ -46,6 +48,18 @@ function App() {
           <Route path="/kelola-admin" element={
             <ProtectedRoute>
               <KelolaAdmin />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/inspeksi" element={
+            <ProtectedRoute>
+              <Inspeksi />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/limbah-padat" element={
+            <ProtectedRoute>
+              <LimbahPadat />
             </ProtectedRoute>
           } />
 

@@ -8,7 +8,9 @@ export default function Sidebar({ isOpen, onClose }) {
 
   const navItems = [
     { to: '/dashboard', label: 'Dashboard', icon: 'fas fa-th-large' },
-    { to: '/riwayat', label: 'Riwayat', icon: 'fas fa-history' },
+    { to: '/limbah-padat', label: 'Limbah Medis Padat', icon: 'fas fa-trash-alt' },
+    { to: '/inspeksi', label: 'Form Inspeksi', icon: 'fas fa-clipboard-list' },
+    { to: '/riwayat', label: 'Riwayat Inspeksi', icon: 'fas fa-history' },
     ...(isAdmin ? [{ to: '/kelola-admin', label: 'Kelola Pengguna', icon: 'fas fa-users-cog', adminOnly: true }] : []),
     { to: '/akun', label: 'Setting Akun', icon: 'fas fa-cog' },
   ];
@@ -62,25 +64,23 @@ export default function Sidebar({ isOpen, onClose }) {
               to={item.to}
               onClick={onClose}
               className={({ isActive }) =>
-                `group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  isActive
-                    ? item.adminOnly
-                      ? 'bg-purple-600/20 text-purple-400 shadow-inner'
-                      : 'bg-blue-600/20 text-blue-400 shadow-inner'
-                    : 'text-slate-300 hover:bg-white/5 hover:text-white'
+                `group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${isActive
+                  ? item.adminOnly
+                    ? 'bg-purple-600/20 text-purple-400 shadow-inner'
+                    : 'bg-blue-600/20 text-blue-400 shadow-inner'
+                  : 'text-slate-300 hover:bg-white/5 hover:text-white'
                 }`
               }
             >
               {({ isActive }) => (
                 <>
                   <span
-                    className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 ${
-                      isActive
-                        ? item.adminOnly
-                          ? 'bg-purple-500/30 text-purple-400'
-                          : 'bg-blue-500/30 text-blue-400'
-                        : 'bg-white/5 text-slate-400 group-hover:bg-white/10 group-hover:text-white'
-                    }`}
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 ${isActive
+                      ? item.adminOnly
+                        ? 'bg-purple-500/30 text-purple-400'
+                        : 'bg-blue-500/30 text-blue-400'
+                      : 'bg-white/5 text-slate-400 group-hover:bg-white/10 group-hover:text-white'
+                      }`}
                   >
                     <i className={`${item.icon} text-xs`}></i>
                   </span>
