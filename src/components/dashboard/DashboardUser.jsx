@@ -29,17 +29,17 @@ export default function DashboardUser({ user }) {
           <button
             onClick={() => setActiveTab('pengangkutan')}
             className={`px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center ${activeTab === 'pengangkutan'
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
-                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
+              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
               }`}
           >
-            <i className="fas fa-truck-loading mr-2"></i> Pencatatan & Pengangkutan
+            <i className="fas fa-truck-loading mr-2"></i> Sisa Limbah & Pengangkutan
           </button>
           <button
             onClick={() => setActiveTab('jenis_limbah')}
             className={`px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center ${activeTab === 'jenis_limbah'
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
-                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30'
+              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
               }`}
           >
             <i className="fas fa-layer-group mr-2"></i> Jenis & Trend Bulanan
