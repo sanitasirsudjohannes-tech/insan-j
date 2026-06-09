@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import AppLayout from '../components/AppLayout';
+import AppLayout from '../AppLayout';
 import { supabase } from '../../lib/supabase';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
