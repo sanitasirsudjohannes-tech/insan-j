@@ -452,7 +452,11 @@ export default function LimbahPadat() {
     if (!val) return '';
     // If Date object (cellDates:true)
     if (val instanceof Date) {
-      return val.toISOString().split('T')[0];
+      const year = val.getFullYear();
+      const month = String(val.getMonth() + 1).padStart(2, '0');
+      const day = String(val.getDate()).padStart(2, '0');
+
+      return `${year}-${month}-${day}`;
     }
     // If Excel serial number
     if (typeof val === 'number') {
