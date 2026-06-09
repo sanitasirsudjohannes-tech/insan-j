@@ -23,8 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 
-# Legacy Files (Original HTML)
-legacy_html/
 
 # ============================================
 # KEAMANAN - JANGAN HAPUS BAGIAN INI!
