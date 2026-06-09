@@ -46,6 +46,4 @@ legacy_html/
 .vercel
 
 # Temporary files
-temp-react-app/
-backend/temp-react-app/
-backend/
+
