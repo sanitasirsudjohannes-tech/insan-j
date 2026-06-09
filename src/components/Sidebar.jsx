@@ -7,9 +7,11 @@ export default function Sidebar({ isOpen, onClose }) {
 
   const navItems = [
     { to: '/dashboard', label: 'Dashboard', icon: 'fas fa-th-large' },
-    { to: '/limbah-padat', label: 'Limbah Medis Padat', icon: 'fas fa-trash-alt' },
-    { to: '/pengangkutan', label: 'Pengangkutan Limbah', icon: 'fas fa-truck' },
-    { to: '/inspeksi', label: 'Form Inspeksi', icon: 'fas fa-clipboard-list' },
+    ...(!isAdmin ? [
+      { to: '/limbah-padat', label: 'Limbah Medis Padat', icon: 'fas fa-trash-alt' },
+      { to: '/pengangkutan', label: 'Pengangkutan Limbah', icon: 'fas fa-truck' },
+      { to: '/inspeksi', label: 'Form Inspeksi', icon: 'fas fa-clipboard-list' }
+    ] : []),
     { to: '/riwayat', label: 'Riwayat Inspeksi', icon: 'fas fa-history' },
     ...(isAdmin ? [{ to: '/kelola-admin', label: 'Kelola Pengguna', icon: 'fas fa-users-cog', adminOnly: true }] : []),
     { to: '/akun', label: 'Setting Akun', icon: 'fas fa-cog' },
