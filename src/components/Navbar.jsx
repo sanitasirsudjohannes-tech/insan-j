@@ -2,8 +2,11 @@ import { useNavigate } from 'react-router-dom';
 import { getCurrentUser, logoutUser } from '../lib/api';
 
 export default function Navbar({ title, showBackButton, onMenuToggle }) {
-  const user = getCurrentUser();
+  // const user = getCurrentUser();
   const navigate = useNavigate();
+  const user = getCurrentUser();
+  const role = user?.role?.trim().toLowerCase();
+  const isAdmin = role === 'admin';
 
   return (
     <nav className="bg-white shadow-lg border-b-2 border-blue-500 sticky top-0 z-30">
@@ -34,8 +37,17 @@ export default function Navbar({ title, showBackButton, onMenuToggle }) {
           </div>
           <div className="flex items-center space-x-3">
             <div className="text-gray-600 flex items-center bg-gray-100 rounded-full py-1.5 px-3">
-              <i className="fas fa-user-circle text-lg text-blue-500 mr-2"></i>
-              <span className="hidden sm:inline font-medium capitalize">{user?.nama || user?.username}</span>
+              <i
+                className={`fas fa-user-circle text-lg mr-2 ${isAdmin ? 'text-purple-600' : 'text-cyan-600'
+                  }`}
+              ></i>
+
+              <span
+                className={`hidden sm:inline font-medium capitalize ${isAdmin ? 'text-purple-700' : 'text-cyan-700'
+                  }`}
+              >
+                {user?.nama || user?.username}
+              </span>
             </div>
 
             <button onClick={logoutUser} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm transition flex items-center shadow-md">

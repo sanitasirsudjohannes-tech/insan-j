@@ -73,12 +73,33 @@ export default function Sidebar({ isOpen, onClose }) {
         {/* User info */}
         <div className="px-4 py-4 border-t border-white/10">
           <div className="flex items-center gap-3 px-2">
-            <div className="w-8 h-8 rounded-full bg-linear-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs font-bold shadow-md">
+            <div
+              className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md ${user?.role?.toLowerCase() === 'admin'
+                  ? 'bg-linear-to-br from-red-500 to-purple-600'
+                  : 'bg-linear-to-br from-blue-500 to-cyan-500'
+                }`}
+            >
               {(user?.nama || 'U').charAt(0).toUpperCase()}
             </div>
+
             <div className="flex-1 min-w-0">
-              <p className="text-white text-sm font-medium truncate">{user?.nama || 'User'}</p>
-              <p className="text-slate-400 text-[10px] capitalize">{user?.role || 'Petugas'}</p>
+              <p
+                className={`text-sm font-medium truncate ${user?.role?.toLowerCase() === 'admin'
+                    ? 'text-purple-300'
+                    : 'text-cyan-300'
+                  }`}
+              >
+                {user?.nama || 'User'}
+              </p>
+
+              <p
+                className={`text-[10px] capitalize font-medium ${user?.role?.toLowerCase() === 'admin'
+                    ? 'text-purple-400'
+                    : 'text-cyan-400'
+                  }`}
+              >
+                {user?.role || 'Petugas'}
+              </p>
             </div>
           </div>
         </div>
