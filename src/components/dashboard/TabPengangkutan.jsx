@@ -17,8 +17,7 @@ export default function TabPengangkutan() {
         const { data: limbahRows } = await supabase
           .from('limbah_padat')
           .select('tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
-          .order('tanggal', { ascending: true })
-          .limit(60);
+          .order('tanggal', { ascending: true });
 
         const { data: angkutRows } = await supabase
           .from('pengangkutan_limbah')
@@ -74,7 +73,7 @@ export default function TabPengangkutan() {
   const cards = [
     { label: 'Total Limbah Masuk', value: `${summary.masuk} Kg`, icon: 'fa-plus-circle', color: 'border-blue-500', iconBg: 'bg-blue-100 text-blue-500' },
     { label: 'Total Diangkut', value: `${summary.diangkut} Kg`, icon: 'fa-truck', color: 'border-orange-500', iconBg: 'bg-orange-100 text-orange-500' },
-    { label: 'Sisa Limbah (Stok)', value: `${summary.sisa} Kg`, icon: 'fa-biohazard', color: parseFloat(summary.sisa) > 0 ? 'border-red-500' : 'border-green-500', iconBg: parseFloat(summary.sisa) > 0 ? 'bg-red-100 text-red-500' : 'bg-green-100 text-green-500' },
+    { label: 'Sisa Limbah', value: `${summary.sisa} Kg`, icon: 'fa-biohazard', color: parseFloat(summary.sisa) > 0 ? 'border-red-500' : 'border-green-500', iconBg: parseFloat(summary.sisa) > 0 ? 'bg-red-100 text-red-500' : 'bg-green-100 text-green-500' },
   ];
 
   if (loading) {
