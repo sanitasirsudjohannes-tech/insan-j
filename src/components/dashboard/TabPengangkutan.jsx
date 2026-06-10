@@ -7,6 +7,8 @@ import {
 
 export default function TabPengangkutan() {
   const [chartData, setChartData] = useState([]);
+  const [allData, setAllData] = useState([]);
+  const [selectedMonth, setSelectedMonth] = useState('');
   const [summary, setSummary] = useState({ masuk: 0, diangkut: 0, sisa: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -40,20 +42,38 @@ export default function TabPengangkutan() {
 
         let kumulatifSisa = 0;
         const combined = allDates.map(date => {
-          const masuk = limbahMap[date] || 0;
-          const diangkut = angkutMap[date] || 0;
-          kumulatifSisa += masuk - diangkut;
-          return {
-            tanggal: new Date(date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
-            masuk: parseFloat(masuk.toFixed(2)),
-            diangkut: parseFloat(diangkut.toFixed(2)),
-            sisa: parseFloat(kumulatifSisa.toFixed(2)),
-          };
-        });
+        const masuk = limbahMap[date] || 0;
+        const diangkut = angkutMap[date] || 0;
 
-        const recent = combined.slice(-30);
-        setChartData(recent);
+        kumulatifSisa += masuk - diangkut;
 
+        const d = new Date(date);
+
+        return {
+          fullDate: date,
+          bulanTahun: `${d.getFullYear()}-${String(
+            d.getMonth() + 1
+          ).padStart(2, '0')}`,
+          tanggal: d.toLocaleDateString('id-ID', {
+            day: 'numeric',
+            month: 'short'
+          }),
+          masuk: parseFloat(masuk.toFixed(2)),
+          diangkut: parseFloat(diangkut.toFixed(2)),
+          sisa: parseFloat(kumulatifSisa.toFixed(2)),
+        };
+      });
+
+      setAllData(combined);
+
+      if (combined.length > 0) {
+        const latestMonth = combined[combined.length - 1].bulanTahun;
+        setSelectedMonth(latestMonth);
+
+        setChartData(
+          combined.filter(item => item.bulanTahun === latestMonth)
+        );
+      }
         const totalMasuk = Object.values(limbahMap).reduce((a, b) => a + b, 0);
         const totalAngkut = Object.values(angkutMap).reduce((a, b) => a + b, 0);
         setSummary({
@@ -69,6 +89,20 @@ export default function TabPengangkutan() {
     };
     fetchAll();
   }, []);
+
+  useEffect(() => {
+    if (!selectedMonth || !allData.length) return;
+
+    const filtered = allData.filter(
+      item => item.bulanTahun === selectedMonth
+    );
+
+    setChartData(filtered);
+  }, [selectedMonth, allData]);
+
+  const availableMonths = [
+    ...new Set(allData.map(item => item.bulanTahun))
+  ];
 
   const cards = [
     { label: 'Total Limbah Masuk', value: `${summary.masuk} Kg`, icon: 'fa-plus-circle', color: 'border-blue-500', iconBg: 'bg-blue-100 text-blue-500' },
@@ -109,6 +143,33 @@ export default function TabPengangkutan() {
           <p className="text-gray-500 font-medium">Belum ada data limbah.</p>
         </div>
       ) : (
+        <>
+        <div className="flex justify-end mb-4">
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          >
+            {availableMonths.map(month => {
+              const [year, monthNum] = month.split('-');
+
+              const label = new Date(
+                Number(year),
+                Number(monthNum) - 1
+              ).toLocaleDateString('id-ID', {
+                month: 'long',
+                year: 'numeric'
+              });
+
+              return (
+                <option key={month} value={month}>
+                  {label}
+                </option>
+              );
+            })}
+          </select>
+        </div>
+        
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Bar Chart: masuk vs diangkut */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
@@ -152,6 +213,7 @@ export default function TabPengangkutan() {
             </div>
           </div>
         </div>
+        </>
       )}
     </div>
   );
