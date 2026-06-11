@@ -290,9 +290,9 @@ export default function LimbahPadat() {
   const handleDownloadTemplate = () => {
     const templateData = [
       ['No.', 'Tanggal', 'Limbah Infeksius (Kg)', 'Jarum Suntik (Kg)', 'Botol Obat (Kg)', 'Sitotoksik (Kg)'],
-      ['', 'Petunjuk: Isi tanggal format YYYY-MM-DD, misal: 2025-01-15', '', '', '', ''],
-      [1, '2025-01-01', 0.5, 0.2, 0.1, 0.05],
-      [2, '2025-01-02', 0.8, 0.3, 0.15, 0.1],
+      ['', 'Petunjuk: Isi tanggal format DD-MM-YYYY, misal: 15-01-2025', '', '', '', ''],
+      [1, '01-01-2025', 0.5, 0.2, 0.1, 0.05],
+      [2, '02-01-2025', 0.8, 0.3, 0.15, 0.1],
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(templateData);
@@ -317,7 +317,7 @@ export default function LimbahPadat() {
     reader.onload = async (evt) => {
       try {
         const binaryStr = evt.target.result;
-        const wb = XLSX.read(binaryStr, { type: 'binary', cellDates: true });
+        const wb = XLSX.read(binaryStr, {type: 'binary', cellDates: false});
         const sheetName = wb.SheetNames[0];
         const ws = wb.Sheets[sheetName];
 
@@ -449,35 +449,27 @@ export default function LimbahPadat() {
 
   // Helper: parse tanggal dari Excel (bisa Date object, serial number, atau string)
   const formatDateFromExcel = (val) => {
-    if (!val) return '';
-    // If Date object (cellDates:true)
-    if (val instanceof Date) {
-      const year = val.getFullYear();
-      const month = String(val.getMonth() + 1).padStart(2, '0');
-      const day = String(val.getDate()).padStart(2, '0');
+  if (!val) return '';
 
-      return `${year}-${month}-${day}`;
+  if (typeof val === 'number') {
+    const date = XLSX.SSF.parse_date_code(val);
+
+    if (date) {
+      return `${date.y}-${String(date.m).padStart(2,'0')}-${String(date.d).padStart(2,'0')}`;
     }
-    // If Excel serial number
-    if (typeof val === 'number') {
-      const date = XLSX.SSF.parse_date_code(val);
-      if (date) {
-        const m = String(date.m).padStart(2, '0');
-        const d = String(date.d).padStart(2, '0');
-        return `${date.y}-${m}-${d}`;
-      }
-    }
-    // If string - try to parse
-    const str = String(val).trim();
-    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
-    // try d/m/Y or d-m-Y
-    const parts = str.split(/[\/\-\.]/);
-    if (parts.length === 3) {
-      if (parts[0].length === 4) return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
-      return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
-    }
-    return '';
-  };
+  }
+
+  const str = String(val).trim();
+
+  const match = str.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/);
+
+  if (match) {
+    const [, day, month, year] = match;
+    return `${year}-${month}-${day}`;
+  }
+
+  return '';
+};
 
   // ─── PRINT PDF ───────────────────────────────────────────────────────────────
   const handlePrint = async () => {
