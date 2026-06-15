@@ -144,30 +144,34 @@ export default function TabPengangkutan() {
         </div>
       ) : (
         <>
-        <div className="flex justify-end mb-4">
-          <select
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg shadow-sm text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            {availableMonths.map(month => {
-              const [year, monthNum] = month.split('-');
-
-              const label = new Date(
-                Number(year),
-                Number(monthNum) - 1
-              ).toLocaleDateString('id-ID', {
-                month: 'long',
-                year: 'numeric'
-              });
-
-              return (
-                <option key={month} value={month}>
-                  {label}
-                </option>
-              );
-            })}
-          </select>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <div className="flex items-center mb-3 sm:mb-0">
+            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center mr-3">
+              <i className="fas fa-calendar-alt text-blue-500 text-lg"></i>
+            </div>
+            <div>
+              <h3 className="text-gray-800 font-bold text-sm">Periode Laporan</h3>
+              <p className="text-xs text-gray-500 font-medium">Pilih bulan untuk melihat grafik</p>
+            </div>
+          </div>
+          <div className="relative">
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="appearance-none w-full sm:w-auto bg-blue-50/50 border border-blue-200 text-blue-700 font-bold px-5 py-2.5 pr-12 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all cursor-pointer hover:bg-blue-100/50"
+            >
+              {availableMonths.map(month => {
+                const [year, monthNum] = month.split('-');
+                const label = new Date(Number(year), Number(monthNum) - 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+                return (
+                  <option key={month} value={month} className="bg-white text-gray-700 font-medium">{label}</option>
+                );
+              })}
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-blue-500">
+              <i className="fas fa-chevron-down text-sm"></i>
+            </div>
+          </div>
         </div>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -178,7 +182,7 @@ export default function TabPengangkutan() {
               Limbah Masuk vs Diangkut (Harian)
             </h3>
             <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                 <BarChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="tanggal" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
@@ -199,7 +203,7 @@ export default function TabPengangkutan() {
               Sisa Limbah Kumulatif (Stok)
             </h3>
             <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                 <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="tanggal" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
