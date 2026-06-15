@@ -13,9 +13,13 @@ export default function TabJenisLimbah() {
   const [chartReady, setChartReady] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setChartReady(true), 100);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!loading) {
+      const timer = setTimeout(() => setChartReady(true), 150);
+      return () => clearTimeout(timer);
+    } else {
+      setChartReady(false);
+    }
+  }, [loading]);
 
   useEffect(() => {
     const fetchLimbah = async () => {
