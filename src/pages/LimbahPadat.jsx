@@ -447,29 +447,34 @@ export default function LimbahPadat() {
     reader.readAsBinaryString(file);
   };
 
-  // Helper: parse tanggal dari Excel (bisa Date object, serial number, atau string)
   const formatDateFromExcel = (val) => {
-  if (!val) return '';
+    if (!val) return '';
 
-  if (typeof val === 'number') {
-    const date = XLSX.SSF.parse_date_code(val);
-
-    if (date) {
-      return `${date.y}-${String(date.m).padStart(2,'0')}-${String(date.d).padStart(2,'0')}`;
+    if (typeof val === 'number') {
+      const date = XLSX.SSF.parse_date_code(val);
+      if (date) {
+        return `${date.y}-${String(date.m).padStart(2, '0')}-${String(date.d).padStart(2, '0')}`;
+      }
     }
-  }
 
-  const str = String(val).trim();
+    const str = String(val).trim();
 
-  const match = str.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/);
+    // Cek format dd-mm-yyyy atau dd/mm/yyyy
+    const matchId = str.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+    if (matchId) {
+      const [, day, month, year] = matchId;
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
 
-  if (match) {
-    const [, day, month, year] = match;
-    return `${year}-${month}-${day}`;
-  }
+    // Cek format yyyy-mm-dd atau yyyy/mm/dd
+    const matchIso = str.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+    if (matchIso) {
+      const [, year, month, day] = matchIso;
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
 
-  return '';
-};
+    return '';
+  };
 
   // ─── PRINT PDF ───────────────────────────────────────────────────────────────
   const handlePrint = async () => {

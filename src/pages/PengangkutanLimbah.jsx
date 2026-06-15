@@ -165,7 +165,7 @@ export default function PengangkutanLimbah() {
         const reader = new FileReader();
         reader.onload = async (evt) => {
             try {
-                const wb = XLSX.read(evt.target.result, { type: 'binary', cellDates: true });
+                const wb = XLSX.read(evt.target.result, { type: 'binary', cellDates: false });
                 const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
 
                 let hIdx = rows.findIndex(r => r.join('').toLowerCase().includes('tanggal'));
@@ -182,11 +182,24 @@ export default function PengangkutanLimbah() {
                 if (!isConfirmed) return;
 
                 const parseDate = (val) => {
-                    if (val instanceof Date) return val.toISOString().split('T')[0];
-                    const s = String(val).trim();
-                    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-                    const p = s.split(/[\/\-\.]/);
-                    if (p.length === 3) return p[0].length === 4 ? `${p[0]}-${p[1].padStart(2, '0')}-${p[2].padStart(2, '0')}` : `${p[2]}-${p[1].padStart(2, '0')}-${p[0].padStart(2, '0')}`;
+                    if (!val) return '';
+                    if (typeof val === 'number') {
+                        const date = XLSX.SSF.parse_date_code(val);
+                        if (date) {
+                            return `${date.y}-${String(date.m).padStart(2, '0')}-${String(date.d).padStart(2, '0')}`;
+                        }
+                    }
+                    const str = String(val).trim();
+                    const matchId = str.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
+                    if (matchId) {
+                        const [, day, month, year] = matchId;
+                        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                    }
+                    const matchIso = str.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
+                    if (matchIso) {
+                        const [, year, month, day] = matchIso;
+                        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                    }
                     return '';
                 };
 
