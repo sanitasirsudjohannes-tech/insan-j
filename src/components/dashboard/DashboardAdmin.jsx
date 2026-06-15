@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import AppLayout from '../AppLayout';
 import { supabase } from '../../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
@@ -109,7 +109,7 @@ export default function DashboardAdmin() {
     fetchData();
   }, [selectedMonth]);
 
-  const colors = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#6366f1'];
+  const colors = React.useMemo(() => ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#6366f1'], []);
 
   return (
     <AppLayout title="Dashboard Admin">
