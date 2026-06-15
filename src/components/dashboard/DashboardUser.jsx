@@ -47,7 +47,7 @@ export default function DashboardUser({ user }) {
         </div>
 
         {/* Tab Content */}
-        <div className="transition-all duration-300 min-h-[400px]">
+        <div className="min-h-[400px]">
           {activeTab === 'pengangkutan' && <TabPengangkutan />}
           {activeTab === 'jenis_limbah' && <TabJenisLimbah />}
         </div>

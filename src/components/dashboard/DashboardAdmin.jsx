@@ -11,6 +11,12 @@ export default function DashboardAdmin() {
   });
   const [chartData, setChartData] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [chartReady, setChartReady] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setChartReady(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   const formatMonthYear = (yyyy_mm) => {
     if (!yyyy_mm) return '';
@@ -151,7 +157,7 @@ export default function DashboardAdmin() {
                     <i className="fas fa-folder-open text-5xl mb-4 opacity-40"></i>
                     <p className="font-semibold">Belum ada data bulan ini</p>
                   </div>
-                ) : (
+                ) : chartReady ? (
                   <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
                     <BarChart data={chartData} margin={{ top: 30, right: 10, left: -20, bottom: 40 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -169,7 +175,7 @@ export default function DashboardAdmin() {
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
-                )}
+                ) : null}
               </div>
             </div>
           </div>

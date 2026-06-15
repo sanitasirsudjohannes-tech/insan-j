@@ -10,6 +10,12 @@ export default function TabJenisLimbah() {
   const [dailyData, setDailyData] = useState([]);
   const [monthlyData, setMonthlyData] = useState([]);
   const [summary, setSummary] = useState({ infeksius: 0, jarum: 0, botol: 0, sito: 0 });
+  const [chartReady, setChartReady] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setChartReady(true), 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     const fetchLimbah = async () => {
@@ -133,7 +139,7 @@ export default function TabJenisLimbah() {
                 <i className="fas fa-inbox text-4xl mb-3 opacity-30"></i>
                 <p>Belum ada data</p>
               </div>
-            ) : (
+            ) : chartReady ? (
               <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
                 <BarChart data={dailyData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -149,7 +155,7 @@ export default function TabJenisLimbah() {
                   ))}
                 </BarChart>
               </ResponsiveContainer>
-            )}
+            ) : null}
           </div>
         </div>
 
@@ -165,7 +171,7 @@ export default function TabJenisLimbah() {
                 <i className="fas fa-inbox text-4xl mb-3 opacity-30"></i>
                 <p>Belum ada data</p>
               </div>
-            ) : (
+            ) : chartReady ? (
               <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
                 <AreaChart data={monthlyData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                   <defs>
@@ -184,7 +190,7 @@ export default function TabJenisLimbah() {
                   <Area type="monotone" dataKey="total" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorTotal)" activeDot={{ r: 6, strokeWidth: 0 }} />
                 </AreaChart>
               </ResponsiveContainer>
-            )}
+            ) : null}
           </div>
         </div>
       </div>
