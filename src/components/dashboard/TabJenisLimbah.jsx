@@ -134,7 +134,7 @@ export default function TabJenisLimbah() {
                 <p>Belum ada data</p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+              <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
                 <BarChart data={dailyData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="tanggal" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
@@ -166,7 +166,7 @@ export default function TabJenisLimbah() {
                 <p>Belum ada data</p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+              <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
                 <AreaChart data={monthlyData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                   <defs>
                     <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">

@@ -182,7 +182,7 @@ export default function TabPengangkutan() {
               Limbah Masuk vs Diangkut (Harian)
             </h3>
             <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+              <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
                 <BarChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="tanggal" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
@@ -203,7 +203,7 @@ export default function TabPengangkutan() {
               Sisa Limbah Kumulatif (Stok)
             </h3>
             <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
+              <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
                 <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                   <XAxis dataKey="tanggal" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />

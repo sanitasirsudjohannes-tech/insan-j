@@ -152,7 +152,7 @@ export default function DashboardAdmin() {
                     <p className="font-semibold">Belum ada data bulan ini</p>
                   </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
                     <BarChart data={chartData} margin={{ top: 30, right: 10, left: -20, bottom: 40 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontWeight: '700', fontSize: 11 }} height={60} dy={15} angle={-35} textAnchor="end" />
