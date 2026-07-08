@@ -68,9 +68,9 @@ export default function TabPengangkutan() {
             day: 'numeric',
             month: 'short'
           }),
-          masuk: parseFloat(masuk.toFixed(2)),
-          diangkut: parseFloat(diangkut.toFixed(2)),
-          sisa: parseFloat(kumulatifSisa.toFixed(2)),
+          masuk: Math.round(masuk),
+          diangkut: Math.round(diangkut),
+          sisa: Math.round(kumulatifSisa),
         };
       });
 
@@ -87,9 +87,9 @@ export default function TabPengangkutan() {
         const totalMasuk = Object.values(limbahMap).reduce((a, b) => a + b, 0);
         const totalAngkut = Object.values(angkutMap).reduce((a, b) => a + b, 0);
         setSummary({
-          masuk: totalMasuk.toFixed(2),
-          diangkut: totalAngkut.toFixed(2),
-          sisa: (totalMasuk - totalAngkut).toFixed(2)
+          masuk: Math.round(totalMasuk),
+          diangkut: Math.round(totalAngkut),
+          sisa: Math.round(totalMasuk - totalAngkut)
         });
       } catch (err) {
         console.error(err);

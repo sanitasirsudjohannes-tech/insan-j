@@ -80,10 +80,10 @@ export default function TabJenisLimbah() {
           tSit += parseFloat(r.sitotoksik) || 0;
         });
         setSummary({
-          infeksius: tInf.toFixed(2),
-          jarum: tJar.toFixed(2),
-          botol: tBot.toFixed(2),
-          sito: tSit.toFixed(2)
+          infeksius: Math.round(tInf),
+          jarum: Math.round(tJar),
+          botol: Math.round(tBot),
+          sito: Math.round(tSit)
         });
 
       } catch (error) {
@@ -151,7 +151,7 @@ export default function TabJenisLimbah() {
                   <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
                   <Tooltip
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    formatter={(val, name) => [`${val} Kg`, name.replace('_', ' ')]}
+                    formatter={(val, name) => [`${Math.round(val)} Kg`, name.replace('_', ' ')]}
                   />
                   <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
                   {types.map((type) => (
@@ -189,7 +189,7 @@ export default function TabJenisLimbah() {
                   <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
                   <Tooltip
                     contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    formatter={(val) => [`${parseFloat(val).toFixed(2)} Kg`, 'Total Limbah']}
+                    formatter={(val) => [`${Math.round(val)} Kg`, 'Total Limbah']}
                   />
                   <Area type="monotone" dataKey="total" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorTotal)" activeDot={{ r: 6, strokeWidth: 0 }} />
                 </AreaChart>
