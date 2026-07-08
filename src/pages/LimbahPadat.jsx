@@ -16,6 +16,7 @@ export default function LimbahPadat() {
   const [importing, setImporting] = useState(false);
   const [page, setPage] = useState(1);
   const [totalData, setTotalData] = useState(0);
+  const [filterMonth, setFilterMonth] = useState('');
   const itemsPerPage = 10;
   const importInputRef = useRef(null);
 
@@ -32,20 +33,39 @@ export default function LimbahPadat() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { count } = await supabase
+      let queryCount = supabase
         .from('limbah_padat')
-        .select('*', { count: 'exact', head: true });
+        .select('id', { count: 'exact', head: true });
 
+      if (filterMonth) {
+        const [year, month] = filterMonth.split('-');
+        const startOfMonth = `${year}-${month}-01`;
+        const lastDay = new Date(year, month, 0).getDate();
+        const endOfMonth = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+        queryCount = queryCount.gte('tanggal', startOfMonth).lte('tanggal', endOfMonth);
+      }
+
+      const { count } = await queryCount;
       setTotalData(count || 0);
 
       const from = (page - 1) * itemsPerPage;
       const to = from + itemsPerPage - 1;
 
-      const { data: dbData, error } = await supabase
+      let queryData = supabase
         .from('limbah_padat')
-        .select('*')
+        .select('id, tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
         .order('tanggal', { ascending: false })
         .range(from, to);
+
+      if (filterMonth) {
+        const [year, month] = filterMonth.split('-');
+        const startOfMonth = `${year}-${month}-01`;
+        const lastDay = new Date(year, month, 0).getDate();
+        const endOfMonth = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+        queryData = queryData.gte('tanggal', startOfMonth).lte('tanggal', endOfMonth);
+      }
+
+      const { data: dbData, error } = await queryData;
 
       if (error) throw error;
       setData(dbData || []);
@@ -58,7 +78,7 @@ export default function LimbahPadat() {
 
   useEffect(() => {
     fetchData();
-  }, [page]);
+  }, [page, filterMonth]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -163,15 +183,16 @@ export default function LimbahPadat() {
     if (!selectedMonth) return;
 
     const [year, month] = selectedMonth.split('-');
-    const startOfMonth = new Date(year, month - 1, 1).toISOString().split('T')[0];
-    const endOfMonth = new Date(year, month, 0).toISOString().split('T')[0];
+    const startOfMonth = `${year}-${month}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const endOfMonth = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
 
     MySwal.fire({ title: 'Mengambil Data...', allowOutsideClick: false, didOpen: () => MySwal.showLoading() });
 
     try {
       const { data: exportData, error } = await supabase
         .from('limbah_padat')
-        .select('*')
+        .select('tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
         .gte('tanggal', startOfMonth)
         .lte('tanggal', endOfMonth)
         .order('tanggal', { ascending: true });
@@ -492,12 +513,13 @@ export default function LimbahPadat() {
     try {
       MySwal.fire({ title: 'Mengambil Data...', allowOutsideClick: false, didOpen: () => MySwal.showLoading() });
 
-      const startOfMonth = new Date(year, month - 1, 1).toISOString().split('T')[0];
-      const endOfMonth = new Date(year, month, 0).toISOString().split('T')[0];
+      const startOfMonth = `${year}-${month}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      const endOfMonth = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
 
       const { data: printData, error } = await supabase
         .from('limbah_padat')
-        .select('*')
+        .select('tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
         .gte('tanggal', startOfMonth)
         .lte('tanggal', endOfMonth)
         .order('tanggal', { ascending: true });
@@ -683,15 +705,26 @@ export default function LimbahPadat() {
 
         {/* ── Tabel Data ── */}
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-          <div className="bg-gray-800 text-white px-6 py-4 flex justify-between items-center">
+          <div className="bg-gray-800 text-white px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
             <h2 className="text-lg font-bold">
               <i className="fas fa-table mr-2"></i> Data Limbah Padat
               <span className="ml-3 text-sm font-normal text-gray-300">({totalData} total data)</span>
             </h2>
-            <button onClick={handlePrint}
-              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition font-medium text-sm">
-              <i className="fas fa-print mr-2"></i> Cetak PDF
-            </button>
+            <div className="flex items-center gap-3">
+              <input
+                type="month"
+                value={filterMonth}
+                onChange={(e) => {
+                  setFilterMonth(e.target.value);
+                  setPage(1);
+                }}
+                className="bg-white text-gray-800 px-3 py-1.5 rounded-lg text-sm border focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+              <button onClick={handlePrint}
+                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition font-medium text-sm">
+                <i className="fas fa-print mr-2"></i> Cetak PDF
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
@@ -750,9 +783,25 @@ export default function LimbahPadat() {
           </div>
 
           {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex justify-between items-center px-6 py-4 bg-gray-50 border-t">
-              <span className="text-sm text-gray-600">Halaman {page} dari {totalPages}</span>
+          {totalPages > 0 && (
+            <div className="flex justify-between items-center px-6 py-4 bg-gray-50 border-t text-sm">
+              <div className="flex items-center space-x-2 text-gray-600">
+                <span>Halaman</span>
+                <input
+                  type="number"
+                  min="1"
+                  max={totalPages}
+                  value={page}
+                  onChange={(e) => {
+                    let val = parseInt(e.target.value);
+                    if (isNaN(val) || val < 1) val = 1;
+                    if (val > totalPages) val = totalPages;
+                    setPage(val);
+                  }}
+                  className="w-16 px-2 py-1 border rounded text-center outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <span>dari {totalPages}</span>
+              </div>
               <div className="flex space-x-2">
                 <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
                   className="px-3 py-1 bg-white border rounded hover:bg-gray-100 disabled:opacity-50 text-sm">

@@ -15,6 +15,7 @@ export default function PengangkutanLimbah() {
     const [submitting, setSubmitting] = useState(false);
     const [page, setPage] = useState(1);
     const [totalData, setTotalData] = useState(0);
+    const [filterMonth, setFilterMonth] = useState('');
     const itemsPerPage = 10;
     const importRef = useRef(null);
 
@@ -29,17 +30,37 @@ export default function PengangkutanLimbah() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const { count } = await supabase
+            let queryCount = supabase
                 .from('pengangkutan_limbah')
-                .select('*', { count: 'exact', head: true });
+                .select('id', { count: 'exact', head: true });
+
+            if (filterMonth) {
+                const [year, month] = filterMonth.split('-');
+                const startOfMonth = `${year}-${month}-01`;
+                const lastDay = new Date(year, month, 0).getDate();
+                const endOfMonth = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+                queryCount = queryCount.gte('tanggal', startOfMonth).lte('tanggal', endOfMonth);
+            }
+
+            const { count } = await queryCount;
             setTotalData(count || 0);
 
             const from = (page - 1) * itemsPerPage;
-            const { data: rows, error } = await supabase
+            let queryData = supabase
                 .from('pengangkutan_limbah')
-                .select('*')
+                .select('id, tanggal, jumlah_kg, keterangan, petugas')
                 .order('tanggal', { ascending: false })
                 .range(from, from + itemsPerPage - 1);
+
+            if (filterMonth) {
+                const [year, month] = filterMonth.split('-');
+                const startOfMonth = `${year}-${month}-01`;
+                const lastDay = new Date(year, month, 0).getDate();
+                const endOfMonth = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+                queryData = queryData.gte('tanggal', startOfMonth).lte('tanggal', endOfMonth);
+            }
+
+            const { data: rows, error } = await queryData;
 
             if (error) throw error;
             setData(rows || []);
@@ -50,7 +71,7 @@ export default function PengangkutanLimbah() {
         }
     };
 
-    useEffect(() => { fetchData(); }, [page]);
+    useEffect(() => { fetchData(); }, [page, filterMonth]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -123,10 +144,11 @@ export default function PengangkutanLimbah() {
         MySwal.fire({ title: 'Mengambil data...', allowOutsideClick: false, didOpen: () => MySwal.showLoading() });
 
         const start = `${y}-${mo}-01`;
-        const end = new Date(y, mo, 0).toISOString().split('T')[0];
+        const lastDay = new Date(y, mo, 0).getDate();
+        const end = `${y}-${mo}-${String(lastDay).padStart(2, '0')}`;
         const { data: rows, error } = await supabase
             .from('pengangkutan_limbah')
-            .select('*').gte('tanggal', start).lte('tanggal', end).order('tanggal', { ascending: true });
+            .select('tanggal, jumlah_kg, keterangan, petugas').gte('tanggal', start).lte('tanggal', end).order('tanggal', { ascending: true });
 
         if (error || !rows?.length) {
             MySwal.fire('Info', 'Tidak ada data bulan ini.', 'info'); return;
@@ -316,11 +338,22 @@ export default function PengangkutanLimbah() {
 
                 {/* ── Tabel ── */}
                 <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-                    <div className="bg-gray-800 text-white px-6 py-4 flex justify-between items-center">
+                    <div className="bg-gray-800 text-white px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
                         <h2 className="text-lg font-bold">
                             <i className="fas fa-table mr-2"></i> Riwayat Pengangkutan
                             <span className="ml-2 text-sm font-normal text-gray-400">({totalData} data)</span>
                         </h2>
+                        <div className="flex items-center">
+                            <input
+                                type="month"
+                                value={filterMonth}
+                                onChange={(e) => {
+                                    setFilterMonth(e.target.value);
+                                    setPage(1);
+                                }}
+                                className="bg-white text-gray-800 px-3 py-1.5 rounded-lg text-sm border focus:ring-2 focus:ring-blue-500 outline-none"
+                            />
+                        </div>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
@@ -370,9 +403,25 @@ export default function PengangkutanLimbah() {
                             </tbody>
                         </table>
                     </div>
-                    {totalPages > 1 && (
+                    {totalPages > 0 && (
                         <div className="flex justify-between items-center px-6 py-4 bg-gray-50 border-t text-sm">
-                            <span className="text-gray-600">Hal. {page} / {totalPages}</span>
+                            <div className="flex items-center space-x-2 text-gray-600">
+                                <span>Hal.</span>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max={totalPages}
+                                    value={page}
+                                    onChange={(e) => {
+                                        let val = parseInt(e.target.value);
+                                        if (isNaN(val) || val < 1) val = 1;
+                                        if (val > totalPages) val = totalPages;
+                                        setPage(val);
+                                    }}
+                                    className="w-16 px-2 py-1 border rounded text-center outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                                <span>/ {totalPages}</span>
+                            </div>
                             <div className="flex gap-2">
                                 <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
                                     className="px-3 py-1 bg-white border rounded hover:bg-gray-100 disabled:opacity-50">Sebelumnya</button>

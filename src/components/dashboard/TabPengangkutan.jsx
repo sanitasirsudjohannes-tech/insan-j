@@ -101,13 +101,16 @@ export default function TabPengangkutan() {
   }, []);
 
   useEffect(() => {
-    if (!selectedMonth || !allData.length) return;
+    if (!allData.length) return;
 
-    const filtered = allData.filter(
-      item => item.bulanTahun === selectedMonth
-    );
-
-    setChartData(filtered);
+    if (selectedMonth === 'semua') {
+      setChartData(allData);
+    } else if (selectedMonth) {
+      const filtered = allData.filter(
+        item => item.bulanTahun === selectedMonth
+      );
+      setChartData(filtered);
+    }
   }, [selectedMonth, allData]);
 
   const availableMonths = [
@@ -170,6 +173,7 @@ export default function TabPengangkutan() {
               onChange={(e) => setSelectedMonth(e.target.value)}
               className="appearance-none w-full sm:w-auto bg-blue-50/50 border border-blue-200 text-blue-700 font-bold px-5 py-2.5 pr-12 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all cursor-pointer hover:bg-blue-100/50"
             >
+              <option value="semua" className="bg-white text-gray-700 font-medium">Semua Waktu</option>
               {availableMonths.map(month => {
                 const [year, monthNum] = month.split('-');
                 const label = new Date(Number(year), Number(monthNum) - 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
