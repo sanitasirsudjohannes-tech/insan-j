@@ -78,6 +78,7 @@ export default function Login() {
         role: profileData.role,
       };
 
+      localStorage.setItem('currentUser', JSON.stringify(userData));
       sessionStorage.setItem('currentUser', JSON.stringify(userData));
 
       MySwal.fire({
