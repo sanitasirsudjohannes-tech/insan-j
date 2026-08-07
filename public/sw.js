@@ -3,6 +3,8 @@ const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
+  '/favicon.ico',
+  '/img/Icon.webp',
   '/img/logo.webp',
   '/img/logo_provinsi.png'
 ];

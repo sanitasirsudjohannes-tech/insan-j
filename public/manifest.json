@@ -6,13 +6,25 @@
     {
       "src": "/img/Icon.webp",
       "type": "image/webp",
-      "sizes": "192x192 512x512",
-      "purpose": "any maskable"
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "/img/Icon.webp",
+      "type": "image/webp",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "/img/Icon.webp",
+      "type": "image/webp",
+      "sizes": "512x512",
+      "purpose": "maskable"
     }
   ],
   "start_url": "/",
   "background_color": "#ffffff",
-  "theme_color": "#059669",
+  "theme_color": "#ffffff",
   "display": "standalone",
   "orientation": "portrait",
   "scope": "/"
