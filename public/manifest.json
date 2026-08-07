@@ -1,0 +1,19 @@
+{
+  "short_name": "INSAN-J",
+  "name": "INSAN-J - Sanitasi RSUD Prof. Dr. W. Z. Johannes",
+  "description": "Aplikasi Manajemen Sanitasi RSUD Prof. Dr. W. Z. Johannes Kupang",
+  "icons": [
+    {
+      "src": "/img/logo.webp",
+      "type": "image/webp",
+      "sizes": "192x192 512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#ffffff",
+  "theme_color": "#059669",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/"
+}
