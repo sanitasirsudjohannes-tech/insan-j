@@ -4,7 +4,7 @@
   "description": "Aplikasi Manajemen Sanitasi RSUD Prof. Dr. W. Z. Johannes Kupang",
   "icons": [
     {
-      "src": "/img/logo.webp",
+      "src": "/img/Icon.webp",
       "type": "image/webp",
       "sizes": "192x192 512x512",
       "purpose": "any maskable"
