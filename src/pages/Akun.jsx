@@ -54,7 +54,26 @@ export default function Akun() {
     });
 
     try {
-      const loginEmail = user.username?.includes('@') ? user.username : `${user.username}@rs.com`;
+      // 1. Dapatkan email asli pengguna dari session Auth Supabase
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      let loginEmail = authUser?.email;
+
+      // Fallback 1: Cari email via RPC jika belum ada di session local
+      if (!loginEmail && user?.username) {
+        const { data: emailRpc } = await supabase.rpc('get_user_email_by_username', {
+          p_username: user.username
+        });
+        if (emailRpc) loginEmail = emailRpc;
+      }
+
+      // Fallback 2: Format email default
+      if (!loginEmail && user?.username) {
+        loginEmail = user.username.includes('@') ? user.username : `${user.username}@rs.com`;
+      }
+
+      if (!loginEmail) {
+        throw new Error('Email pengguna tidak ditemukan di sistem.');
+      }
       
       // Verifikasi password lama dengan mencoba login ulang ke Supabase
       const { error: signInError } = await supabase.auth.signInWithPassword({
