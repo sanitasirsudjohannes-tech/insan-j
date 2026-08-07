@@ -3,6 +3,7 @@ import AppLayout from '../components/AppLayout';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { supabase } from '../lib/supabase';
+import { saveToOfflineQueue } from '../lib/offlineStorage';
 import { AVAILABLE_FORMS, CHECKLIST_ITEMS, LOKASI_OPTIONS } from '../lib/constants';
 
 const MySwal = withReactContent(Swal);
@@ -272,21 +273,33 @@ export default function Inspeksi({ user }) {
         }
 
         if (tableName) {
-          const { error } = await supabase.from(tableName).insert([insertData]);
-          if (error) throw new Error(`Gagal menyimpan ${tableName}: ` + error.message);
+          if (!navigator.onLine) {
+            saveToOfflineQueue(tableName, 'insert', insertData, `Inspeksi ${selectedCategoriesText}`);
+          } else {
+            const { error } = await supabase.from(tableName).insert([insertData]);
+            if (error) throw new Error(`Gagal menyimpan ${tableName}: ` + error.message);
+          }
         }
       });
 
       await Promise.all(insertionPromises);
 
-      // Show success
-      MySwal.fire({
-        icon: 'success',
-        title: 'Berhasil!',
-        text: 'Data isian berhasil dikirim.',
-        timer: 2000,
-        showConfirmButton: false
-      });
+      if (!navigator.onLine) {
+        MySwal.fire({
+          icon: 'info',
+          title: 'Tersimpan Offline (Draft)',
+          text: 'Data inspeksi disimpan di HP. Akan otomatis di-sync ke server saat terhubung internet.',
+          confirmButtonColor: '#2563eb'
+        });
+      } else {
+        MySwal.fire({
+          icon: 'success',
+          title: 'Berhasil!',
+          text: 'Data isian berhasil dikirim.',
+          timer: 2000,
+          showConfirmButton: false
+        });
+      }
 
       // Add to activities (top 4 only)
       setActivities(prev => {
@@ -309,7 +322,20 @@ export default function Inspeksi({ user }) {
 
     } catch (error) {
       console.error(error);
-      MySwal.fire('Informasi', 'Data tetap tersimpan secara lokal. ' + error.message, 'info');
+      if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
+        MySwal.fire({
+          icon: 'info',
+          title: 'Tersimpan Offline (Draft)',
+          text: 'Jaringan terputus. Data inspeksi disimpan di HP dan akan di-sync otomatis.',
+          confirmButtonColor: '#2563eb'
+        });
+        setShowForm(false);
+        setSelectedForms([]);
+        setLokasi('');
+        setFormDataState({});
+      } else {
+        MySwal.fire('Gagal', error.message, 'error');
+      }
     } finally {
       setIsSubmitting(false);
     }

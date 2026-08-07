@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser } from '../lib/api';
+import { saveToOfflineQueue } from '../lib/offlineStorage';
 import * as XLSX from 'xlsx';
 
 const MySwal = withReactContent(Swal);
@@ -81,27 +82,50 @@ export default function PengangkutanLimbah() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSubmitting(true);
+
+        const payload = {
+            tanggal: form.tanggal,
+            jumlah_kg: parseFloat(form.jumlah_kg) || 0,
+            keterangan: form.keterangan || '',
+            petugas: user?.nama || 'Petugas',
+            waktu_input: new Date().toISOString()
+        };
+
         try {
-            const payload = {
-                tanggal: form.tanggal,
-                jumlah_kg: parseFloat(form.jumlah_kg) || 0,
-                keterangan: form.keterangan || '',
-                petugas: user?.nama || 'Petugas',
-                waktu_input: new Date().toISOString()
-            };
-            if (form.id) {
-                const { error } = await supabase.from('pengangkutan_limbah').update(payload).eq('id', form.id);
-                if (error) throw error;
-                MySwal.fire('Berhasil', 'Data diperbarui', 'success');
+            if (!navigator.onLine) {
+                saveToOfflineQueue('pengangkutan_limbah', form.id ? 'update' : 'insert', form.id ? { ...payload, id: form.id } : payload, 'Pengangkutan Limbah');
+                MySwal.fire({
+                    icon: 'info',
+                    title: 'Tersimpan Offline',
+                    text: 'Data telah disimpan di HP (Draft). Akan otomatis dikirim saat terhubung internet.',
+                    confirmButtonColor: '#ea580c'
+                });
             } else {
-                const { error } = await supabase.from('pengangkutan_limbah').insert([payload]);
-                if (error) throw error;
-                MySwal.fire('Berhasil', 'Data pengangkutan ditambahkan', 'success');
+                if (form.id) {
+                    const { error } = await supabase.from('pengangkutan_limbah').update(payload).eq('id', form.id);
+                    if (error) throw error;
+                    MySwal.fire('Berhasil', 'Data diperbarui', 'success');
+                } else {
+                    const { error } = await supabase.from('pengangkutan_limbah').insert([payload]);
+                    if (error) throw error;
+                    MySwal.fire('Berhasil', 'Data pengangkutan ditambahkan', 'success');
+                }
             }
             setForm(emptyForm);
             fetchData();
         } catch (e) {
-            MySwal.fire('Gagal', e.message, 'error');
+            if (!navigator.onLine || e.message?.includes('Failed to fetch') || e.message?.includes('network')) {
+                saveToOfflineQueue('pengangkutan_limbah', form.id ? 'update' : 'insert', form.id ? { ...payload, id: form.id } : payload, 'Pengangkutan Limbah');
+                MySwal.fire({
+                    icon: 'info',
+                    title: 'Tersimpan Offline',
+                    text: 'Jaringan terputus. Data telah disimpan di HP (Draft) dan akan dikirim otomatis.',
+                    confirmButtonColor: '#ea580c'
+                });
+                setForm(emptyForm);
+            } else {
+                MySwal.fire('Gagal', e.message, 'error');
+            }
         } finally {
             setSubmitting(false);
         }

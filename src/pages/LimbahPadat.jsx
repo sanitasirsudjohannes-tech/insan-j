@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser } from '../lib/api';
+import { saveToOfflineQueue } from '../lib/offlineStorage';
 import * as XLSX from 'xlsx';
 
 const MySwal = withReactContent(Swal);
@@ -89,30 +90,40 @@ export default function LimbahPadat() {
     e.preventDefault();
     setSubmitting(true);
 
-    try {
-      const payload = {
-        tanggal: formData.tanggal,
-        petugas: user?.nama || 'Petugas',
-        infeksius: parseFloat(formData.infeksius) || 0,
-        jarum_suntik: parseFloat(formData.jarum_suntik) || 0,
-        botol_obat: parseFloat(formData.botol_obat) || 0,
-        sitotoksik: parseFloat(formData.sitotoksik) || 0,
-        waktu_input: new Date().toISOString()
-      };
+    const payload = {
+      tanggal: formData.tanggal,
+      petugas: user?.nama || 'Petugas',
+      infeksius: parseFloat(formData.infeksius) || 0,
+      jarum_suntik: parseFloat(formData.jarum_suntik) || 0,
+      botol_obat: parseFloat(formData.botol_obat) || 0,
+      sitotoksik: parseFloat(formData.sitotoksik) || 0,
+      waktu_input: new Date().toISOString()
+    };
 
-      if (formData.id) {
-        const { error } = await supabase
-          .from('limbah_padat')
-          .update(payload)
-          .eq('id', formData.id);
-        if (error) throw error;
-        MySwal.fire('Berhasil', 'Data berhasil diubah', 'success');
+    try {
+      if (!navigator.onLine) {
+        saveToOfflineQueue('limbah_padat', formData.id ? 'update' : 'insert', formData.id ? { ...payload, id: formData.id } : payload, 'Input Limbah Padat');
+        MySwal.fire({
+          icon: 'info',
+          title: 'Tersimpan Offline',
+          text: 'Data telah disimpan di HP (Draft). Akan otomatis dikirim saat terhubung internet.',
+          confirmButtonColor: '#059669'
+        });
       } else {
-        const { error } = await supabase
-          .from('limbah_padat')
-          .insert([payload]);
-        if (error) throw error;
-        MySwal.fire('Berhasil', 'Data berhasil ditambahkan', 'success');
+        if (formData.id) {
+          const { error } = await supabase
+            .from('limbah_padat')
+            .update(payload)
+            .eq('id', formData.id);
+          if (error) throw error;
+          MySwal.fire('Berhasil', 'Data berhasil diubah', 'success');
+        } else {
+          const { error } = await supabase
+            .from('limbah_padat')
+            .insert([payload]);
+          if (error) throw error;
+          MySwal.fire('Berhasil', 'Data berhasil ditambahkan', 'success');
+        }
       }
 
       setFormData({
@@ -126,7 +137,25 @@ export default function LimbahPadat() {
 
       fetchData();
     } catch (error) {
-      MySwal.fire('Gagal', error.message, 'error');
+      if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
+        saveToOfflineQueue('limbah_padat', formData.id ? 'update' : 'insert', formData.id ? { ...payload, id: formData.id } : payload, 'Input Limbah Padat');
+        MySwal.fire({
+          icon: 'info',
+          title: 'Tersimpan Offline',
+          text: 'Jaringan terputus. Data telah disimpan di HP (Draft) dan akan dikirim otomatis.',
+          confirmButtonColor: '#059669'
+        });
+        setFormData({
+          id: null,
+          tanggal: new Date().toISOString().split('T')[0],
+          infeksius: '',
+          jarum_suntik: '',
+          botol_obat: '',
+          sitotoksik: ''
+        });
+      } else {
+        MySwal.fire('Gagal', error.message, 'error');
+      }
     } finally {
       setSubmitting(false);
     }

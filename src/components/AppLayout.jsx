@@ -1,12 +1,16 @@
 import { useState } from 'react';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
+import OfflineSyncIndicator from './OfflineSyncIndicator';
 
 export default function AppLayout({ children, title, showBackButton }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-gray-100 print:bg-white">
+    <div className="flex min-h-screen bg-gray-100 print:bg-white relative">
+      <div className="print:hidden">
+        <OfflineSyncIndicator />
+      </div>
       <div className="print:hidden">
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       </div>
