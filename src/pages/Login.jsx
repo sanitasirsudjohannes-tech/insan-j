@@ -108,7 +108,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-500 to-purple-600 px-4">
       <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md transform transition-all hover:scale-[1.02] duration-300">
         <div className="text-center mb-8">
-          <img src={`${import.meta.env.BASE_URL}img/logo.webp`} alt="Logo" className="max-w-[200px] h-auto mx-auto" onError={(e) => e.target.style.display = 'none'} />
+          <img src={`${import.meta.env.BASE_URL}img/logo.webp`} alt="Logo" className="max-w-50 h-auto mx-auto" onError={(e) => e.target.style.display = 'none'} />
         </div>
 
         <h3 className="text-2xl font-bold text-center text-gray-800 mb-8">Login Aplikasi</h3>
