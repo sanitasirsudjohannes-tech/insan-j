@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser } from '../lib/api';
-import { saveToOfflineQueue } from '../lib/offlineStorage';
+import { saveToOfflineQueue, getUnsyncedItemsForTable, syncOfflineQueue } from '../lib/offlineStorage';
 import * as XLSX from 'xlsx';
 
 const MySwal = withReactContent(Swal);
@@ -31,40 +31,58 @@ export default function PengangkutanLimbah() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            let queryCount = supabase
-                .from('pengangkutan_limbah')
-                .select('id', { count: 'exact', head: true });
+            let rows = [];
+            let count = 0;
 
-            if (filterMonth) {
-                const [year, month] = filterMonth.split('-');
-                const startOfMonth = `${year}-${month}-01`;
-                const lastDay = new Date(year, month, 0).getDate();
-                const endOfMonth = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
-                queryCount = queryCount.gte('tanggal', startOfMonth).lte('tanggal', endOfMonth);
+            try {
+                let queryCount = supabase
+                    .from('pengangkutan_limbah')
+                    .select('id', { count: 'exact', head: true });
+
+                if (filterMonth) {
+                    const [year, month] = filterMonth.split('-');
+                    const startOfMonth = `${year}-${month}-01`;
+                    const lastDay = new Date(year, month, 0).getDate();
+                    const endOfMonth = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+                    queryCount = queryCount.gte('tanggal', startOfMonth).lte('tanggal', endOfMonth);
+                }
+
+                const { count: c } = await queryCount;
+                count = c || 0;
+
+                const from = (page - 1) * itemsPerPage;
+                let queryData = supabase
+                    .from('pengangkutan_limbah')
+                    .select('id, tanggal, jumlah_kg, keterangan, petugas')
+                    .order('tanggal', { ascending: false })
+                    .range(from, from + itemsPerPage - 1);
+
+                if (filterMonth) {
+                    const [year, month] = filterMonth.split('-');
+                    const startOfMonth = `${year}-${month}-01`;
+                    const lastDay = new Date(year, month, 0).getDate();
+                    const endOfMonth = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+                    queryData = queryData.gte('tanggal', startOfMonth).lte('tanggal', endOfMonth);
+                }
+
+                const { data: result, error } = await queryData;
+                if (!error) rows = result || [];
+            } catch (e) {
+                console.warn('Handling offline DB error in PengangkutanLimbah:', e);
             }
 
-            const { count } = await queryCount;
-            setTotalData(count || 0);
-
-            const from = (page - 1) * itemsPerPage;
-            let queryData = supabase
-                .from('pengangkutan_limbah')
-                .select('id, tanggal, jumlah_kg, keterangan, petugas')
-                .order('tanggal', { ascending: false })
-                .range(from, from + itemsPerPage - 1);
+            let unsynced = getUnsyncedItemsForTable('pengangkutan_limbah');
 
             if (filterMonth) {
-                const [year, month] = filterMonth.split('-');
-                const startOfMonth = `${year}-${month}-01`;
-                const lastDay = new Date(year, month, 0).getDate();
-                const endOfMonth = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
-                queryData = queryData.gte('tanggal', startOfMonth).lte('tanggal', endOfMonth);
+                unsynced = unsynced.filter(item => item.tanggal && item.tanggal.startsWith(filterMonth));
             }
 
-            const { data: rows, error } = await queryData;
+            const unsyncedIds = new Set(unsynced.map(u => u.id));
+            const filteredDbData = rows.filter(d => !unsyncedIds.has(d.id));
 
-            if (error) throw error;
-            setData(rows || []);
+            const combined = [...unsynced, ...filteredDbData];
+            setData(combined);
+            setTotalData((count || 0) + unsynced.length);
         } catch (e) {
             console.error(e);
         } finally {
@@ -72,7 +90,20 @@ export default function PengangkutanLimbah() {
         }
     };
 
-    useEffect(() => { fetchData(); }, [page, filterMonth]);
+    useEffect(() => {
+        fetchData();
+
+        const handleQueueChange = () => fetchData();
+        window.addEventListener('offline-queue-changed', handleQueueChange);
+        window.addEventListener('online', handleQueueChange);
+        window.addEventListener('offline', handleQueueChange);
+
+        return () => {
+            window.removeEventListener('offline-queue-changed', handleQueueChange);
+            window.removeEventListener('online', handleQueueChange);
+            window.removeEventListener('offline', handleQueueChange);
+        };
+    }, [page, filterMonth]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -353,15 +384,34 @@ export default function PengangkutanLimbah() {
                             className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-lg font-semibold text-sm transition">
                             <i className="fas fa-file-excel"></i> Export Excel
                         </button>
-                        <p className="text-xs text-gray-500 flex-1 min-w-[200px]">
-                            <i className="fas fa-info-circle text-teal-400 mr-1"></i>
-                            Format kolom: Tanggal, Jumlah Diangkut (Kg), Keterangan
-                        </p>
+                        <div className="hidden sm:block w-px h-8 bg-gray-200 mx-1"></div>
+                        <div className="text-xs text-gray-500 w-full sm:w-auto sm:flex-1 min-w-0">
+                            <p><i className="fas fa-info-circle text-teal-400 mr-1"></i>
+                            <strong>Format:</strong> Tanggal, Jumlah Diangkut (Kg), Keterangan</p>
+                        </div>
                     </div>
                 </div>
 
                 {/* ── Tabel ── */}
                 <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+                    {/* Banner Peringatan Data Offline Belum Sinkron */}
+                    {data.some(i => i.isOffline) && (
+                        <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-6 py-3 text-xs sm:text-sm font-medium flex flex-col sm:flex-row items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                                <i className="fas fa-exclamation-triangle text-amber-600 text-base animate-pulse"></i>
+                                <span>Terdapat <strong>{data.filter(i => i.isOffline).length} data offline</strong> yang tersimpan di HP dan <strong>belum tersinkronisasi</strong> ke server.</span>
+                            </div>
+                            {navigator.onLine && (
+                                <button
+                                    onClick={() => syncOfflineQueue(true)}
+                                    className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+                                >
+                                    <i className="fas fa-cloud-upload-alt"></i> Sinkronkan Sekarang
+                                </button>
+                            )}
+                        </div>
+                    )}
+
                     <div className="bg-gray-800 text-white px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
                         <h2 className="text-lg font-bold">
                             <i className="fas fa-table mr-2"></i> Riwayat Pengangkutan
@@ -402,10 +452,18 @@ export default function PengangkutanLimbah() {
                                         Belum ada data pengangkutan.
                                     </td></tr>
                                 ) : data.map((item, idx) => (
-                                    <tr key={item.id} className="border-b hover:bg-orange-50 transition-colors">
+                                    <tr
+                                        key={item.id}
+                                        className={item.isOffline ? "bg-amber-50/70 hover:bg-amber-100/70 border-l-4 border-l-amber-500 border-b transition-colors" : "border-b hover:bg-orange-50 transition-colors"}
+                                    >
                                         <td className="px-4 py-3 text-gray-500 text-sm">{(page - 1) * itemsPerPage + idx + 1}</td>
-                                        <td className="px-4 py-3 font-medium text-gray-800">
+                                        <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">
                                             {new Date(item.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                                            {item.isOffline && (
+                                                <span className="ml-2 inline-flex items-center gap-1 text-[10px] font-extrabold bg-amber-200 text-amber-900 border border-amber-400 px-2 py-0.5 rounded-full shadow-2xs animate-pulse whitespace-nowrap">
+                                                    <i className="fas fa-wifi-slash text-amber-700"></i> Belum Sinkron
+                                                </span>
+                                            )}
                                         </td>
                                         <td className="px-4 py-3 text-right">
                                             <span className="font-bold text-orange-600">{parseFloat(item.jumlah_kg || 0).toFixed(2)} Kg</span>

@@ -84,13 +84,4 @@ export const CHECKLIST_ITEMS = {
   ]
 };
 
-export const LOKASI_OPTIONS = [
-  "Poli Jantung", "Poli Mata", "Poli P. Dalam", "Poli Dots", "Poli Paru", "Poli Syaraf",
-  "Cempaka", "Lab Patologi Anatomi", "Lab Patologi Klinis", "Radiologi", "OK", "ICU", "HCU",
-  "HD", "VK", "IGD Lama", "IGDT", "Halaman Parkir", "WC Umum", "ICVCU", "OK Cyto", "Cath Lab",
-  "Mutis", "Edelweis", "Paviliun", "Teratai", "Bougenvill 1", "Bougenvill 2", "TPS Non Medis",
-  "Komodo", "Tulip", "Anggrek", "Asoka", "Poli MCU", "IPJ", "Gizi", "Kelimutu", "MRI",
-  "Onkologi", "Sasando", "NICU", "Mawar", "Kenanga", "Poli VCT", "Kepegawaian", "Poli THT",
-  "Poli Bedah Mulut", "Poli Gigi", "Gudang Farmasi", "Poli Kandungan", "Poli Kulit Kelamin",
-  "Poli Bedah", "Poli Anak"
-];
+

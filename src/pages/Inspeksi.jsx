@@ -4,7 +4,8 @@ import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { supabase } from '../lib/supabase';
 import { saveToOfflineQueue } from '../lib/offlineStorage';
-import { AVAILABLE_FORMS, CHECKLIST_ITEMS, LOKASI_OPTIONS } from '../lib/constants';
+import { AVAILABLE_FORMS, CHECKLIST_ITEMS } from '../lib/constants';
+import { fetchDaftarRuangan } from '../lib/api';
 
 const MySwal = withReactContent(Swal);
 
@@ -14,12 +15,17 @@ export default function Inspeksi({ user }) {
 
   const [tanggal, setTanggal] = useState(new Date().toISOString().split('T')[0]);
   const [lokasi, setLokasi] = useState('');
+  const [ruanganList, setRuanganList] = useState([]);
   const [formDataState, setFormDataState] = useState({});
   const [activities, setActivities] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingActivities, setLoadingActivities] = useState(true);
 
   const formRef = useRef(null);
+
+  useEffect(() => {
+    fetchDaftarRuangan().then(list => setRuanganList(list));
+  }, []);
 
   useEffect(() => {
     const fetchRecentActivities = async () => {
@@ -411,7 +417,7 @@ export default function Inspeksi({ user }) {
                     <input list="lokasiList" className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" placeholder="-- Ketik atau pilih lokasi --"
                       value={lokasi} onChange={e => setLokasi(e.target.value)} required />
                     <datalist id="lokasiList">
-                      {LOKASI_OPTIONS.map(opt => <option key={opt} value={opt} />)}
+                      {ruanganList.map(opt => <option key={opt} value={opt} />)}
                     </datalist>
                   </div>
                 </div>

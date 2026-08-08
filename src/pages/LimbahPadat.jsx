@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser } from '../lib/api';
-import { saveToOfflineQueue } from '../lib/offlineStorage';
+import { saveToOfflineQueue, getUnsyncedItemsForTable, syncOfflineQueue } from '../lib/offlineStorage';
 import * as XLSX from 'xlsx';
 
 const MySwal = withReactContent(Swal);
@@ -31,47 +31,134 @@ export default function LimbahPadat() {
     sitotoksik: ''
   });
 
+  const getAccumulatedData = async (targetMonth = null) => {
+    let dbPadat = [];
+    let dbRuangan = [];
+
+    if (navigator.onLine) {
+      try {
+        let qPadat = supabase
+          .from('limbah_padat')
+          .select('id, tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik, petugas, waktu_input');
+
+        let qRuangan = supabase
+          .from('limbah_ruangan')
+          .select('id, tanggal, ruangan, infeksius, jarum_suntik, botol_obat, sitotoksik, petugas, waktu_input');
+
+        if (targetMonth) {
+          const [year, month] = targetMonth.split('-');
+          const startOfMonth = `${year}-${month}-01`;
+          const lastDay = new Date(year, month, 0).getDate();
+          const endOfMonth = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+
+          qPadat = qPadat.gte('tanggal', startOfMonth).lte('tanggal', endOfMonth);
+          qRuangan = qRuangan.gte('tanggal', startOfMonth).lte('tanggal', endOfMonth);
+        }
+
+        const [{ data: pData }, { data: rData }] = await Promise.all([qPadat, qRuangan]);
+        dbPadat = pData || [];
+        dbRuangan = rData || [];
+      } catch (err) {
+        console.warn('Network issue fetching accumulated data:', err);
+      }
+    }
+
+    // Ambil data offline unsynced
+    let unsyncedPadat = getUnsyncedItemsForTable('limbah_padat');
+    let unsyncedRuangan = getUnsyncedItemsForTable('limbah_ruangan');
+
+    if (targetMonth) {
+      unsyncedPadat = unsyncedPadat.filter(i => i.tanggal && i.tanggal.startsWith(targetMonth));
+      unsyncedRuangan = unsyncedRuangan.filter(i => i.tanggal && i.tanggal.startsWith(targetMonth));
+    }
+
+    const unsyncedPadatIds = new Set(unsyncedPadat.map(u => u.id));
+    const filteredDbPadat = dbPadat.filter(d => !unsyncedPadatIds.has(d.id));
+
+    const unsyncedRuanganIds = new Set(unsyncedRuangan.map(u => u.id));
+    const filteredDbRuangan = dbRuangan.filter(d => !unsyncedRuanganIds.has(d.id));
+
+    const allRuangan = [...unsyncedRuangan, ...filteredDbRuangan];
+    const allPadat = [...unsyncedPadat, ...filteredDbPadat];
+
+    const dateMap = new Map();
+
+    // Akumulasi Limbah Ruangan per tanggal
+    allRuangan.forEach(item => {
+      const tgl = item.tanggal;
+      if (!tgl) return;
+
+      if (!dateMap.has(tgl)) {
+        dateMap.set(tgl, {
+          id: `agg_${tgl}`,
+          tanggal: tgl,
+          infeksius: 0,
+          jarum_suntik: 0,
+          botol_obat: 0,
+          sitotoksik: 0,
+          ruanganCount: 0,
+          ruanganNames: new Set(),
+          isOffline: false,
+          isRoomAccumulation: true,
+          isManual: false
+        });
+      }
+
+      const entry = dateMap.get(tgl);
+      entry.infeksius += parseFloat(item.infeksius || 0);
+      entry.jarum_suntik += parseFloat(item.jarum_suntik || 0);
+      entry.botol_obat += parseFloat(item.botol_obat || 0);
+      entry.sitotoksik += parseFloat(item.sitotoksik || 0);
+      entry.ruanganCount += 1;
+      if (item.ruangan) entry.ruanganNames.add(item.ruangan);
+      if (item.isOffline) entry.isOffline = true;
+    });
+
+    // Akumulasi Input Manual Limbah Padat per tanggal
+    allPadat.forEach(item => {
+      const tgl = item.tanggal;
+      if (!tgl) return;
+
+      if (!dateMap.has(tgl)) {
+        dateMap.set(tgl, {
+          id: item.id || `padat_${tgl}`,
+          tanggal: tgl,
+          infeksius: 0,
+          jarum_suntik: 0,
+          botol_obat: 0,
+          sitotoksik: 0,
+          ruanganCount: 0,
+          ruanganNames: new Set(),
+          isOffline: false,
+          isManual: true
+        });
+      }
+
+      const entry = dateMap.get(tgl);
+      entry.infeksius += parseFloat(item.infeksius || 0);
+      entry.jarum_suntik += parseFloat(item.jarum_suntik || 0);
+      entry.botol_obat += parseFloat(item.botol_obat || 0);
+      entry.sitotoksik += parseFloat(item.sitotoksik || 0);
+      entry.isManual = true;
+      if (item.isOffline) entry.isOffline = true;
+    });
+
+    return Array.from(dateMap.values());
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
-      let queryCount = supabase
-        .from('limbah_padat')
-        .select('id', { count: 'exact', head: true });
+      const accumulated = await getAccumulatedData(filterMonth);
+      accumulated.sort((a, b) => b.tanggal.localeCompare(a.tanggal));
 
-      if (filterMonth) {
-        const [year, month] = filterMonth.split('-');
-        const startOfMonth = `${year}-${month}-01`;
-        const lastDay = new Date(year, month, 0).getDate();
-        const endOfMonth = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
-        queryCount = queryCount.gte('tanggal', startOfMonth).lte('tanggal', endOfMonth);
-      }
-
-      const { count } = await queryCount;
-      setTotalData(count || 0);
+      setTotalData(accumulated.length);
 
       const from = (page - 1) * itemsPerPage;
-      const to = from + itemsPerPage - 1;
-
-      let queryData = supabase
-        .from('limbah_padat')
-        .select('id, tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
-        .order('tanggal', { ascending: false })
-        .range(from, to);
-
-      if (filterMonth) {
-        const [year, month] = filterMonth.split('-');
-        const startOfMonth = `${year}-${month}-01`;
-        const lastDay = new Date(year, month, 0).getDate();
-        const endOfMonth = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
-        queryData = queryData.gte('tanggal', startOfMonth).lte('tanggal', endOfMonth);
-      }
-
-      const { data: dbData, error } = await queryData;
-
-      if (error) throw error;
-      setData(dbData || []);
+      const paginated = accumulated.slice(from, from + itemsPerPage);
+      setData(paginated);
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('Error fetching accumulated data:', error);
     } finally {
       setLoading(false);
     }
@@ -79,6 +166,17 @@ export default function LimbahPadat() {
 
   useEffect(() => {
     fetchData();
+
+    const handleQueueChange = () => fetchData();
+    window.addEventListener('offline-queue-changed', handleQueueChange);
+    window.addEventListener('online', handleQueueChange);
+    window.addEventListener('offline', handleQueueChange);
+
+    return () => {
+      window.removeEventListener('offline-queue-changed', handleQueueChange);
+      window.removeEventListener('online', handleQueueChange);
+      window.removeEventListener('offline', handleQueueChange);
+    };
   }, [page, filterMonth]);
 
   const handleInputChange = (e) => {
@@ -162,6 +260,21 @@ export default function LimbahPadat() {
   };
 
   const handleEdit = (item) => {
+    if (item.isRoomAccumulation && !item.isManual) {
+      const roomNamesArr = Array.from(item.ruanganNames || []);
+      MySwal.fire({
+        icon: 'info',
+        title: 'Akumulasi Data Ruangan',
+        html: `Data tanggal <strong>${new Date(item.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</strong> ini merupakan akumulasi otomatis dari <strong>${item.ruanganCount} ruangan</strong>:<br/><br/>
+        <div class="text-left bg-gray-100 p-3 rounded-lg text-xs max-h-40 overflow-y-auto font-mono">
+          ${roomNamesArr.map(r => `• ${r}`).join('<br/>')}
+        </div><br/>
+        <span class="text-xs text-gray-500">Untuk mengedit data rincian per ruangan, silakan gunakan menu <strong>Limbah Per Ruangan</strong>.</span>`,
+        confirmButtonColor: '#059669'
+      });
+      return;
+    }
+
     setFormData({
       id: item.id,
       tanggal: item.tanggal,
@@ -173,7 +286,19 @@ export default function LimbahPadat() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (item) => {
+    if (item.isRoomAccumulation && !item.isManual) {
+      MySwal.fire({
+        icon: 'info',
+        title: 'Tidak Bisa Dihapus Langsung',
+        text: `Data tanggal ini merupakan akumulasi otomatis dari modul Limbah Per Ruangan. Silakan hapus atau ubah entri spesifik melalui menu "Limbah Per Ruangan".`,
+        confirmButtonColor: '#059669'
+      });
+      return;
+    }
+
+    const id = typeof item === 'object' ? item.id : item;
+
     const confirm = await MySwal.fire({
       title: 'Hapus Data?',
       text: "Data yang dihapus tidak dapat dikembalikan!",
@@ -201,7 +326,7 @@ export default function LimbahPadat() {
     const { value: selectedMonth } = await MySwal.fire({
       title: 'Pilih Bulan & Tahun',
       html: `<p class="text-sm text-gray-500 mb-2">Pilih periode data yang ingin diekspor</p>
-             <input id="swal-input-month" type="month" class="swal2-input" value="${new Date().toISOString().slice(0, 7)}">`,
+             <input id="swal-input-month" type="month" class="swal2-input" value="${filterMonth || new Date().toISOString().slice(0, 7)}">`,
       focusConfirm: false,
       showCancelButton: true,
       confirmButtonText: '<i class="fas fa-file-excel mr-2"></i>Export',
@@ -211,42 +336,29 @@ export default function LimbahPadat() {
 
     if (!selectedMonth) return;
 
-    const [year, month] = selectedMonth.split('-');
-    const startOfMonth = `${year}-${month}-01`;
-    const lastDay = new Date(year, month, 0).getDate();
-    const endOfMonth = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
-
     MySwal.fire({ title: 'Mengambil Data...', allowOutsideClick: false, didOpen: () => MySwal.showLoading() });
 
     try {
-      const { data: exportData, error } = await supabase
-        .from('limbah_padat')
-        .select('tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
-        .gte('tanggal', startOfMonth)
-        .lte('tanggal', endOfMonth)
-        .order('tanggal', { ascending: true });
-
-      if (error) throw error;
+      const exportData = await getAccumulatedData(selectedMonth);
+      exportData.sort((a, b) => a.tanggal.localeCompare(b.tanggal));
 
       if (!exportData || exportData.length === 0) {
         MySwal.fire('Informasi', 'Tidak ada data untuk bulan ini.', 'info');
         return;
       }
 
+      const [year, month] = selectedMonth.split('-');
       const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
       const monthLabel = `${monthNames[parseInt(month) - 1]} ${year}`;
 
       // Build worksheet rows
       const wsData = [];
-
-      // Title rows
-      wsData.push(['LAPORAN LIMBAH MEDIS PADAT']);
+      wsData.push(['LAPORAN LIMBAH MEDIS PADAT (AKUMULASI HARIAN)']);
       wsData.push([`Periode: ${monthLabel}`]);
       wsData.push([`Dicetak: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`]);
       wsData.push([]); // blank row
 
-      // Header
-      wsData.push(['No.', 'Tanggal', 'Limbah Infeksius (Kg)', 'Jarum Suntik (Kg)', 'Botol Obat (Kg)', 'Sitotoksik (Kg)', 'Total Harian (Kg)']);
+      wsData.push(['No.', 'Tanggal', 'Limbah Infeksius (Kg)', 'Jarum Suntik (Kg)', 'Botol Obat (Kg)', 'Sitotoksik (Kg)', 'Total Harian (Kg)', 'Keterangan Sumber']);
 
       let totalInfeksius = 0, totalJarum = 0, totalBotol = 0, totalSito = 0;
 
@@ -262,6 +374,10 @@ export default function LimbahPadat() {
         totalBotol += bot;
         totalSito += sit;
 
+        let sourceInfo = [];
+        if (item.ruanganCount > 0) sourceInfo.push(`Akumulasi ${item.ruanganCount} ruangan (${Array.from(item.ruanganNames).join(', ')})`);
+        if (item.isManual) sourceInfo.push('Input Manual');
+
         wsData.push([
           idx + 1,
           new Date(item.tanggal).toLocaleDateString('id-ID'),
@@ -269,23 +385,18 @@ export default function LimbahPadat() {
           jar,
           bot,
           sit,
-          total
+          total,
+          sourceInfo.join(' & ')
         ]);
       });
 
       // Total row
-      wsData.push([
-        '', 'TOTAL BULAN',
-        totalInfeksius,
-        totalJarum,
-        totalBotol,
-        totalSito,
-        totalInfeksius + totalJarum + totalBotol + totalSito
-      ]);
+      const grandTotal = totalInfeksius + totalJarum + totalBotol + totalSito;
+      wsData.push([]);
+      wsData.push(['TOTAL BULANAN', '', totalInfeksius, totalJarum, totalBotol, totalSito, grandTotal]);
 
       const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-      // Column widths
       ws['!cols'] = [
         { wch: 5 },   // No
         { wch: 14 },  // Tanggal
@@ -530,35 +641,25 @@ export default function LimbahPadat() {
   const handlePrint = async () => {
     const { value: formValues } = await MySwal.fire({
       title: 'Pilih Bulan & Tahun',
-      html: '<input id="swal-input-month" type="month" class="swal2-input">',
+      html: `<input id="swal-input-month" type="month" class="swal2-input" value="${filterMonth || new Date().toISOString().slice(0, 7)}">`,
       focusConfirm: false,
       preConfirm: () => document.getElementById('swal-input-month').value
     });
 
     if (!formValues) return;
 
-    const [year, month] = formValues.split('-');
-
     try {
       MySwal.fire({ title: 'Mengambil Data...', allowOutsideClick: false, didOpen: () => MySwal.showLoading() });
 
-      const startOfMonth = `${year}-${month}-01`;
-      const lastDay = new Date(year, month, 0).getDate();
-      const endOfMonth = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+      const printData = await getAccumulatedData(formValues);
+      printData.sort((a, b) => a.tanggal.localeCompare(b.tanggal));
 
-      const { data: printData, error } = await supabase
-        .from('limbah_padat')
-        .select('tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
-        .gte('tanggal', startOfMonth)
-        .lte('tanggal', endOfMonth)
-        .order('tanggal', { ascending: true });
-
-      if (error) throw error;
       if (!printData || printData.length === 0) {
         MySwal.fire('Informasi', 'Tidak ada data untuk bulan ini.', 'info');
         return;
       }
 
+      const [year, month] = formValues.split('-');
       let totalInfeksius = 0, totalJarum = 0, totalBotol = 0, totalSitotoksik = 0, grandTotal = 0;
       const rowsHTML = printData.map((item, index) => {
         const itemTotal = (item.infeksius || 0) + (item.jarum_suntik || 0) + (item.botol_obat || 0) + (item.sitotoksik || 0);
@@ -567,13 +668,19 @@ export default function LimbahPadat() {
         totalBotol += (item.botol_obat || 0);
         totalSitotoksik += (item.sitotoksik || 0);
         grandTotal += itemTotal;
+
+        let note = '';
+        if (item.ruanganCount > 0) {
+          note = `<br/><small style="color:#059669;font-size:10px;">(${item.ruanganCount} Ruangan)</small>`;
+        }
+
         return `<tr>
           <td style="text-align:center;">${index + 1}</td>
-          <td>${new Date(item.tanggal).toLocaleDateString('id-ID')}</td>
-          <td style="text-align:right;">${item.infeksius || 0}</td>
-          <td style="text-align:right;">${item.jarum_suntik || 0}</td>
-          <td style="text-align:right;">${item.botol_obat || 0}</td>
-          <td style="text-align:right;">${item.sitotoksik || 0}</td>
+          <td>${new Date(item.tanggal).toLocaleDateString('id-ID')}${note}</td>
+          <td style="text-align:right;">${(item.infeksius || 0).toFixed(2)}</td>
+          <td style="text-align:right;">${(item.jarum_suntik || 0).toFixed(2)}</td>
+          <td style="text-align:right;">${(item.botol_obat || 0).toFixed(2)}</td>
+          <td style="text-align:right;">${(item.sitotoksik || 0).toFixed(2)}</td>
           <td style="text-align:right;"><strong>${itemTotal.toFixed(2)}</strong></td>
         </tr>`;
       }).join('');
@@ -723,7 +830,7 @@ export default function LimbahPadat() {
             <div className="hidden sm:block w-px h-8 bg-gray-200 mx-1"></div>
 
             {/* Info */}
-            <div className="text-xs text-gray-500 flex-1 min-w-[220px]">
+            <div className="text-xs text-gray-500 w-full sm:w-auto sm:flex-1 min-w-0">
               <p><i className="fas fa-info-circle text-blue-400 mr-1"></i>
                 <strong>Import:</strong> Download template terlebih dahulu, isi data, lalu upload.</p>
               <p className="mt-0.5"><i className="fas fa-info-circle text-green-500 mr-1"></i>
@@ -734,6 +841,51 @@ export default function LimbahPadat() {
 
         {/* ── Tabel Data ── */}
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+
+          {/* Info Banner: Akumulasi Ruangan */}
+          <div className="bg-emerald-50 border-b border-emerald-200 px-5 py-2.5 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-gray-700">
+            <span className="font-semibold text-emerald-800 flex items-center gap-1.5">
+              <i className="fas fa-layer-group text-emerald-600"></i>
+              Keterangan Baris:
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-emerald-200 border-l-2 border-emerald-600 inline-block"></span>
+              <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 border border-emerald-300 px-1.5 py-px rounded-full font-semibold text-[10px]">
+                <i className="fas fa-hospital"></i> N Ruangan
+              </span>
+              Akumulasi otomatis dari input per ruangan
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-sky-200 border-l-2 border-sky-600 inline-block"></span>
+              <span className="inline-flex items-center gap-1 bg-sky-100 text-sky-800 border border-sky-300 px-1.5 py-px rounded-full font-semibold text-[10px]">
+                <i className="fas fa-edit"></i> + Manual
+              </span>
+              Akumulasi ruangan + input manual
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-gray-200 border-l-2 border-gray-400 inline-block"></span>
+              Input manual (tanpa data ruangan)
+            </span>
+          </div>
+
+          {/* Banner Peringatan Data Offline Belum Sinkron */}
+          {data.some(i => i.isOffline) && (
+            <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-6 py-3 text-xs sm:text-sm font-medium flex flex-col sm:flex-row items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <i className="fas fa-exclamation-triangle text-amber-600 text-base animate-pulse"></i>
+                <span>Terdapat <strong>{data.filter(i => i.isOffline).length} data offline</strong> yang tersimpan di HP dan <strong>belum tersinkronisasi</strong> ke server.</span>
+              </div>
+              {navigator.onLine && (
+                <button
+                  onClick={() => syncOfflineQueue(true)}
+                  className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
+                >
+                  <i className="fas fa-cloud-upload-alt"></i> Sinkronkan Sekarang
+                </button>
+              )}
+            </div>
+          )}
+
           <div className="bg-gray-800 text-white px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
             <h2 className="text-lg font-bold">
               <i className="fas fa-table mr-2"></i> Data Limbah Padat
@@ -783,25 +935,74 @@ export default function LimbahPadat() {
                 ) : (
                   data.map((item, idx) => {
                     const rowNo = (page - 1) * itemsPerPage + idx + 1;
+                    const isRoomOnly = item.isRoomAccumulation && !item.isManual;
+                    const isMixed = item.isRoomAccumulation && item.isManual;
+
+                    let rowClass = 'border-b hover:bg-gray-50 transition-colors';
+                    if (item.isOffline) rowClass = 'bg-amber-50/70 hover:bg-amber-100/70 border-l-4 border-l-amber-500 border-b transition-colors';
+                    else if (isRoomOnly) rowClass = 'bg-emerald-50/60 hover:bg-emerald-100/60 border-l-4 border-l-emerald-500 border-b transition-colors';
+                    else if (isMixed) rowClass = 'bg-sky-50/60 hover:bg-sky-100/60 border-l-4 border-l-sky-500 border-b transition-colors';
+
                     return (
-                      <tr key={item.id} className="border-b hover:bg-gray-50 transition-colors">
+                      <tr key={item.id} className={rowClass}>
                         <td className="px-4 py-3 text-gray-500 text-sm">{rowNo}</td>
                         <td className="px-4 py-3 font-medium text-gray-800">
-                          {new Date(item.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          <div className="flex flex-col gap-1">
+                            <span className="whitespace-nowrap">
+                              {new Date(item.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {isRoomOnly && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                  <i className="fas fa-hospital text-emerald-600"></i>
+                                  {item.ruanganCount} Ruangan
+                                </span>
+                              )}
+                              {isMixed && (
+                                <>
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                    <i className="fas fa-hospital text-emerald-600"></i>
+                                    {item.ruanganCount} Ruangan
+                                  </span>
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-300 px-2 py-0.5 rounded-full whitespace-nowrap">
+                                    <i className="fas fa-edit text-sky-600"></i>
+                                    + Manual
+                                  </span>
+                                </>
+                              )}
+                              {item.isOffline && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold bg-amber-200 text-amber-900 border border-amber-400 px-2 py-0.5 rounded-full animate-pulse whitespace-nowrap">
+                                  <i className="fas fa-wifi-slash text-amber-700"></i> Belum Sinkron
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-right text-red-600 font-semibold">{parseFloat(item.infeksius || 0).toFixed(2)}</td>
                         <td className="px-4 py-3 text-right text-orange-600 font-semibold">{parseFloat(item.jarum_suntik || 0).toFixed(2)}</td>
                         <td className="px-4 py-3 text-right text-blue-600 font-semibold">{parseFloat(item.botol_obat || 0).toFixed(2)}</td>
                         <td className="px-4 py-3 text-right text-purple-600 font-semibold">{parseFloat(item.sitotoksik || 0).toFixed(2)}</td>
                         <td className="px-4 py-3 text-center">
-                          <button onClick={() => handleEdit(item)}
-                            className="bg-blue-100 text-blue-600 hover:bg-blue-200 px-2 py-1 rounded mx-1 transition" title="Edit">
-                            <i className="fas fa-edit"></i>
-                          </button>
-                          <button onClick={() => handleDelete(item.id)}
-                            className="bg-red-100 text-red-600 hover:bg-red-200 px-2 py-1 rounded mx-1 transition" title="Hapus">
-                            <i className="fas fa-trash"></i>
-                          </button>
+                          {isRoomOnly ? (
+                            <button
+                              onClick={() => handleEdit(item)}
+                              className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-2 py-1 rounded mx-1 transition text-xs"
+                              title="Lihat Detail Ruangan"
+                            >
+                              <i className="fas fa-eye"></i>
+                            </button>
+                          ) : (
+                            <>
+                              <button onClick={() => handleEdit(item)}
+                                className="bg-blue-100 text-blue-600 hover:bg-blue-200 px-2 py-1 rounded mx-1 transition" title="Edit">
+                                <i className="fas fa-edit"></i>
+                              </button>
+                              <button onClick={() => handleDelete(item)}
+                                className="bg-red-100 text-red-600 hover:bg-red-200 px-2 py-1 rounded mx-1 transition" title="Hapus">
+                                <i className="fas fa-trash"></i>
+                              </button>
+                            </>
+                          )}
                         </td>
                       </tr>
                     );

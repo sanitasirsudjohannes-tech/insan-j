@@ -10,6 +10,7 @@ const Riwayat = lazy(() => import('./pages/Riwayat'));
 const KelolaAdmin = lazy(() => import('./pages/KelolaAdmin'));
 const Inspeksi = lazy(() => import('./pages/Inspeksi'));
 const LimbahPadat = lazy(() => import('./pages/LimbahPadat'));
+const LimbahRuangan = lazy(() => import('./pages/LimbahRuangan'));
 const PengangkutanLimbah = lazy(() => import('./pages/PengangkutanLimbah'));
 
 // Loading component
@@ -61,6 +62,12 @@ function App() {
           <Route path="/limbah-padat" element={
             <ProtectedRoute>
               <LimbahPadat />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/limbah-ruangan" element={
+            <ProtectedRoute>
+              <LimbahRuangan />
             </ProtectedRoute>
           } />
 

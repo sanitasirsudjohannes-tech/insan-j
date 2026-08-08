@@ -17,6 +17,25 @@ export const getOfflineQueue = () => {
 };
 
 /**
+ * Mendapatkan daftar data offline yang belum disinkronkan untuk tabel tertentu
+ */
+export const getUnsyncedItemsForTable = (tableName) => {
+  const queue = getOfflineQueue();
+  return queue
+    .filter(item => item.table === tableName && item.action !== 'delete')
+    .map(item => {
+      const payloadData = typeof item.payload === 'object' ? item.payload : {};
+      return {
+        ...payloadData,
+        id: item.id,
+        isOffline: true,
+        offlineAction: item.action,
+        waktu_input: payloadData.waktu_input || item.createdAt || new Date().toISOString()
+      };
+    });
+};
+
+/**
  * Menyimpan data ke antrean offline
  */
 export const saveToOfflineQueue = (table, action, payload, description = '') => {

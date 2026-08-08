@@ -9,6 +9,7 @@ export default function Sidebar({ isOpen, onClose }) {
     { to: '/dashboard', label: 'Dashboard', icon: 'fas fa-th-large' },
     ...(!isAdmin ? [
       { to: '/limbah-padat', label: 'Limbah Medis Padat', icon: 'fas fa-trash-alt' },
+      { to: '/limbah-ruangan', label: 'Limbah Per Ruangan', icon: 'fas fa-door-open' },
       { to: '/pengangkutan', label: 'Pengangkutan Limbah', icon: 'fas fa-truck' },
       { to: '/inspeksi', label: 'Form Inspeksi', icon: 'fas fa-clipboard-list' }
     ] : []),

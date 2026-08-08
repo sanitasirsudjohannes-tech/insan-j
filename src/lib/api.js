@@ -20,3 +20,21 @@ export const logoutUser = async () => {
   sessionStorage.removeItem('currentUser');
   window.location.href = import.meta.env.BASE_URL;
 };
+
+/**
+ * Mengambil daftar nama ruangan secara dinamis dari tabel database 'ruangan' Supabase
+ */
+export const fetchDaftarRuangan = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('ruangan')
+      .select('nama_ruangan')
+      .order('nama_ruangan', { ascending: true });
+
+    if (error || !data) return [];
+    return data.map(r => r.nama_ruangan);
+  } catch (e) {
+    console.warn('Gagal memuat ruangan dari DB:', e);
+    return [];
+  }
+};

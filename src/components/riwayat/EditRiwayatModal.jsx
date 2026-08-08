@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { CHECKLIST_ITEMS, LOKASI_OPTIONS } from '../../lib/constants';
+import { CHECKLIST_ITEMS } from '../../lib/constants';
+import { fetchDaftarRuangan } from '../../lib/api';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 
@@ -8,8 +9,13 @@ const MySwal = withReactContent(Swal);
 
 export default function EditRiwayatModal({ isOpen, onClose, item, onSuccess }) {
   const [editFormData, setEditFormData] = useState({});
+  const [ruanganList, setRuanganList] = useState([]);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchDaftarRuangan().then(list => setRuanganList(list));
+  }, []);
 
   useEffect(() => {
     if (isOpen && item) {
@@ -174,7 +180,7 @@ export default function EditRiwayatModal({ isOpen, onClose, item, onSuccess }) {
                     required
                   />
                   <datalist id="lokasiListEdit">
-                    {LOKASI_OPTIONS.map(opt => <option key={opt} value={opt} />)}
+                    {ruanganList.map(opt => <option key={opt} value={opt} />)}
                   </datalist>
                 </div>
                 <div className="flex-1">
