@@ -98,6 +98,7 @@ export default function LimbahPadat() {
           sitotoksik: 0,
           ruanganCount: 0,
           ruanganNames: new Set(),
+          padatIds: [],
           isOffline: false,
           isRoomAccumulation: true,
           isManual: false
@@ -129,6 +130,7 @@ export default function LimbahPadat() {
           sitotoksik: 0,
           ruanganCount: 0,
           ruanganNames: new Set(),
+          padatIds: [],
           isOffline: false,
           isManual: true
         });
@@ -140,6 +142,8 @@ export default function LimbahPadat() {
       entry.botol_obat += parseFloat(item.botol_obat || 0);
       entry.sitotoksik += parseFloat(item.sitotoksik || 0);
       entry.isManual = true;
+      // Simpan ID asli dari limbah_padat agar bisa dihapus
+      if (item.id && !item.isOffline) entry.padatIds.push(item.id);
       if (item.isOffline) entry.isOffline = true;
     });
 
@@ -287,6 +291,7 @@ export default function LimbahPadat() {
   };
 
   const handleDelete = async (item) => {
+    // Baris akumulasi ruangan murni → arahkan ke modul Limbah Per Ruangan
     if (item.isRoomAccumulation && !item.isManual) {
       MySwal.fire({
         icon: 'info',
@@ -297,23 +302,47 @@ export default function LimbahPadat() {
       return;
     }
 
-    const id = typeof item === 'object' ? item.id : item;
+    // Tentukan ID yang akan dihapus
+    // - Mixed (ruangan + manual): gunakan padatIds yang tersimpan
+    // - Manual saja: gunakan item.id langsung
+    const isMixed = item.isRoomAccumulation && item.isManual;
+    const idsToDelete = isMixed
+      ? (item.padatIds || [])
+      : (typeof item === 'object' ? [item.id] : [item]);
+
+    if (isMixed && idsToDelete.length === 0) {
+      MySwal.fire({
+        icon: 'warning',
+        title: 'Tidak ada data manual',
+        text: 'Tidak ditemukan data input manual pada tanggal ini yang bisa dihapus. Data ruangan harus dihapus dari menu Limbah Per Ruangan.',
+        confirmButtonColor: '#059669'
+      });
+      return;
+    }
+
+    const tglLabel = new Date(item.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    const confirmText = isMixed
+      ? `Hanya data input manual pada ${tglLabel} yang akan dihapus. Data akumulasi ruangan akan tetap ada.`
+      : `Data ${tglLabel} akan dihapus permanen!`;
 
     const confirm = await MySwal.fire({
       title: 'Hapus Data?',
-      text: "Data yang dihapus tidak dapat dikembalikan!",
+      text: confirmText,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
       cancelButtonColor: '#3085d6',
-      confirmButtonText: 'Ya, Hapus!'
+      confirmButtonText: 'Ya, Hapus!',
+      cancelButtonText: 'Batal'
     });
 
     if (confirm.isConfirmed) {
       try {
-        const { error } = await supabase.from('limbah_padat').delete().eq('id', id);
-        if (error) throw error;
-        MySwal.fire('Terhapus', 'Data berhasil dihapus', 'success');
+        for (const id of idsToDelete) {
+          const { error } = await supabase.from('limbah_padat').delete().eq('id', id);
+          if (error) throw error;
+        }
+        MySwal.fire('Terhapus', isMixed ? 'Data input manual berhasil dihapus.' : 'Data berhasil dihapus.', 'success');
         fetchData();
       } catch (error) {
         MySwal.fire('Gagal', error.message, 'error');
