@@ -4,6 +4,7 @@ import { CHECKLIST_ITEMS } from '../../lib/constants';
 import { fetchDaftarRuangan } from '../../lib/api';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
+import SearchableBottomSheet from '../SearchableBottomSheet';
 
 const MySwal = withReactContent(Swal);
 
@@ -12,6 +13,7 @@ export default function EditRiwayatModal({ isOpen, onClose, item, onSuccess }) {
   const [ruanganList, setRuanganList] = useState([]);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [showRuanganSheet, setShowRuanganSheet] = useState(false);
 
   useEffect(() => {
     fetchDaftarRuangan().then(list => setRuanganList(list));
@@ -170,18 +172,16 @@ export default function EditRiwayatModal({ isOpen, onClose, item, onSuccess }) {
               <div className="bg-blue-50 p-4 rounded-xl mb-6 flex flex-col sm:flex-row gap-4 border border-blue-100">
                 <div className="flex-1">
                   <label className="font-semibold text-blue-900 block text-xs uppercase opacity-70 mb-1">LOKASI</label>
-                  <input
-                    type="text"
-                    value={editFormData._lokasi || ''}
-                    onChange={e => handleEditInputChange('_lokasi', e.target.value)}
-                    list="lokasiListEdit"
-                    className="w-full bg-white border border-blue-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800"
-                    placeholder="Ketik atau pilih lokasi"
-                    required
-                  />
-                  <datalist id="lokasiListEdit">
-                    {ruanganList.map(opt => <option key={opt} value={opt} />)}
-                  </datalist>
+                  <button
+                    type="button"
+                    onClick={() => setShowRuanganSheet(true)}
+                    className="w-full bg-white border border-blue-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-left flex items-center justify-between"
+                  >
+                    <span className={editFormData._lokasi ? 'text-gray-800 font-medium' : 'text-gray-400'}>
+                      {editFormData._lokasi || 'Pilih lokasi...'}
+                    </span>
+                    <i className="fas fa-chevron-down text-gray-400 text-xs" />
+                  </button>
                 </div>
                 <div className="flex-1">
                   <label className="font-semibold text-blue-900 block text-xs uppercase opacity-70 mb-1">TANGGAL</label>
@@ -211,7 +211,7 @@ export default function EditRiwayatModal({ isOpen, onClose, item, onSuccess }) {
                         onChange={(e) => handleEditInputChange(checklistFieldItem.id, e.target.value)}
                         required
                       />
-                      <span className="text-gray-400 text-xs font-semibold whitespace-nowrap min-w-[40px] text-left">/ 10</span>
+                      <span className="text-gray-400 text-xs font-semibold whitespace-nowrap min-w-10 text-left">/ 10</span>
                     </div>
                   </div>
                 ))}
@@ -243,6 +243,16 @@ export default function EditRiwayatModal({ isOpen, onClose, item, onSuccess }) {
         </div>
 
       </div>
+      <SearchableBottomSheet
+        isOpen={showRuanganSheet}
+        onClose={() => setShowRuanganSheet(false)}
+        options={ruanganList}
+        value={editFormData._lokasi || ''}
+        onChange={(val) => handleEditInputChange('_lokasi', val)}
+        label="Pilih Lokasi / Unit"
+        placeholder="Cari lokasi atau unit..."
+        accentColor="blue"
+      />
     </div>
   );
 }

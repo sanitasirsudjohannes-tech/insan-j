@@ -11,6 +11,7 @@ const KelolaAdmin = lazy(() => import('./pages/KelolaAdmin'));
 const Inspeksi = lazy(() => import('./pages/Inspeksi'));
 const LimbahPadat = lazy(() => import('./pages/LimbahPadat'));
 const LimbahRuangan = lazy(() => import('./pages/LimbahRuangan'));
+const LimbahDihasilkan = lazy(() => import('./pages/LimbahDihasilkan'));
 const PengangkutanLimbah = lazy(() => import('./pages/PengangkutanLimbah'));
 
 // Loading component
@@ -59,17 +60,15 @@ function App() {
             </ProtectedRoute>
           } />
 
-          <Route path="/limbah-padat" element={
+          <Route path="/limbah-dihasilkan" element={
             <ProtectedRoute>
-              <LimbahPadat />
+              <LimbahDihasilkan />
             </ProtectedRoute>
           } />
 
-          <Route path="/limbah-ruangan" element={
-            <ProtectedRoute>
-              <LimbahRuangan />
-            </ProtectedRoute>
-          } />
+          {/* Redirect route lama ke route baru */}
+          <Route path="/limbah-padat" element={<Navigate to="/limbah-dihasilkan" replace />} />
+          <Route path="/limbah-ruangan" element={<Navigate to="/limbah-dihasilkan" replace />} />
 
           <Route path="/pengangkutan" element={
             <ProtectedRoute>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
-import { getCurrentUser } from '../lib/api';
+import { getCurrentUser, fetchDaftarRuangan } from '../lib/api';
 import { supabase } from '../lib/supabase';
 
 const MySwal = withReactContent(Swal);
@@ -80,6 +80,9 @@ export default function Login() {
 
       localStorage.setItem('currentUser', JSON.stringify(userData));
       sessionStorage.setItem('currentUser', JSON.stringify(userData));
+
+      // Cache daftar ruangan agar bisa digunakan secara offline
+      fetchDaftarRuangan().catch(() => {});
 
       MySwal.fire({
         icon: 'success',

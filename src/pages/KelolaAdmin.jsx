@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import AppLayout from '../components/AppLayout';
-import { getCurrentUser } from '../lib/api';
+import { getCurrentUser, getSetting, setSetting } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
@@ -14,7 +14,7 @@ export default function KelolaAdmin() {
   const navigate = useNavigate();
   const isAdmin = user?.role?.toLowerCase() === 'admin';
 
-  const [activeTab, setActiveTab] = useState('pengguna'); // 'pengguna' | 'ruangan'
+  const [activeTab, setActiveTab] = useState('pengguna'); // 'pengguna' | 'ruangan' | 'pengaturan'
 
   // User Management State
   const [users, setUsers] = useState([]);
@@ -29,6 +29,10 @@ export default function KelolaAdmin() {
   const [searchRuangan, setSearchRuangan] = useState('');
   const [newRuanganName, setNewRuanganName] = useState('');
   const [addingRuangan, setAddingRuangan] = useState(false);
+
+  // Pengaturan State
+  const [formLimbahPadatEnabled, setFormLimbahPadatEnabled] = useState(true);
+  const [savingSettings, setSavingSettings] = useState(false);
 
   // Guard: redirect non-admin
   useEffect(() => {
@@ -77,8 +81,34 @@ export default function KelolaAdmin() {
     if (isAdmin) {
       fetchUsers();
       fetchRuangan();
+      // Baca setting form limbah padat
+      getSetting('form_limbah_padat_enabled', true).then(val => setFormLimbahPadatEnabled(val));
     }
   }, [isAdmin, fetchUsers, fetchRuangan]);
+
+  const handleToggleFormLimbahPadat = async (enabled) => {
+    setSavingSettings(true);
+    setFormLimbahPadatEnabled(enabled);
+    await setSetting('form_limbah_padat_enabled', enabled);
+    setSavingSettings(false);
+
+    // Broadcast ke komponen LimbahPadat yang sedang terbuka
+    window.dispatchEvent(new CustomEvent('app-setting-changed', {
+      detail: { key: 'form_limbah_padat_enabled', value: enabled }
+    }));
+
+    MySwal.fire({
+      icon: 'success',
+      title: enabled ? 'Form Diaktifkan!' : 'Form Dinonaktifkan!',
+      text: enabled
+        ? 'Form input Limbah Padat kini aktif dan dapat digunakan petugas.'
+        : 'Form input Limbah Padat telah dimatikan. Data tabel tetap terlihat.',
+      timer: 2000,
+      showConfirmButton: false,
+      toast: true,
+      position: 'top-end',
+    });
+  };
 
   const handleResetPassword = async (targetUser) => {
     const { isConfirmed } = await MySwal.fire({
@@ -231,7 +261,7 @@ export default function KelolaAdmin() {
                 Kelola akun pengguna dan master data ruangan rumah sakit.
               </p>
             </div>
-            <div className="flex gap-2 bg-white/10 rounded-xl p-1.5 border border-white/20">
+            <div className="flex gap-2 bg-white/10 rounded-xl p-1.5 border border-white/20 flex-wrap">
               <button
                 onClick={() => setActiveTab('pengguna')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${activeTab === 'pengguna' ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-100 hover:text-white'}`}
@@ -243,6 +273,12 @@ export default function KelolaAdmin() {
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${activeTab === 'ruangan' ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-100 hover:text-white'}`}
               >
                 <i className="fas fa-door-open"></i> Ruangan ({ruanganList.length})
+              </button>
+              <button
+                onClick={() => setActiveTab('pengaturan')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${activeTab === 'pengaturan' ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-100 hover:text-white'}`}
+              >
+                <i className="fas fa-sliders-h"></i> Pengaturan
               </button>
             </div>
           </div>
@@ -460,7 +496,7 @@ export default function KelolaAdmin() {
                 Tidak ada ruangan ditemukan.
               </div>
             ) : (
-              <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-[500px] overflow-y-auto">
+              <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-125 overflow-y-auto">
                 {filteredRuangan.map((item, idx) => (
                   <div key={item.id || idx} className="bg-gray-50 border border-gray-200 hover:border-emerald-300 p-3 rounded-xl flex items-center justify-between transition group">
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -494,6 +530,93 @@ export default function KelolaAdmin() {
             </div>
           </div>
         )}
+        {/* TAB 3: PENGATURAN */}
+        {activeTab === 'pengaturan' && (
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 bg-slate-50 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center">
+                <i className="fas fa-sliders-h text-indigo-600"></i>
+              </div>
+              <div>
+                <h2 className="font-bold text-gray-800 text-sm">Pengaturan Modul</h2>
+                <p className="text-xs text-gray-500">Aktifkan atau nonaktifkan fitur input data untuk petugas</p>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Toggle Form Limbah Padat */}
+              <div className={`rounded-2xl border-2 p-5 transition-all ${
+                formLimbahPadatEnabled
+                  ? 'border-green-200 bg-green-50'
+                  : 'border-red-200 bg-red-50'
+              }`}>
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-start gap-4">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
+                      formLimbahPadatEnabled ? 'bg-green-100' : 'bg-red-100'
+                    }`}>
+                      <i className={`fas fa-trash-alt text-xl ${
+                        formLimbahPadatEnabled ? 'text-green-600' : 'text-red-500'
+                      }`}></i>
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-gray-800 text-sm">Form Input Limbah Padat</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        Kontrol akses petugas untuk menginput data limbah padat secara manual.
+                        Tabel data & export tetap bisa diakses meski form dimatikan.
+                      </p>
+                      <span className={`mt-2 inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full ${
+                        formLimbahPadatEnabled
+                          ? 'bg-green-200 text-green-800'
+                          : 'bg-red-200 text-red-800'
+                      }`}>
+                        <i className={`fas ${ formLimbahPadatEnabled ? 'fa-check-circle' : 'fa-ban' } text-[10px]`}></i>
+                        {formLimbahPadatEnabled ? 'Aktif' : 'Nonaktif'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Toggle Switch */}
+                  <button
+                    onClick={() => handleToggleFormLimbahPadat(!formLimbahPadatEnabled)}
+                    disabled={savingSettings}
+                    className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors duration-300 focus:outline-none shrink-0 ${
+                      formLimbahPadatEnabled ? 'bg-green-500' : 'bg-gray-300'
+                    } disabled:opacity-60`}
+                    title={formLimbahPadatEnabled ? 'Klik untuk menonaktifkan' : 'Klik untuk mengaktifkan'}
+                  >
+                    <span className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
+                      formLimbahPadatEnabled ? 'translate-x-7' : 'translate-x-1'
+                    }`} />
+                  </button>
+                </div>
+
+                <div className={`mt-4 flex gap-2 ${ formLimbahPadatEnabled ? '' : '' }`}>
+                  <button
+                    onClick={() => handleToggleFormLimbahPadat(true)}
+                    disabled={formLimbahPadatEnabled || savingSettings}
+                    className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold bg-green-600 hover:bg-green-700 text-white transition disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <i className="fas fa-power-off"></i> Aktifkan Form
+                  </button>
+                  <button
+                    onClick={() => handleToggleFormLimbahPadat(false)}
+                    disabled={!formLimbahPadatEnabled || savingSettings}
+                    className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold bg-red-500 hover:bg-red-600 text-white transition disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <i className="fas fa-ban"></i> Nonaktifkan Form
+                  </button>
+                </div>
+              </div>
+
+              <p className="text-xs text-gray-400 px-1">
+                <i className="fas fa-info-circle mr-1"></i>
+                Pengaturan disimpan ke database dan berlaku untuk semua petugas yang login.
+              </p>
+            </div>
+          </div>
+        )}
+
       </div>
     </AppLayout>
   );

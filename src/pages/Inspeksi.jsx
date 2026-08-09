@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase';
 import { saveToOfflineQueue } from '../lib/offlineStorage';
 import { AVAILABLE_FORMS, CHECKLIST_ITEMS } from '../lib/constants';
 import { fetchDaftarRuangan } from '../lib/api';
+import SearchableBottomSheet from '../components/SearchableBottomSheet';
 
 const MySwal = withReactContent(Swal);
 
@@ -20,6 +21,7 @@ export default function Inspeksi({ user }) {
   const [activities, setActivities] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingActivities, setLoadingActivities] = useState(true);
+  const [showRuanganSheet, setShowRuanganSheet] = useState(false);
 
   const formRef = useRef(null);
 
@@ -414,11 +416,16 @@ export default function Inspeksi({ user }) {
                   </div>
                   <div>
                     <label className="block text-gray-700 font-bold mb-2">Lokasi/Unit</label>
-                    <input list="lokasiList" className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" placeholder="-- Ketik atau pilih lokasi --"
-                      value={lokasi} onChange={e => setLokasi(e.target.value)} required />
-                    <datalist id="lokasiList">
-                      {ruanganList.map(opt => <option key={opt} value={opt} />)}
-                    </datalist>
+                    <button
+                      type="button"
+                      onClick={() => setShowRuanganSheet(true)}
+                      className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex items-center justify-between text-sm"
+                    >
+                      <span className={lokasi ? 'text-gray-800 font-medium' : 'text-gray-400'}>
+                        {lokasi || '-- Ketik atau pilih lokasi --'}
+                      </span>
+                      <i className="fas fa-chevron-down text-gray-400 text-xs" />
+                    </button>
                   </div>
                 </div>
 
@@ -508,6 +515,16 @@ export default function Inspeksi({ user }) {
           </div>
         </div>
       </div>
+    <SearchableBottomSheet
+      isOpen={showRuanganSheet}
+      onClose={() => setShowRuanganSheet(false)}
+      options={ruanganList}
+      value={lokasi}
+      onChange={setLokasi}
+      label="Pilih Lokasi / Unit"
+      placeholder="Cari lokasi atau unit..."
+      accentColor="blue"
+    />
     </AppLayout>
   );
 }
