@@ -140,7 +140,7 @@ export default function Inspeksi({ user }) {
     // Only allow numbers, replace invalid
     let numStr = value.replace(/[^0-9]/g, '');
     let finalVal;
-    
+
     if (numStr === '') {
       finalVal = '';
     } else {
@@ -354,7 +354,7 @@ export default function Inspeksi({ user }) {
       <div className="container mx-auto px-4 py-8">
         <div className="bg-white rounded-lg shadow-lg p-6 mb-8 flex items-center border-l-4 border-blue-500">
           <div>
-            <h2 className="text-2xl font-bold text-gray-800">Selamat Datang, {user?.nama}!</h2>
+            <h2 className="text-2xl font-bold text-gray-800">Hallo, {user?.nama}!</h2>
             <p className="text-gray-600">Silakan pilih form isian nilai yang ingin diisi</p>
           </div>
         </div>
@@ -515,16 +515,16 @@ export default function Inspeksi({ user }) {
           </div>
         </div>
       </div>
-    <SearchableBottomSheet
-      isOpen={showRuanganSheet}
-      onClose={() => setShowRuanganSheet(false)}
-      options={ruanganList}
-      value={lokasi}
-      onChange={setLokasi}
-      label="Pilih Lokasi / Unit"
-      placeholder="Cari lokasi atau unit..."
-      accentColor="blue"
-    />
+      <SearchableBottomSheet
+        isOpen={showRuanganSheet}
+        onClose={() => setShowRuanganSheet(false)}
+        options={ruanganList}
+        value={lokasi}
+        onChange={setLokasi}
+        label="Pilih Lokasi / Unit"
+        placeholder="Cari lokasi atau unit..."
+        accentColor="blue"
+      />
     </AppLayout>
   );
 }
