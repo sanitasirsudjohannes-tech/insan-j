@@ -529,145 +529,829 @@ export default function LimbahRuangan({ embedded = false }) {
   };
 
   // ─── PRINT PDF ───────────────────────────────────────────────────────────────
+  // ─── PRINT PDF ───────────────────────────────────────────────────────────────
   const handlePrint = async () => {
+    const currentMonth =
+      filterMonth || new Date().toISOString().slice(0, 7);
+
     const { value: formValues } = await MySwal.fire({
       title: 'Cetak Laporan Limbah Ruangan',
       html: `
-        <div class="text-left space-y-3">
-          <div>
-            <label class="block text-xs font-bold text-gray-600 mb-1">Pilih Bulan & Tahun:</label>
-            <input id="swal-print-month" type="month" class="swal2-input w-full m-0" value="${new Date().toISOString().slice(0, 7)}">
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-gray-600 mb-1">Filter Ruangan (Opsional):</label>
-            <select id="swal-print-ruangan" class="swal2-select w-full m-0">
-              <option value="">-- Semua Ruangan --</option>
-              ${ruanganList.map(r => `<option value="${r}">${r}</option>`).join('')}
-            </select>
-          </div>
-        </div>
-      `,
+      <div style="text-align:left">
+        <p style="font-size:13px;color:#6b7280;margin-bottom:12px">
+          Pilih periode dan ruangan yang ingin dicetak.
+        </p>
+
+        <label
+          for="swal-print-month"
+          style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:5px"
+        >
+          Bulan & Tahun
+        </label>
+
+        <input
+          id="swal-print-month"
+          type="month"
+          class="swal2-input"
+          style="width:100%;margin:0 0 14px 0"
+          value="${currentMonth}"
+        />
+
+        <label
+          for="swal-print-ruangan"
+          style="display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:5px"
+        >
+          Ruangan
+        </label>
+
+        <select
+          id="swal-print-ruangan"
+          class="swal2-select"
+          style="width:100%;margin:0"
+        >
+          <option value="">-- Semua Ruangan --</option>
+          ${ruanganList
+          .map(
+            (r) =>
+              `<option value="${String(r)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')}">
+                  ${String(r)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')}
+                </option>`
+          )
+          .join('')}
+        </select>
+      </div>
+    `,
       focusConfirm: false,
       showCancelButton: true,
-      confirmButtonText: '<i class="fas fa-print mr-2"></i>Cetak',
+      confirmButtonText: '<i class="fas fa-print"></i> Cetak',
       cancelButtonText: 'Batal',
+      confirmButtonColor: '#2563eb',
+
       preConfirm: () => {
+        const monthInput =
+          document.getElementById('swal-print-month');
+
+        const ruanganInput =
+          document.getElementById('swal-print-ruangan');
+
+        if (!monthInput?.value) {
+          Swal.showValidationMessage(
+            'Silakan pilih bulan terlebih dahulu.'
+          );
+          return false;
+        }
+
         return {
-          month: document.getElementById('swal-print-month').value,
-          ruangan: document.getElementById('swal-print-ruangan').value
+          month: monthInput.value,
+          ruangan: ruanganInput?.value || ''
         };
       }
     });
 
-    if (!formValues || !formValues.month) return;
+    if (!formValues) return;
 
-    const { month: selectedMonth, ruangan: selectedRuangan } = formValues;
+    const {
+      month: selectedMonth,
+      ruangan: selectedRuangan
+    } = formValues;
+
     const [year, month] = selectedMonth.split('-');
 
-    try {
-      MySwal.fire({ title: 'Mengambil Data...', allowOutsideClick: false, didOpen: () => MySwal.showLoading() });
+    const startOfMonth = `${year}-${month}-01`;
 
-      const startOfMonth = `${year}-${month}-01`;
-      const lastDay = new Date(year, month, 0).getDate();
-      const endOfMonth = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+    const lastDay = new Date(
+      Number(year),
+      Number(month),
+      0
+    ).getDate();
+
+    const endOfMonth =
+      `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+
+    try {
+      MySwal.fire({
+        title: 'Menyiapkan Laporan...',
+        html: 'Mohon tunggu, data sedang diproses.',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        didOpen: () => {
+          MySwal.showLoading();
+        }
+      });
+
+      // =========================================================
+      // AMBIL DATA
+      // =========================================================
 
       let query = supabase
         .from('limbah_ruangan')
-        .select('tanggal, ruangan, infeksius, jarum_suntik, botol_obat, sitotoksik, petugas, keterangan')
+        .select(`
+        tanggal,
+        ruangan,
+        infeksius,
+        jarum_suntik,
+        botol_obat,
+        sitotoksik,
+        petugas,
+        keterangan
+      `)
         .gte('tanggal', startOfMonth)
         .lte('tanggal', endOfMonth)
-        .order('tanggal', { ascending: true });
+        .order('tanggal', { ascending: true })
+        .order('ruangan', { ascending: true });
 
       if (selectedRuangan) {
         query = query.eq('ruangan', selectedRuangan);
       }
 
-      const { data: printData, error } = await query;
+      const {
+        data: printData,
+        error
+      } = await query;
 
       if (error) throw error;
+
       if (!printData || printData.length === 0) {
-        MySwal.fire('Informasi', 'Tidak ada data untuk periode ini.', 'info');
+        MySwal.fire({
+          icon: 'info',
+          title: 'Tidak Ada Data',
+          text: 'Tidak ada data limbah untuk periode dan ruangan yang dipilih.',
+          confirmButtonColor: '#2563eb'
+        });
+
         return;
       }
 
-      let totalInf = 0, totalJar = 0, totalBot = 0, totalSit = 0, grandTotal = 0;
-      const rowsHTML = printData.map((item, index) => {
-        const itemTotal = (item.infeksius || 0) + (item.jarum_suntik || 0) + (item.botol_obat || 0) + (item.sitotoksik || 0);
-        totalInf += (item.infeksius || 0);
-        totalJar += (item.jarum_suntik || 0);
-        totalBot += (item.botol_obat || 0);
-        totalSit += (item.sitotoksik || 0);
-        grandTotal += itemTotal;
-        return `<tr>
-          <td style="text-align:center;">${index + 1}</td>
-          <td>${new Date(item.tanggal).toLocaleDateString('id-ID')}</td>
-          <td>${item.ruangan}</td>
-          <td style="text-align:right;">${item.infeksius || 0}</td>
-          <td style="text-align:right;">${item.jarum_suntik || 0}</td>
-          <td style="text-align:right;">${item.botol_obat || 0}</td>
-          <td style="text-align:right;">${item.sitotoksik || 0}</td>
-          <td style="text-align:right;"><strong>${itemTotal.toFixed(2)}</strong></td>
-          <td>${item.petugas || '-'}</td>
-        </tr>`;
-      }).join('');
+      // =========================================================
+      // HELPER
+      // =========================================================
+
+      const numberValue = (value) => {
+        const n = parseFloat(value);
+        return Number.isFinite(n) ? n : 0;
+      };
+
+      const escapeHTML = (value) => {
+        return String(value ?? '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      };
+
+      const formatNumber = (value) => {
+        return numberValue(value).toFixed(2);
+      };
+
+      const formatDate = (dateString) => {
+        if (!dateString) return '-';
+
+        const date = new Date(`${dateString}T00:00:00`);
+
+        if (Number.isNaN(date.getTime())) {
+          return escapeHTML(dateString);
+        }
+
+        return date.toLocaleDateString('id-ID', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric'
+        });
+      };
+
+      // =========================================================
+      // HITUNG TOTAL
+      // =========================================================
+
+      let totalInf = 0;
+      let totalJar = 0;
+      let totalBot = 0;
+      let totalSit = 0;
+      let grandTotal = 0;
+
+      // =========================================================
+      // BUAT BARIS TABEL
+      // =========================================================
+
+      const rowsHTML = printData
+        .map((item, index) => {
+          const inf = numberValue(item.infeksius);
+          const jar = numberValue(item.jarum_suntik);
+          const bot = numberValue(item.botol_obat);
+          const sit = numberValue(item.sitotoksik);
+
+          const totalHarian =
+            inf + jar + bot + sit;
+
+          totalInf += inf;
+          totalJar += jar;
+          totalBot += bot;
+          totalSit += sit;
+          grandTotal += totalHarian;
+
+          return `
+          <tr>
+            <td class="center">${index + 1}</td>
+
+            <td class="nowrap">
+              ${formatDate(item.tanggal)}
+            </td>
+
+            <td class="room">
+              ${escapeHTML(item.ruangan || '-')}
+            </td>
+
+            <td class="number infeksius">
+              ${formatNumber(inf)}
+            </td>
+
+            <td class="number jarum">
+              ${formatNumber(jar)}
+            </td>
+
+            <td class="number botol">
+              ${formatNumber(bot)}
+            </td>
+
+            <td class="number sitotoksik">
+              ${formatNumber(sit)}
+            </td>
+
+            <td class="number total">
+              <strong>${formatNumber(totalHarian)}</strong>
+            </td>
+
+            <td>
+              ${escapeHTML(item.petugas || '-')}
+            </td>
+
+            <td>
+              ${escapeHTML(item.keterangan || '-')}
+            </td>
+          </tr>
+        `;
+        })
+        .join('');
+
+      // =========================================================
+      // NAMA BULAN
+      // =========================================================
+
+      const monthNames = [
+        'Januari',
+        'Februari',
+        'Maret',
+        'April',
+        'Mei',
+        'Juni',
+        'Juli',
+        'Agustus',
+        'September',
+        'Oktober',
+        'November',
+        'Desember'
+      ];
+
+      const monthName =
+        monthNames[Number(month) - 1];
+
+      const periodeText =
+        `${monthName} ${year}`;
+
+      const ruanganText =
+        selectedRuangan
+          ? `Ruangan: ${escapeHTML(selectedRuangan)}`
+          : 'Semua Ruangan';
+
+      const printedDate =
+        new Date().toLocaleDateString('id-ID', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        });
+
+      // =========================================================
+      // HTML LAPORAN
+      // =========================================================
+
+      const printHTML = `
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+
+<title>
+Laporan Limbah Ruangan - ${periodeText}
+</title>
+
+<style>
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  color: #111827;
+  font-size: 11px;
+  line-height: 1.4;
+  background: white;
+}
+
+.container {
+  width: 100%;
+  padding: 15mm;
+}
+
+/* ==============================
+   HEADER
+============================== */
+
+.header {
+  text-align: center;
+  margin-bottom: 15px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.header h2 {
+  margin: 4px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.header p {
+  margin: 3px 0;
+  font-size: 10px;
+  color: #374151;
+}
+
+.line {
+  border-top: 2px solid #111827;
+  margin-top: 10px;
+}
+
+/* ==============================
+   INFO
+============================== */
+
+.info {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 10px;
+  font-size: 10px;
+}
+
+.info-left,
+.info-right {
+  flex: 1;
+}
+
+.info-right {
+  text-align: right;
+}
+
+/* ==============================
+   TABLE
+============================== */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+thead {
+  display: table-header-group;
+}
+
+tfoot {
+  display: table-footer-group;
+}
+
+tr {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+th,
+td {
+  border: 1px solid #000;
+  padding: 5px 4px;
+  vertical-align: middle;
+}
+
+th {
+  text-align: center;
+  font-weight: 700;
+  background: #e5e7eb;
+}
+
+.center {
+  text-align: center;
+}
+
+.number {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.room {
+  font-weight: 600;
+}
+
+.total {
+  font-weight: 700;
+}
+
+.totals {
+  font-weight: 700;
+  background: #e5e7eb;
+}
+
+.totals td {
+  border-top: 2px solid #000;
+}
+
+/* ==============================
+   FOOTER
+============================== */
+
+.signature-wrapper {
+  margin-top: 35px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.signature {
+  width: 230px;
+  text-align: center;
+}
+
+.signature .space {
+  height: 65px;
+}
+
+.signature .name {
+  font-weight: 700;
+}
+
+/* ==============================
+   PRINT
+============================== */
+
+@page {
+  size: A4 landscape;
+  margin: 10mm;
+}
+
+@media print {
+
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .container {
+    padding: 0;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <!-- HEADER -->
+
+  <div class="header">
+
+    <h1>
+      LAPORAN LIMBAH MEDIS PADAT PER RUANGAN
+    </h1>
+
+    <h2>
+      RSUD Prof. Dr. W.Z. Johannes Kupang
+    </h2>
+
+    <p>
+      Periode ${periodeText}
+    </p>
+
+    <div class="line"></div>
+
+  </div>
+
+  <!-- INFORMASI -->
+
+  <div class="info">
+
+    <div class="info-left">
+      <strong>Periode:</strong>
+      ${periodeText}
+      <br>
+
+      <strong>Filter:</strong>
+      ${ruanganText}
+    </div>
+
+    <div class="info-right">
+      <strong>Jumlah Data:</strong>
+      ${printData.length} data
+      <br>
+
+      <strong>Tanggal Cetak:</strong>
+      ${printedDate}
+    </div>
+
+  </div>
+
+  <!-- TABLE -->
+
+  <table>
+
+    <colgroup>
+      <col style="width:4%">
+      <col style="width:9%">
+      <col style="width:15%">
+      <col style="width:9%">
+      <col style="width:9%">
+      <col style="width:9%">
+      <col style="width:9%">
+      <col style="width:10%">
+      <col style="width:12%">
+      <col style="width:14%">
+    </colgroup>
+
+    <thead>
+
+      <tr>
+
+        <th rowspan="2">
+          No.
+        </th>
+
+        <th rowspan="2">
+          Tanggal
+        </th>
+
+        <th rowspan="2">
+          Ruangan
+        </th>
+
+        <th colspan="4">
+          Jenis Limbah (Kg)
+        </th>
+
+        <th rowspan="2">
+          Total Harian<br>(Kg)
+        </th>
+
+        <th rowspan="2">
+          Petugas
+        </th>
+
+        <th rowspan="2">
+          Keterangan
+        </th>
+
+      </tr>
+
+      <tr>
+
+        <th>
+          Infeksius
+        </th>
+
+        <th>
+          Jarum Suntik
+        </th>
+
+        <th>
+          Botol Obat
+        </th>
+
+        <th>
+          Sitotoksik
+        </th>
+
+      </tr>
+
+    </thead>
+
+    <tbody>
+
+      ${rowsHTML}
+
+    </tbody>
+
+    <tfoot>
+
+      <tr class="totals">
+
+        <td
+          colspan="3"
+          class="center"
+        >
+          TOTAL DALAM SEBULAN
+        </td>
+
+        <td class="number">
+          ${formatNumber(totalInf)}
+        </td>
+
+        <td class="number">
+          ${formatNumber(totalJar)}
+        </td>
+
+        <td class="number">
+          ${formatNumber(totalBot)}
+        </td>
+
+        <td class="number">
+          ${formatNumber(totalSit)}
+        </td>
+
+        <td class="number">
+          ${formatNumber(grandTotal)}
+        </td>
+
+        <td></td>
+
+        <td></td>
+
+      </tr>
+
+    </tfoot>
+
+  </table>
+
+  <!-- TANDA TANGAN -->
+
+  <div class="signature-wrapper">
+
+    <div class="signature">
+
+      <div>
+        Mengetahui,
+      </div>
+
+      <div class="space"></div>
+
+      <div class="name">
+        __________________________
+      </div>
+
+      <div>
+        Petugas Sanitasi
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+
+window.onload = function () {
+
+  setTimeout(function () {
+
+    window.focus();
+
+    window.print();
+
+  }, 300);
+
+};
+
+window.onafterprint = function () {
+
+  setTimeout(function () {
+
+    window.close();
+
+  }, 300);
+
+};
+
+</script>
+
+</body>
+</html>
+`;
+
+      // =========================================================
+      // CETAK MENGGUNAKAN IFRAME
+      // =========================================================
 
       MySwal.close();
-      const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
-      const monthName = monthNames[parseInt(month) - 1];
 
-      const printWindow = window.open('', '_blank');
-      printWindow.document.write(`<html><head><title>Laporan Limbah Ruangan - ${monthName} ${year}</title>
-        <style>
-          body{font-family:Arial,sans-serif;padding:20px;}
-          h2, h3{text-align:center;margin:4px 0;}
-          table{width:100%;border-collapse:collapse;margin-top:20px;font-size:12px;}
-          th,td{border:1px solid #000;padding:6px;text-align:left;}
-          th{background-color:#f2f2f2;text-align:center;}
-          .totals{font-weight:bold;background-color:#e6e6e6;}
-          @media print{@page{margin:1cm;}body{padding:0;}}
-        </style></head>
-        <body>
-        <h2>Laporan Bulanan Limbah Medis Padat Per Ruangan</h2>
-        <h3>Bulan ${monthName} Tahun ${year}${selectedRuangan ? ` - ${selectedRuangan}` : ''}</h3>
-        <table>
-          <thead>
-            <tr>
-              <th rowspan="2">No.</th>
-              <th rowspan="2">Tanggal</th>
-              <th rowspan="2">Ruangan</th>
-              <th colspan="4">Jenis Limbah (Kg)</th>
-              <th rowspan="2">Total Harian (Kg)</th>
-              <th rowspan="2">Petugas</th>
-            </tr>
-            <tr>
-              <th>Infeksius</th><th>Jarum Suntik</th><th>Botol Obat</th><th>Sitotoksik</th>
-            </tr>
-          </thead>
-          <tbody>${rowsHTML}</tbody>
-          <tfoot>
-            <tr class="totals">
-              <td colspan="3" style="text-align:center;">TOTAL DALAM SEBULAN</td>
-              <td style="text-align:right;">${totalInf.toFixed(2)}</td>
-              <td style="text-align:right;">${totalJar.toFixed(2)}</td>
-              <td style="text-align:right;">${totalBot.toFixed(2)}</td>
-              <td style="text-align:right;">${totalSit.toFixed(2)}</td>
-              <td style="text-align:right;">${grandTotal.toFixed(2)}</td>
-              <td></td>
-            </tr>
-          </tfoot>
-        </table>
-        <div style="margin-top:40px;display:flex;justify-content:flex-end;">
-          <div style="text-align:center;"><p>Mengetahui,</p><br/><br/><br/>
-          <p><strong>_____________________</strong></p><p>Petugas Sanitasi</p></div>
-        </div>
-        </body></html>`);
-      printWindow.document.close();
-      printWindow.focus();
-      setTimeout(() => { printWindow.print(); printWindow.close(); }, 500);
+      const iframe =
+        document.createElement('iframe');
+
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      iframe.style.visibility = 'hidden';
+
+      document.body.appendChild(iframe);
+
+      const iframeDoc =
+        iframe.contentWindow.document;
+
+      iframeDoc.open();
+      iframeDoc.write(printHTML);
+      iframeDoc.close();
+
+      iframe.onload = () => {
+
+        setTimeout(() => {
+
+          try {
+
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+
+          } catch (printError) {
+
+            console.error(
+              'Print error:',
+              printError
+            );
+
+            MySwal.fire(
+              'Gagal',
+              'Browser tidak dapat membuka dialog cetak.',
+              'error'
+            );
+
+          }
+
+          setTimeout(() => {
+
+            if (iframe.parentNode) {
+              iframe.parentNode.removeChild(iframe);
+            }
+
+          }, 1500);
+
+        }, 500);
+
+      };
 
     } catch (error) {
-      console.error(error);
-      MySwal.fire('Gagal', 'Terjadi kesalahan saat mencetak laporan: ' + error.message, 'error');
+
+      console.error(
+        'Error mencetak laporan:',
+        error
+      );
+
+      MySwal.fire({
+        icon: 'error',
+        title: 'Gagal Mencetak',
+        text:
+          'Terjadi kesalahan saat mengambil data: ' +
+          error.message,
+        confirmButtonColor: '#dc2626'
+      });
+
     }
   };
 
