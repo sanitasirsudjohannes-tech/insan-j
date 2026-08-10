@@ -5,15 +5,16 @@ import withReactContent from 'sweetalert2-react-content';
 import { supabase } from '../lib/supabase';
 import { saveToOfflineQueue } from '../lib/offlineStorage';
 import { AVAILABLE_FORMS, CHECKLIST_ITEMS } from '../lib/constants';
-import { fetchDaftarRuangan } from '../lib/api';
+import { getCurrentUser, fetchDaftarRuangan } from '../lib/api';
 import SearchableBottomSheet from '../components/SearchableBottomSheet';
 
 const MySwal = withReactContent(Swal);
 
-export default function Inspeksi({ user }) {
+export default function Inspeksi({ user: propUser }) {
+  const user = propUser || getCurrentUser();
+
   const [selectedForms, setSelectedForms] = useState([]);
   const [showForm, setShowForm] = useState(false);
-
   const [tanggal, setTanggal] = useState(new Date().toISOString().split('T')[0]);
   const [lokasi, setLokasi] = useState('');
   const [ruanganList, setRuanganList] = useState([]);
