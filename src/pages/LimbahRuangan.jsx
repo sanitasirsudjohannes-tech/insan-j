@@ -10,6 +10,15 @@ import SearchableBottomSheet from '../components/SearchableBottomSheet';
 
 const MySwal = withReactContent(Swal);
 
+// Di luar (di atas) function LimbahRuangan, di top-level file:
+function EmbeddedWrapper({ children }) {
+  return <div className="bg-gray-100 min-h-screen">{children}</div>;
+}
+
+function FullWrapper({ children }) {
+  return <AppLayout title="Limbah Per Ruangan">{children}</AppLayout>;
+}
+
 export default function LimbahRuangan({ embedded = false }) {
   const user = getCurrentUser();
   const [data, setData] = useState([]);
@@ -664,7 +673,7 @@ export default function LimbahRuangan({ embedded = false }) {
 
   const totalPages = Math.ceil(totalData / itemsPerPage);
 
-  const Wrapper = embedded ? ({ children }) => <div className="bg-gray-100 min-h-screen">{children}</div> : ({ children }) => <AppLayout title="Limbah Per Ruangan">{children}</AppLayout>;
+  const Wrapper = embedded ? EmbeddedWrapper : FullWrapper;
 
   return (
     <Wrapper>
