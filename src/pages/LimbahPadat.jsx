@@ -1105,17 +1105,23 @@ export default function LimbahPadat({ embedded = false }) {
                     if (val > totalPages) val = totalPages;
                     setPage(val);
                   }}
-                  className="w-16 px-2 py-1 border rounded text-center outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-16 px-2 py-1 border rounded-lg text-center outline-none focus:ring-2 focus:ring-emerald-500 font-bold bg-white text-xs"
                 />
                 <span>dari {totalPages}</span>
               </div>
               <div className="flex space-x-2">
-                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                  className="px-3 py-1 bg-white border rounded hover:bg-gray-100 disabled:opacity-50 text-sm">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="px-3.5 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-100 disabled:opacity-50 transition text-xs font-semibold"
+                >
                   Sebelumnya
                 </button>
-                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                  className="px-3 py-1 bg-white border rounded hover:bg-gray-100 disabled:opacity-50 text-sm">
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="px-3.5 py-1.5 bg-white border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-100 disabled:opacity-50 transition text-xs font-semibold"
+                >
                   Selanjutnya
                 </button>
               </div>
