@@ -14,7 +14,7 @@ export default function DashboardUser({ user }) {
         <div className="bg-white rounded-2xl shadow-sm p-6 md:p-8 mb-6 border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-extrabold text-gray-800">
-              Halo, {user?.nama}! <span className="text-2xl">👋</span>
+              Hallo, {user?.nama}! <span className="text-2xl">👋</span>
             </h2>
             <p className="text-gray-500 mt-2 font-medium">Monitoring data limbah medis padat rumah sakit dengan mudah.</p>
           </div>
