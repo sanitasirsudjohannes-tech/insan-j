@@ -26,8 +26,15 @@ export default function TabPengangkutan() {
     const fetchAll = async () => {
       setLoading(true);
       try {
-        const { data: limbahRows } = await supabase
+        // Limbah input manual (per hari, tanpa ruangan spesifik)
+        const { data: limbahPadatRows } = await supabase
           .from('limbah_padat')
+          .select('tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
+          .order('tanggal', { ascending: true });
+
+        // Limbah input per ruangan — juga harus dihitung sebagai limbah masuk
+        const { data: limbahRuanganRows } = await supabase
+          .from('limbah_ruangan')
           .select('tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
           .order('tanggal', { ascending: true });
 
@@ -36,12 +43,18 @@ export default function TabPengangkutan() {
           .select('tanggal, jumlah_kg')
           .order('tanggal', { ascending: true });
 
+        // Gabungkan limbah_padat + limbah_ruangan, dijumlahkan per tanggal
         const limbahMap = {};
-        (limbahRows || []).forEach(row => {
-          const key = row.tanggal;
-          const total = (row.infeksius || 0) + (row.jarum_suntik || 0) + (row.botol_obat || 0) + (row.sitotoksik || 0);
-          limbahMap[key] = (limbahMap[key] || 0) + total;
-        });
+        const accumulateLimbah = (rows) => {
+          (rows || []).forEach(row => {
+            const key = row.tanggal;
+            if (!key) return;
+            const total = (parseFloat(row.infeksius) || 0) + (parseFloat(row.jarum_suntik) || 0) + (parseFloat(row.botol_obat) || 0) + (parseFloat(row.sitotoksik) || 0);
+            limbahMap[key] = (limbahMap[key] || 0) + total;
+          });
+        };
+        accumulateLimbah(limbahPadatRows);
+        accumulateLimbah(limbahRuanganRows);
 
         const angkutMap = {};
         (angkutRows || []).forEach(row => {
@@ -52,38 +65,38 @@ export default function TabPengangkutan() {
 
         let kumulatifSisa = 0;
         const combined = allDates.map(date => {
-        const masuk = limbahMap[date] || 0;
-        const diangkut = angkutMap[date] || 0;
+          const masuk = limbahMap[date] || 0;
+          const diangkut = angkutMap[date] || 0;
 
-        kumulatifSisa += masuk - diangkut;
+          kumulatifSisa += masuk - diangkut;
 
-        const d = new Date(date);
+          const d = new Date(date);
 
-        return {
-          fullDate: date,
-          bulanTahun: `${d.getFullYear()}-${String(
-            d.getMonth() + 1
-          ).padStart(2, '0')}`,
-          tanggal: d.toLocaleDateString('id-ID', {
-            day: 'numeric',
-            month: 'short'
-          }),
-          masuk: Math.round(masuk),
-          diangkut: Math.round(diangkut),
-          sisa: Math.round(kumulatifSisa),
-        };
-      });
+          return {
+            fullDate: date,
+            bulanTahun: `${d.getFullYear()}-${String(
+              d.getMonth() + 1
+            ).padStart(2, '0')}`,
+            tanggal: d.toLocaleDateString('id-ID', {
+              day: 'numeric',
+              month: 'short'
+            }),
+            masuk: Math.round(masuk),
+            diangkut: Math.round(diangkut),
+            sisa: Math.round(kumulatifSisa),
+          };
+        });
 
-      setAllData(combined);
+        setAllData(combined);
 
-      if (combined.length > 0) {
-        const latestMonth = combined[combined.length - 1].bulanTahun;
-        setSelectedMonth(latestMonth);
+        if (combined.length > 0) {
+          const latestMonth = combined[combined.length - 1].bulanTahun;
+          setSelectedMonth(latestMonth);
 
-        setChartData(
-          combined.filter(item => item.bulanTahun === latestMonth)
-        );
-      }
+          setChartData(
+            combined.filter(item => item.bulanTahun === latestMonth)
+          );
+        }
         const totalMasuk = Object.values(limbahMap).reduce((a, b) => a + b, 0);
         const totalAngkut = Object.values(angkutMap).reduce((a, b) => a + b, 0);
         setSummary({
@@ -157,84 +170,84 @@ export default function TabPengangkutan() {
         </div>
       ) : (
         <>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex items-center mb-3 sm:mb-0">
-            <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center mr-3">
-              <i className="fas fa-calendar-alt text-blue-500 text-lg"></i>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center mb-3 sm:mb-0">
+              <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center mr-3">
+                <i className="fas fa-calendar-alt text-blue-500 text-lg"></i>
+              </div>
+              <div>
+                <h3 className="text-gray-800 font-bold text-sm">Periode Laporan</h3>
+                <p className="text-xs text-gray-500 font-medium">Pilih bulan untuk melihat grafik</p>
+              </div>
             </div>
-            <div>
-              <h3 className="text-gray-800 font-bold text-sm">Periode Laporan</h3>
-              <p className="text-xs text-gray-500 font-medium">Pilih bulan untuk melihat grafik</p>
-            </div>
-          </div>
-          <div className="relative">
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="appearance-none w-full sm:w-auto bg-blue-50/50 border border-blue-200 text-blue-700 font-bold px-5 py-2.5 pr-12 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all cursor-pointer hover:bg-blue-100/50"
-            >
-              <option value="semua" className="bg-white text-gray-700 font-medium">Semua Waktu</option>
-              {availableMonths.map(month => {
-                const [year, monthNum] = month.split('-');
-                const label = new Date(Number(year), Number(monthNum) - 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-                return (
-                  <option key={month} value={month} className="bg-white text-gray-700 font-medium">{label}</option>
-                );
-              })}
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-blue-500">
-              <i className="fas fa-chevron-down text-sm"></i>
-            </div>
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Bar Chart: masuk vs diangkut */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
-            <h3 className="text-sm font-bold text-gray-700 mb-6 flex items-center">
-              <span className="w-8 h-8 rounded-lg bg-blue-50 text-blue-500 flex items-center justify-center mr-3"><i className="fas fa-chart-bar"></i></span>
-              Limbah Masuk vs Diangkut (Harian)
-            </h3>
-            <div className="h-72">
-              {chartReady ? (
-                <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
-                  <BarChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="tanggal" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                    <Tooltip formatter={(v) => `${v} Kg`} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                    <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                    <Bar dataKey="masuk" name="Masuk" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                    <Bar dataKey="diangkut" name="Diangkut" fill="#f97316" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : null}
+            <div className="relative">
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="appearance-none w-full sm:w-auto bg-blue-50/50 border border-blue-200 text-blue-700 font-bold px-5 py-2.5 pr-12 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all cursor-pointer hover:bg-blue-100/50"
+              >
+                <option value="semua" className="bg-white text-gray-700 font-medium">Semua Waktu</option>
+                {availableMonths.map(month => {
+                  const [year, monthNum] = month.split('-');
+                  const label = new Date(Number(year), Number(monthNum) - 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+                  return (
+                    <option key={month} value={month} className="bg-white text-gray-700 font-medium">{label}</option>
+                  );
+                })}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-blue-500">
+                <i className="fas fa-chevron-down text-sm"></i>
+              </div>
             </div>
           </div>
 
-          {/* Line Chart: sisa kumulatif */}
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
-            <h3 className="text-sm font-bold text-gray-700 mb-6 flex items-center">
-              <span className="w-8 h-8 rounded-lg bg-red-50 text-red-500 flex items-center justify-center mr-3"><i className="fas fa-chart-line"></i></span>
-              Sisa Limbah Kumulatif (Stok)
-            </h3>
-            <div className="h-72">
-              {chartReady ? (
-                <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
-                  <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis dataKey="tanggal" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
-                    <Tooltip formatter={(v) => `${v} Kg`} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                    <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                    <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="4 4" />
-                    <Line type="monotone" dataKey="sisa" name="Sisa Limbah" stroke="#ef4444" strokeWidth={3} dot={{ r: 0 }} activeDot={{ r: 6, strokeWidth: 0 }} />
-                  </LineChart>
-                </ResponsiveContainer>
-              ) : null}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Bar Chart: masuk vs diangkut */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+              <h3 className="text-sm font-bold text-gray-700 mb-6 flex items-center">
+                <span className="w-8 h-8 rounded-lg bg-blue-50 text-blue-500 flex items-center justify-center mr-3"><i className="fas fa-chart-bar"></i></span>
+                Limbah Masuk vs Diangkut (Harian)
+              </h3>
+              <div className="h-72">
+                {chartReady ? (
+                  <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
+                    <BarChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="tanggal" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                      <Tooltip formatter={(v) => `${v} Kg`} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                      <Bar dataKey="masuk" name="Masuk" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                      <Bar dataKey="diangkut" name="Diangkut" fill="#f97316" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : null}
+              </div>
+            </div>
+
+            {/* Line Chart: sisa kumulatif */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
+              <h3 className="text-sm font-bold text-gray-700 mb-6 flex items-center">
+                <span className="w-8 h-8 rounded-lg bg-red-50 text-red-500 flex items-center justify-center mr-3"><i className="fas fa-chart-line"></i></span>
+                Sisa Limbah Kumulatif (Stok)
+              </h3>
+              <div className="h-72">
+                {chartReady ? (
+                  <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
+                    <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="tanggal" tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
+                      <Tooltip formatter={(v) => `${v} Kg`} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                      <ReferenceLine y={0} stroke="#cbd5e1" strokeDasharray="4 4" />
+                      <Line type="monotone" dataKey="sisa" name="Sisa Limbah" stroke="#ef4444" strokeWidth={3} dot={{ r: 0 }} activeDot={{ r: 6, strokeWidth: 0 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                ) : null}
+              </div>
             </div>
           </div>
-        </div>
         </>
       )}
     </div>

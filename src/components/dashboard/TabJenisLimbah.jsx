@@ -25,45 +25,64 @@ export default function TabJenisLimbah() {
     const fetchLimbah = async () => {
       setLoading(true);
       try {
-        const { data: rows, error } = await supabase
-          .from('limbah_padat')
-          .select('tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
-          .order('tanggal', { ascending: true });
+        // Ambil dari kedua sumber: input manual (limbah_padat) & akumulasi per ruangan (limbah_ruangan)
+        const [{ data: padatRows, error: errPadat }, { data: ruanganRows, error: errRuangan }] = await Promise.all([
+          supabase
+            .from('limbah_padat')
+            .select('tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
+            .order('tanggal', { ascending: true }),
+          supabase
+            .from('limbah_ruangan')
+            .select('tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
+            .order('tanggal', { ascending: true })
+        ]);
 
-        if (error) throw error;
+        if (errPadat) throw errPadat;
+        if (errRuangan) throw errRuangan;
 
-        // Process daily data (last 30 days of data)
         const dailyMap = {};
         const monthlyMap = {};
 
-        (rows || []).forEach(row => {
+        // Fungsi bantu untuk menggabungkan (sum) satu baris ke dalam dailyMap & monthlyMap
+        const accumulateRow = (row) => {
           const tgl = row.tanggal;
+          if (!tgl) return;
+
           const inf = parseFloat(row.infeksius) || 0;
           const jar = parseFloat(row.jarum_suntik) || 0;
           const bot = parseFloat(row.botol_obat) || 0;
           const sit = parseFloat(row.sitotoksik) || 0;
-          const total = inf + jar + bot + sit;
 
-          // For daily
-          dailyMap[tgl] = {
-            tanggal: new Date(tgl).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
-            rawDate: tgl,
-            infeksius: inf,
-            jarum_suntik: jar,
-            botol_obat: bot,
-            sitotoksik: sit,
-            total
-          };
+          // Daily
+          if (!dailyMap[tgl]) {
+            dailyMap[tgl] = {
+              tanggal: new Date(tgl).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
+              rawDate: tgl,
+              infeksius: 0,
+              jarum_suntik: 0,
+              botol_obat: 0,
+              sitotoksik: 0,
+              total: 0
+            };
+          }
+          dailyMap[tgl].infeksius += inf;
+          dailyMap[tgl].jarum_suntik += jar;
+          dailyMap[tgl].botol_obat += bot;
+          dailyMap[tgl].sitotoksik += sit;
+          dailyMap[tgl].total += inf + jar + bot + sit;
 
-          // For monthly
+          // Monthly
           const monthKey = tgl.substring(0, 7); // YYYY-MM
           if (!monthlyMap[monthKey]) {
             const dateObj = new Date(tgl);
             const monthName = dateObj.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
             monthlyMap[monthKey] = { label: monthName, key: monthKey, total: 0 };
           }
-          monthlyMap[monthKey].total += total;
-        });
+          monthlyMap[monthKey].total += inf + jar + bot + sit;
+        };
+
+        (padatRows || []).forEach(accumulateRow);
+        (ruanganRows || []).forEach(accumulateRow);
 
         const sortedDaily = Object.values(dailyMap).sort((a, b) => a.rawDate.localeCompare(b.rawDate));
         setDailyData(sortedDaily.slice(-30)); // last 30 days
@@ -71,9 +90,9 @@ export default function TabJenisLimbah() {
         const sortedMonthly = Object.values(monthlyMap).sort((a, b) => a.key.localeCompare(b.key));
         setMonthlyData(sortedMonthly.slice(-12)); // last 12 months
 
-        // Calculate total summary overall
+        // Total summary keseluruhan (gabungan kedua sumber)
         let tInf = 0, tJar = 0, tBot = 0, tSit = 0;
-        (rows || []).forEach(r => {
+        [...(padatRows || []), ...(ruanganRows || [])].forEach(r => {
           tInf += parseFloat(r.infeksius) || 0;
           tJar += parseFloat(r.jarum_suntik) || 0;
           tBot += parseFloat(r.botol_obat) || 0;
@@ -180,8 +199,8 @@ export default function TabJenisLimbah() {
                 <AreaChart data={monthlyData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
                   <defs>
                     <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
