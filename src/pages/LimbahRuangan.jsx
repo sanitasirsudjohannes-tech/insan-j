@@ -1445,7 +1445,7 @@ window.onafterprint = function () {
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold text-red-600 mb-1">Limbah Infeksius (Kg)</label>
+                    <label className="block text-sm font-semibold text-red-600 mb-1">Limbah Infeksius (Kg)</label>
                     <input
                       type="number"
                       step="0.01"
@@ -1460,7 +1460,7 @@ window.onafterprint = function () {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-orange-600 mb-1">Limbah Jarum Suntik (Kg)</label>
+                    <label className="block text-sm font-semibold text-orange-600 mb-1">Limbah Jarum Suntik (Kg)</label>
                     <input
                       type="number"
                       step="0.01"
@@ -1475,7 +1475,7 @@ window.onafterprint = function () {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-blue-600 mb-1">Limbah Botol Obat (Kg)</label>
+                    <label className="block text-sm font-semibold text-blue-600 mb-1">Limbah Botol Obat (Kg)</label>
                     <input
                       type="number"
                       step="0.01"
@@ -1490,7 +1490,7 @@ window.onafterprint = function () {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-purple-600 mb-1">Limbah Sitotoksik (Kg)</label>
+                    <label className="block text-sm font-semibold text-purple-600 mb-1">Limbah Sitotoksik (Kg)</label>
                     <input
                       type="number"
                       step="0.01"
