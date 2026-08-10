@@ -30,6 +30,7 @@ export default function LimbahPadat({ embedded = false }) {
   const [formEnabled, setFormEnabled] = useState(() => getSettingCached('form_limbah_padat_enabled', true));
   const itemsPerPage = 10;
   const importInputRef = useRef(null);
+  const printFrameRef = useRef(null);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -205,6 +206,15 @@ export default function LimbahPadat({ embedded = false }) {
     };
     window.addEventListener('app-setting-changed', onSettingChange);
     return () => window.removeEventListener('app-setting-changed', onSettingChange);
+  }, []);
+
+  // Bersihkan iframe cetak saat komponen unmount
+  useEffect(() => {
+    return () => {
+      if (printFrameRef.current && printFrameRef.current.parentNode) {
+        printFrameRef.current.parentNode.removeChild(printFrameRef.current);
+      }
+    };
   }, []);
 
   const handleInputChange = (e) => {
@@ -690,126 +700,114 @@ export default function LimbahPadat({ embedded = false }) {
     return '';
   };
 
-  // ─── PRINT PDF ───────────────────────────────────────────────────────────────
-  const handlePrint = async () => {
-    // ============================================================
-    // PENTING:
-    // Buka window SEGERA saat tombol diklik.
-    // Ini mencegah popup diblokir browser HP.
-    // ============================================================
-    const printWindow = window.open('', '_blank');
-
-    if (!printWindow) {
-      MySwal.fire({
-        icon: 'warning',
-        title: 'Popup Diblokir',
-        html: `
-        <div style="text-align:left;font-size:14px;line-height:1.6;">
-          Browser HP memblokir jendela cetak.<br><br>
-          Silakan izinkan <b>Pop-up dan pengalihan</b> untuk situs ini,
-          kemudian tekan tombol <b>Cetak PDF</b> kembali.
-        </div>
-      `,
-        confirmButtonColor: '#2563eb'
-      });
-      return;
-    }
-
-    // Tampilkan loading sementara di window cetak
-    printWindow.document.write(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Menyiapkan Cetakan...</title>
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <style>
-        body {
-          font-family: Arial, sans-serif;
-          padding: 30px;
-          text-align: center;
-        }
-        .loading {
-          margin-top: 40px;
-          font-size: 16px;
-          color: #555;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="loading">
-        Menyiapkan laporan untuk dicetak...
-      </div>
-    </body>
-    </html>
-  `);
-
-    printWindow.document.close();
-
-    try {
-      // ============================================================
-      // PILIH BULAN
-      // ============================================================
-      const { value: formValues } = await MySwal.fire({
-        title: 'Pilih Bulan & Tahun',
-        html: `
-        <input
-          id="swal-input-month"
-          type="month"
-          class="swal2-input"
-          value="${filterMonth || new Date().toISOString().slice(0, 7)}"
-        >
-      `,
-        focusConfirm: false,
-        showCancelButton: true,
-        confirmButtonText: 'Lanjutkan',
-        cancelButtonText: 'Batal',
-        preConfirm: () => {
-          const input = document.getElementById('swal-input-month');
-          return input ? input.value : '';
-        }
-      });
-
-      // Jika batal
-      if (!formValues) {
-        printWindow.close();
-        return;
+  // ─── CETAK PDF (via iframe tersembunyi, tanpa tab baru) ─────────────────────
+  // Kenapa diganti dari window.open(): window.open() yang dipanggil setelah
+  // "await" (misalnya setelah menunggu input SweetAlert) dianggap bukan hasil
+  // klik langsung oleh banyak browser mobile, sehingga otomatis diblokir
+  // sebagai popup. Dengan iframe tersembunyi, tidak ada popup/tab baru sama
+  // sekali, sehingga alurnya bisa: pilih bulan dulu -> data disiapkan ->
+  // dialog cetak langsung muncul, dan ini konsisten di HP maupun laptop.
+  const printViaHiddenIframe = (htmlContent) => {
+    return new Promise((resolve) => {
+      // Bersihkan iframe cetak sebelumnya jika masih ada
+      if (printFrameRef.current && printFrameRef.current.parentNode) {
+        printFrameRef.current.parentNode.removeChild(printFrameRef.current);
       }
 
-      // ============================================================
-      // LOADING DATA
-      // ============================================================
-      MySwal.fire({
-        title: 'Mengambil Data...',
-        text: 'Mohon tunggu sebentar',
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        didOpen: () => {
-          MySwal.showLoading();
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      iframe.setAttribute('aria-hidden', 'true');
+      document.body.appendChild(iframe);
+      printFrameRef.current = iframe;
+
+      const cleanup = () => {
+        setTimeout(() => {
+          if (iframe && iframe.parentNode) {
+            iframe.parentNode.removeChild(iframe);
+          }
+          if (printFrameRef.current === iframe) {
+            printFrameRef.current = null;
+          }
+        }, 1000);
+      };
+
+      const triggerPrint = () => {
+        try {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+          resolve(true);
+        } catch (err) {
+          console.error('Print error:', err);
+          resolve(false);
+        } finally {
+          cleanup();
         }
-      });
+      };
 
+      const doc = iframe.contentWindow.document;
+      doc.open();
+      doc.write(htmlContent);
+      doc.close();
+
+      // Beri sedikit waktu agar browser (khususnya HP) selesai merender
+      // tabel sebelum dialog cetak dibuka.
+      if (doc.readyState === 'complete') {
+        setTimeout(triggerPrint, 300);
+      } else {
+        iframe.onload = () => setTimeout(triggerPrint, 300);
+        // Jaga-jaga kalau onload tidak terpanggil di sebagian browser
+        setTimeout(triggerPrint, 1200);
+      }
+    });
+  };
+
+  const handlePrint = async () => {
+    // 1. PILIH BULAN TERLEBIH DAHULU
+    const { value: formValues } = await MySwal.fire({
+      title: 'Cetak Laporan Bulanan',
+      html: `<p class="text-sm text-gray-500 mb-2">Pilih bulan & tahun yang ingin dicetak</p>
+             <input id="swal-input-month" type="month" class="swal2-input" value="${filterMonth || new Date().toISOString().slice(0, 7)}">`,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: '<i class="fas fa-print mr-2"></i>Lanjutkan',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#2563eb',
+      preConfirm: () => {
+        const input = document.getElementById('swal-input-month');
+        return input ? input.value : '';
+      }
+    });
+
+    if (!formValues) return;
+
+    // 2. AMBIL & SIAPKAN DATA
+    MySwal.fire({
+      title: 'Menyiapkan Laporan...',
+      text: 'Mohon tunggu sebentar',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      didOpen: () => MySwal.showLoading()
+    });
+
+    try {
       const printData = await getAccumulatedData(formValues);
-
-      printData.sort((a, b) =>
-        a.tanggal.localeCompare(b.tanggal)
-      );
+      printData.sort((a, b) => a.tanggal.localeCompare(b.tanggal));
 
       if (!printData || printData.length === 0) {
-        printWindow.close();
-
         MySwal.fire({
           icon: 'info',
           title: 'Tidak Ada Data',
           text: 'Tidak ada data limbah untuk bulan yang dipilih.',
           confirmButtonColor: '#2563eb'
         });
-
         return;
       }
 
-      // ============================================================
-      // HITUNG TOTAL
-      // ============================================================
       const [year, month] = formValues.split('-');
 
       let totalInfeksius = 0;
@@ -819,24 +817,11 @@ export default function LimbahPadat({ embedded = false }) {
       let grandTotal = 0;
 
       const rowsHTML = printData.map((item, index) => {
-
-        const infeksius =
-          parseFloat(item.infeksius) || 0;
-
-        const jarum =
-          parseFloat(item.jarum_suntik) || 0;
-
-        const botol =
-          parseFloat(item.botol_obat) || 0;
-
-        const sitotoksik =
-          parseFloat(item.sitotoksik) || 0;
-
-        const itemTotal =
-          infeksius +
-          jarum +
-          botol +
-          sitotoksik;
+        const infeksius = parseFloat(item.infeksius) || 0;
+        const jarum = parseFloat(item.jarum_suntik) || 0;
+        const botol = parseFloat(item.botol_obat) || 0;
+        const sitotoksik = parseFloat(item.sitotoksik) || 0;
+        const itemTotal = infeksius + jarum + botol + sitotoksik;
 
         totalInfeksius += infeksius;
         totalJarum += jarum;
@@ -845,415 +830,134 @@ export default function LimbahPadat({ embedded = false }) {
         grandTotal += itemTotal;
 
         // Hindari masalah timezone
-        const tanggal = item.tanggal
-          ? item.tanggal.split('-').reverse().join('/')
-          : '';
+        const tanggal = item.tanggal ? item.tanggal.split('-').reverse().join('/') : '';
 
         return `
         <tr>
           <td class="center">${index + 1}</td>
-
-          <td class="center">
-            ${tanggal}
-          </td>
-
-          <td class="number">
-            ${infeksius.toFixed(2)}
-          </td>
-
-          <td class="number">
-            ${jarum.toFixed(2)}
-          </td>
-
-          <td class="number">
-            ${botol.toFixed(2)}
-          </td>
-
-          <td class="number">
-            ${sitotoksik.toFixed(2)}
-          </td>
-
-          <td class="number bold">
-            ${itemTotal.toFixed(2)}
-          </td>
+          <td class="center">${tanggal}</td>
+          <td class="number">${infeksius.toFixed(2)}</td>
+          <td class="number">${jarum.toFixed(2)}</td>
+          <td class="number">${botol.toFixed(2)}</td>
+          <td class="number">${sitotoksik.toFixed(2)}</td>
+          <td class="number bold">${itemTotal.toFixed(2)}</td>
         </tr>
       `;
       }).join('');
 
       const monthNames = [
-        'Januari',
-        'Februari',
-        'Maret',
-        'April',
-        'Mei',
-        'Juni',
-        'Juli',
-        'Agustus',
-        'September',
-        'Oktober',
-        'November',
-        'Desember'
+        'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
       ];
+      const monthName = monthNames[parseInt(month, 10) - 1];
 
-      const monthName =
-        monthNames[parseInt(month, 10) - 1];
-
-      // ============================================================
-      // HTML CETAK
-      // ============================================================
       const printHTML = `
       <!DOCTYPE html>
       <html lang="id">
-
       <head>
         <meta charset="UTF-8">
-
-        <meta
-          name="viewport"
-          content="width=device-width, initial-scale=1.0"
-        >
-
-        <title>
-          Laporan Limbah Padat - ${monthName} ${year}
-        </title>
-
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Laporan Limbah Padat - ${monthName} ${year}</title>
         <style>
-
-          * {
-            box-sizing: border-box;
-          }
-
-          html,
-          body {
-            margin: 0;
-            padding: 0;
-            background: white;
-            color: black;
-            font-family: Arial, Helvetica, sans-serif;
-          }
-
-          body {
-            padding: 20px;
-          }
-
-          .header {
-            text-align: center;
-            margin-bottom: 20px;
-          }
-
-          .header h2 {
-            margin: 0;
-            font-size: 20px;
-            line-height: 1.4;
-          }
-
-          .header p {
-            margin: 5px 0 0;
-            font-size: 13px;
-          }
-
-          table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-          }
-
-          th,
-          td {
-            border: 1px solid #000;
-            padding: 7px;
-            font-size: 12px;
-          }
-
-          th {
-            background: #f2f2f2;
-            text-align: center;
-            font-weight: bold;
-          }
-
-          .center {
-            text-align: center;
-          }
-
-          .number {
-            text-align: right;
-          }
-
-          .bold {
-            font-weight: bold;
-          }
-
-          .totals {
-            font-weight: bold;
-            background: #e6e6e6;
-          }
-
-          .signature {
-            margin-top: 50px;
-            display: flex;
-            justify-content: flex-end;
-          }
-
-          .signature-box {
-            width: 220px;
-            text-align: center;
-            font-size: 13px;
-          }
-
-          .signature-space {
-            height: 70px;
-          }
-
+          * { box-sizing: border-box; }
+          html, body { margin: 0; padding: 0; background: white; color: black; font-family: Arial, Helvetica, sans-serif; }
+          body { padding: 20px; }
+          .header { text-align: center; margin-bottom: 20px; }
+          .header h2 { margin: 0; font-size: 20px; line-height: 1.4; }
+          .header p { margin: 5px 0 0; font-size: 13px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th, td { border: 1px solid #000; padding: 7px; font-size: 12px; }
+          th { background: #f2f2f2; text-align: center; font-weight: bold; }
+          .center { text-align: center; }
+          .number { text-align: right; }
+          .bold { font-weight: bold; }
+          .totals { font-weight: bold; background: #e6e6e6; }
+          .signature { margin-top: 50px; display: flex; justify-content: flex-end; }
+          .signature-box { width: 220px; text-align: center; font-size: 13px; }
+          .signature-space { height: 70px; }
           @media screen and (max-width: 600px) {
-
-            body {
-              padding: 10px;
-            }
-
-            .header h2 {
-              font-size: 16px;
-            }
-
-            th,
-            td {
-              padding: 5px;
-              font-size: 10px;
-            }
-
+            body { padding: 10px; }
+            .header h2 { font-size: 16px; }
+            th, td { padding: 5px; font-size: 10px; }
           }
-
           @media print {
-
-            @page {
-              size: A4 portrait;
-              margin: 10mm;
-            }
-
-            html,
-            body {
-              width: 100%;
-              margin: 0;
-              padding: 0;
-            }
-
-            body {
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
-            }
-
-            table {
-              page-break-inside: auto;
-            }
-
-            tr {
-              page-break-inside: avoid;
-              page-break-after: auto;
-            }
-
-            thead {
-              display: table-header-group;
-            }
-
-            tfoot {
-              display: table-row-group;
-            }
-
-            .signature {
-              page-break-inside: avoid;
-            }
-
+            @page { size: A4 portrait; margin: 10mm; }
+            html, body { width: 100%; margin: 0; padding: 0; }
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            table { page-break-inside: auto; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+            thead { display: table-header-group; }
+            tfoot { display: table-row-group; }
+            .signature { page-break-inside: avoid; }
           }
-
         </style>
       </head>
-
       <body>
-
         <div class="header">
-
-          <h2>
-            LAPORAN BULANAN LIMBAH MEDIS PADAT
-          </h2>
-
-          <p>
-            Bulan ${monthName} Tahun ${year}
-          </p>
-
-          <p>
-            RSUD Prof. Dr. W.Z. Johannes Kupang
-          </p>
-
+          <h2>LAPORAN BULANAN LIMBAH MEDIS PADAT</h2>
+          <p>Bulan ${monthName} Tahun ${year}</p>
+          <p>RSUD Prof. Dr. W.Z. Johannes Kupang</p>
         </div>
-
         <table>
-
           <thead>
-
             <tr>
               <th rowspan="2">No.</th>
               <th rowspan="2">Tanggal</th>
-
-              <th colspan="4">
-                Jenis Limbah (Kg)
-              </th>
-
-              <th rowspan="2">
-                Total Harian (Kg)
-              </th>
+              <th colspan="4">Jenis Limbah (Kg)</th>
+              <th rowspan="2">Total Harian (Kg)</th>
             </tr>
-
             <tr>
               <th>Infeksius</th>
               <th>Jarum Suntik</th>
               <th>Botol Obat</th>
               <th>Sitotoksik</th>
             </tr>
-
           </thead>
-
           <tbody>
             ${rowsHTML}
           </tbody>
-
           <tfoot>
-
             <tr class="totals">
-
-              <td
-                colspan="2"
-                class="center"
-              >
-                TOTAL DALAM SEBULAN
-              </td>
-
-              <td class="number">
-                ${totalInfeksius.toFixed(2)}
-              </td>
-
-              <td class="number">
-                ${totalJarum.toFixed(2)}
-              </td>
-
-              <td class="number">
-                ${totalBotol.toFixed(2)}
-              </td>
-
-              <td class="number">
-                ${totalSitotoksik.toFixed(2)}
-              </td>
-
-              <td class="number">
-                ${grandTotal.toFixed(2)}
-              </td>
-
+              <td colspan="2" class="center">TOTAL DALAM SEBULAN</td>
+              <td class="number">${totalInfeksius.toFixed(2)}</td>
+              <td class="number">${totalJarum.toFixed(2)}</td>
+              <td class="number">${totalBotol.toFixed(2)}</td>
+              <td class="number">${totalSitotoksik.toFixed(2)}</td>
+              <td class="number">${grandTotal.toFixed(2)}</td>
             </tr>
-
           </tfoot>
-
         </table>
-
         <div class="signature">
-
           <div class="signature-box">
-
             <p>Mengetahui,</p>
-
             <div class="signature-space"></div>
-
-            <p>
-              <strong>
-                _____________________
-              </strong>
-            </p>
-
-            <p>
-              Petugas Sanitasi
-            </p>
-
+            <p><strong>_____________________</strong></p>
+            <p>Petugas Sanitasi</p>
           </div>
-
         </div>
-
       </body>
       </html>
     `;
 
-      // ============================================================
-      // MASUKKAN HTML KE WINDOW CETAK
-      // ============================================================
-      printWindow.document.open();
-      printWindow.document.write(printHTML);
-      printWindow.document.close();
-
+      // 3. TUTUP DIALOG LOADING, LALU CETAK LANGSUNG (tanpa tab baru)
       MySwal.close();
+      const success = await printViaHiddenIframe(printHTML);
 
-      // ============================================================
-      // TUNGGU DOKUMEN SELESAI LOAD
-      // ============================================================
-      setTimeout(() => {
-
-        try {
-
-          printWindow.focus();
-
-          // Beri sedikit waktu agar browser HP selesai
-          // merender tabel sebelum membuka dialog cetak.
-          setTimeout(() => {
-
-            printWindow.print();
-
-            // JANGAN langsung close.
-            // Browser HP membutuhkan waktu untuk membuka
-            // dialog/system print.
-            //
-            // Kita beri waktu lebih lama.
-            setTimeout(() => {
-              try {
-                printWindow.close();
-              } catch (e) {
-                console.warn('Tidak dapat menutup window cetak:', e);
-              }
-            }, 3000);
-
-          }, 500);
-
-        } catch (printError) {
-
-          console.error(
-            'Print error:',
-            printError
-          );
-
-          MySwal.fire({
-            icon: 'error',
-            title: 'Gagal Membuka Cetakan',
-            text: 'Browser tidak dapat membuka dialog cetak.',
-            confirmButtonColor: '#2563eb'
-          });
-
-        }
-
-      }, 300);
+      if (!success) {
+        MySwal.fire({
+          icon: 'error',
+          title: 'Gagal Membuka Cetakan',
+          text: 'Perangkat/browser tidak mendukung cetak langsung. Coba gunakan browser lain (Chrome/Safari terbaru).',
+          confirmButtonColor: '#2563eb'
+        });
+      }
 
     } catch (error) {
-
-      console.error(
-        'Error cetak:',
-        error
-      );
-
-      try {
-        printWindow.close();
-      } catch (e) { }
-
-      MySwal.close();
-
+      console.error('Error cetak:', error);
       MySwal.fire({
         icon: 'error',
         title: 'Gagal',
-        text:
-          'Terjadi kesalahan saat mengambil data cetak: ' +
-          (error.message || error),
+        text: 'Terjadi kesalahan saat mengambil data cetak: ' + (error.message || error),
         confirmButtonColor: '#dc2626'
       });
     }
