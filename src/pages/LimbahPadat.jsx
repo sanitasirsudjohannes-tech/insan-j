@@ -9,6 +9,15 @@ import * as XLSX from 'xlsx';
 
 const MySwal = withReactContent(Swal);
 
+// Di luar (di atas) function LimbahRuangan, di top-level file:
+function EmbeddedWrapper({ children }) {
+  return <div className="bg-gray-100 min-h-screen">{children}</div>;
+}
+
+function FullWrapper({ children }) {
+  return <AppLayout title="Limbah Per Ruangan">{children}</AppLayout>;
+}
+
 export default function LimbahPadat({ embedded = false }) {
   const user = getCurrentUser();
   const [data, setData] = useState([]);
@@ -522,7 +531,7 @@ export default function LimbahPadat({ embedded = false }) {
     reader.onload = async (evt) => {
       try {
         const binaryStr = evt.target.result;
-        const wb = XLSX.read(binaryStr, {type: 'binary', cellDates: false});
+        const wb = XLSX.read(binaryStr, { type: 'binary', cellDates: false });
         const sheetName = wb.SheetNames[0];
         const ws = wb.Sheets[sheetName];
 
@@ -767,7 +776,7 @@ export default function LimbahPadat({ embedded = false }) {
 
   const totalPages = Math.ceil(totalData / itemsPerPage);
 
-  const Wrapper = embedded ? ({ children }) => <div className="bg-gray-100 min-h-screen">{children}</div> : ({ children }) => <AppLayout title="Data Limbah Padat">{children}</AppLayout>;
+  const Wrapper = embedded ? EmbeddedWrapper : FullWrapper;
 
   return (
     <Wrapper>
@@ -832,61 +841,61 @@ export default function LimbahPadat({ embedded = false }) {
 
         {/* ── Import / Export Toolbar ── */}
         {formEnabled && (
-        <div className="bg-white rounded-lg shadow-lg mb-6 overflow-hidden">
-          <div className="bg-emerald-700 text-white px-6 py-4">
-            <h2 className="text-lg font-bold">
-              <i className="fas fa-file-excel mr-2"></i> Import / Export Excel
-            </h2>
-          </div>
-          <div className="p-5 flex flex-wrap gap-3 items-center">
+          <div className="bg-white rounded-lg shadow-lg mb-6 overflow-hidden">
+            <div className="bg-emerald-700 text-white px-6 py-4">
+              <h2 className="text-lg font-bold">
+                <i className="fas fa-file-excel mr-2"></i> Import / Export Excel
+              </h2>
+            </div>
+            <div className="p-5 flex flex-wrap gap-3 items-center">
 
-            {/* Download Template */}
-            <button
-              onClick={handleDownloadTemplate}
-              className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-4 py-2.5 rounded-lg font-semibold text-sm transition active:scale-95 shadow-sm">
-              <i className="fas fa-download"></i>
-              <span>Download Template</span>
-            </button>
-
-            {/* Import Excel */}
-            <div>
-              <input
-                ref={importInputRef}
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                className="hidden"
-                onChange={handleImportFile}
-              />
+              {/* Download Template */}
               <button
-                onClick={() => importInputRef.current?.click()}
-                disabled={importing}
-                className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg font-semibold text-sm transition active:scale-95 shadow-sm disabled:opacity-60">
-                {importing
-                  ? <><i className="fas fa-spinner fa-spin"></i><span>Mengimport...</span></>
-                  : <><i className="fas fa-upload"></i><span>Import Excel</span></>}
+                onClick={handleDownloadTemplate}
+                className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-4 py-2.5 rounded-lg font-semibold text-sm transition active:scale-95 shadow-sm">
+                <i className="fas fa-download"></i>
+                <span>Download Template</span>
               </button>
-            </div>
 
-            {/* Export Excel */}
-            <button
-              onClick={handleExportExcel}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-lg font-semibold text-sm transition active:scale-95 shadow-sm">
-              <i className="fas fa-file-excel"></i>
-              <span>Export Excel</span>
-            </button>
+              {/* Import Excel */}
+              <div>
+                <input
+                  ref={importInputRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                  onChange={handleImportFile}
+                />
+                <button
+                  onClick={() => importInputRef.current?.click()}
+                  disabled={importing}
+                  className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-lg font-semibold text-sm transition active:scale-95 shadow-sm disabled:opacity-60">
+                  {importing
+                    ? <><i className="fas fa-spinner fa-spin"></i><span>Mengimport...</span></>
+                    : <><i className="fas fa-upload"></i><span>Import Excel</span></>}
+                </button>
+              </div>
 
-            {/* Divider */}
-            <div className="hidden sm:block w-px h-8 bg-gray-200 mx-1"></div>
+              {/* Export Excel */}
+              <button
+                onClick={handleExportExcel}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-lg font-semibold text-sm transition active:scale-95 shadow-sm">
+                <i className="fas fa-file-excel"></i>
+                <span>Export Excel</span>
+              </button>
 
-            {/* Info */}
-            <div className="text-xs text-gray-500 w-full sm:w-auto sm:flex-1 min-w-0">
-              <p><i className="fas fa-info-circle text-blue-400 mr-1"></i>
-                <strong>Import:</strong> Download template terlebih dahulu, isi data, lalu upload.</p>
-              <p className="mt-0.5"><i className="fas fa-info-circle text-green-500 mr-1"></i>
-                <strong>Export:</strong> Ekspor data per bulan ke file Excel (.xlsx).</p>
+              {/* Divider */}
+              <div className="hidden sm:block w-px h-8 bg-gray-200 mx-1"></div>
+
+              {/* Info */}
+              <div className="text-xs text-gray-500 w-full sm:w-auto sm:flex-1 min-w-0">
+                <p><i className="fas fa-info-circle text-blue-400 mr-1"></i>
+                  <strong>Import:</strong> Download template terlebih dahulu, isi data, lalu upload.</p>
+                <p className="mt-0.5"><i className="fas fa-info-circle text-green-500 mr-1"></i>
+                  <strong>Export:</strong> Ekspor data per bulan ke file Excel (.xlsx).</p>
+              </div>
             </div>
           </div>
-        </div>
         )}
 
         {/* ── Tabel Data ── */}
@@ -1004,10 +1013,10 @@ export default function LimbahPadat({ embedded = false }) {
                             </div>
                           </div>
                         </td>
-                        <td className="px-3 py-2.5 text-right text-red-600 font-semibold text-xs">{parseFloat(item.infeksius||0).toFixed(2)}</td>
-                        <td className="px-3 py-2.5 text-right text-orange-600 font-semibold text-xs">{parseFloat(item.jarum_suntik||0).toFixed(2)}</td>
-                        <td className="px-3 py-2.5 text-right text-blue-600 font-semibold text-xs">{parseFloat(item.botol_obat||0).toFixed(2)}</td>
-                        <td className="px-3 py-2.5 text-right text-purple-600 font-semibold text-xs">{parseFloat(item.sitotoksik||0).toFixed(2)}</td>
+                        <td className="px-3 py-2.5 text-right text-red-600 font-semibold text-xs">{parseFloat(item.infeksius || 0).toFixed(2)}</td>
+                        <td className="px-3 py-2.5 text-right text-orange-600 font-semibold text-xs">{parseFloat(item.jarum_suntik || 0).toFixed(2)}</td>
+                        <td className="px-3 py-2.5 text-right text-blue-600 font-semibold text-xs">{parseFloat(item.botol_obat || 0).toFixed(2)}</td>
+                        <td className="px-3 py-2.5 text-right text-purple-600 font-semibold text-xs">{parseFloat(item.sitotoksik || 0).toFixed(2)}</td>
                         <td className="px-3 py-2.5 text-center">
                           {isRoomOnly ? (
                             <button onClick={() => handleEdit(item)} className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 px-2 py-1 rounded text-xs" title="Lihat Detail"><i className="fas fa-eye"></i></button>
@@ -1057,10 +1066,10 @@ export default function LimbahPadat({ embedded = false }) {
                       </div>
                       {/* Grid nilai 4 kolom */}
                       <div className="grid grid-cols-4 gap-x-2 gap-y-0.5 text-[10px]">
-                        <div><span className="text-gray-400">Infeksius</span><br /><span className="font-bold text-red-600">{parseFloat(item.infeksius||0).toFixed(2)}</span></div>
-                        <div><span className="text-gray-400">Jarum</span><br /><span className="font-bold text-orange-600">{parseFloat(item.jarum_suntik||0).toFixed(2)}</span></div>
-                        <div><span className="text-gray-400">Botol</span><br /><span className="font-bold text-blue-600">{parseFloat(item.botol_obat||0).toFixed(2)}</span></div>
-                        <div><span className="text-gray-400">Sito</span><br /><span className="font-bold text-purple-600">{parseFloat(item.sitotoksik||0).toFixed(2)}</span></div>
+                        <div><span className="text-gray-400">Infeksius</span><br /><span className="font-bold text-red-600">{parseFloat(item.infeksius || 0).toFixed(2)}</span></div>
+                        <div><span className="text-gray-400">Jarum</span><br /><span className="font-bold text-orange-600">{parseFloat(item.jarum_suntik || 0).toFixed(2)}</span></div>
+                        <div><span className="text-gray-400">Botol</span><br /><span className="font-bold text-blue-600">{parseFloat(item.botol_obat || 0).toFixed(2)}</span></div>
+                        <div><span className="text-gray-400">Sito</span><br /><span className="font-bold text-purple-600">{parseFloat(item.sitotoksik || 0).toFixed(2)}</span></div>
                       </div>
                     </div>
                     {/* Aksi */}
