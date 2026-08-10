@@ -1091,7 +1091,7 @@ export default function LimbahPadat({ embedded = false }) {
 
           {/* Pagination */}
           {totalPages > 0 && (
-            <div className="flex justify-between items-center px-6 py-4 bg-gray-50 border-t text-sm">
+            <div className="flex flex-col sm:flex-row justify-between items-center px-6 py-4 bg-gray-50 border-t text-sm gap-3">
               <div className="flex items-center space-x-2 text-gray-600">
                 <span>Halaman</span>
                 <input
@@ -1109,7 +1109,7 @@ export default function LimbahPadat({ embedded = false }) {
                 />
                 <span>dari {totalPages}</span>
               </div>
-              <div className="flex space-x-2">
+              <div className="flex gap-2">
                 <button
                   onClick={() => setPage(p => Math.max(1, p - 1))}
                   disabled={page === 1}
