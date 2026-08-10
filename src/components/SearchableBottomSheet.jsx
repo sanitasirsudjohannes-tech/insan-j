@@ -154,8 +154,8 @@ export default function SearchableBottomSheet({
        * sheet akan menyesuaikan ketika keyboard Samsung muncul.
        */
       const timer = setTimeout(() => {
-        inputRef.current?.focus();
-      }, 350);
+        inputRef.current?.focus({ preventScroll: true });
+      }, 250);
 
       return () => clearTimeout(timer);
     }
@@ -299,7 +299,7 @@ export default function SearchableBottomSheet({
             : 'translateY(100%)',
 
           transition:
-            'transform 0.35s cubic-bezier(0.32, 0.72, 0, 1), bottom 0.15s ease',
+            'transform 0.35s cubic-bezier(0.32, 0.72, 0, 1)',
 
           paddingBottom: 'env(safe-area-inset-bottom)',
         }}
@@ -368,7 +368,7 @@ export default function SearchableBottomSheet({
                 onClick={() => {
                   setQuery('');
                   requestAnimationFrame(() => {
-                    inputRef.current?.focus();
+                    inputRef.current?.focus({ preventScroll: true });
                   });
                 }}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
@@ -416,8 +416,8 @@ export default function SearchableBottomSheet({
                     <span className="flex items-center gap-2 min-w-0">
                       <i
                         className={`fas fa-door-open text-xs shrink-0 ${isSelected
-                            ? 'text-white'
-                            : colors.icon
+                          ? 'text-white'
+                          : colors.icon
                           }`}
                       />
 

@@ -723,13 +723,10 @@ export default function LimbahPadat({ embedded = false }) {
         grandTotal += itemTotal;
 
         let note = '';
-        if (item.ruanganCount > 0) {
-          note = `<br/><small style="color:#059669;font-size:10px;">(${item.ruanganCount} Ruangan)</small>`;
-        }
 
         return `<tr>
           <td style="text-align:center;">${index + 1}</td>
-          <td>${new Date(item.tanggal).toLocaleDateString('id-ID')}${note}</td>
+          <td>${new Date(item.tanggal).toLocaleDateString('id-ID')}</td>
           <td style="text-align:right;">${(item.infeksius || 0).toFixed(2)}</td>
           <td style="text-align:right;">${(item.jarum_suntik || 0).toFixed(2)}</td>
           <td style="text-align:right;">${(item.botol_obat || 0).toFixed(2)}</td>
