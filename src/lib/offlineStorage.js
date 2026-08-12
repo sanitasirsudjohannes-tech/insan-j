@@ -80,10 +80,40 @@ const replaceReferencedLocalId = (localId, serverId) => {
   window.dispatchEvent(new CustomEvent('offline-queue-changed', { detail: queue }));
 };
 
+// Tetap kompatibel dengan format queue lama: update/delete boleh memakai
+// item.serverId, payload.serverId, atau payload.id.
 const getServerId = (item) => {
-  const candidate = item.serverId || item.payload?.serverId || item.payload?.id;
-  if (!candidate || String(candidate).startsWith('off_')) return null;
-  return candidate;
+  const candidates = [item?.serverId, item?.payload?.serverId, item?.payload?.id];
+  return candidates.find(candidate => {
+    if (candidate === null || candidate === undefined || candidate === '') return false;
+    return !String(candidate).startsWith('off_');
+  }) || null;
+};
+
+// Jika record belum pernah masuk Supabase (masih memakai ID off_...),
+// operasi DELETE cukup menghapus seluruh operasi lokal yang terkait.
+// Jangan mencoba DELETE ke Supabase dengan ID lokal.
+const removeLocalRecordQueue = (item) => {
+  const localIds = new Set([
+    item?.id,
+    item?.localId,
+    item?.payload?.id,
+    item?.payload?.serverId
+  ].filter(Boolean).map(String));
+
+  const queue = getOfflineQueue().filter(candidate => {
+    const references = [
+      candidate.id,
+      candidate.localId,
+      candidate.payload?.id,
+      candidate.payload?.serverId
+    ].filter(Boolean).map(String);
+
+    return !references.some(reference => localIds.has(reference));
+  });
+
+  localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+  window.dispatchEvent(new CustomEvent('offline-queue-changed', { detail: queue }));
 };
 
 export const syncOfflineQueue = async (showNotification = true) => {
@@ -96,9 +126,8 @@ export const syncOfflineQueue = async (showNotification = true) => {
   let failedCount = 0;
   const total = initialQueue.length;
 
-  // Selalu baca queue terbaru sebelum memproses item berikutnya.
-  // Ini memastikan hasil INSERT (serverId baru) langsung dipakai oleh
-  // UPDATE/DELETE berikutnya yang masih mereferensikan localId.
+  // Selalu membaca queue terbaru agar serverId hasil INSERT langsung
+  // tersedia untuk UPDATE/DELETE berikutnya.
   while (true) {
     const queue = getOfflineQueue();
     if (queue.length === 0) break;
@@ -131,7 +160,16 @@ export const syncOfflineQueue = async (showNotification = true) => {
         error = err;
       } else if (item.action === 'delete') {
         const serverId = getServerId(item);
-        if (!serverId) throw new Error(`Server ID tidak tersedia untuk delete item ${item.id}`);
+
+        if (!serverId) {
+          const localId = item.payload?.id || item.localId || item.id;
+          if (String(localId).startsWith('off_')) {
+            removeLocalRecordQueue(item);
+            successCount++;
+            continue;
+          }
+          throw new Error(`Server ID tidak tersedia untuk delete item ${item.id}`);
+        }
 
         const { error: err } = await supabase
           .from(item.table)
@@ -145,8 +183,6 @@ export const syncOfflineQueue = async (showNotification = true) => {
       if (error) {
         console.error(`Gagal sync item ${item.id}:`, error);
         failedCount++;
-        // Jangan memproses item berikutnya jika item pertama gagal.
-        // Item berikutnya bisa bergantung pada hasil item ini (misalnya INSERT -> UPDATE).
         break;
       }
 
