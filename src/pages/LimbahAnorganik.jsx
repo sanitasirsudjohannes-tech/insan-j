@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser, fetchDaftarRuangan } from '../lib/api';
-import { saveToOfflineQueue, getUnsyncedItemsForTable, syncOfflineQueue } from '../lib/offlineStorage';
+import { saveToOfflineQueue, getUnsyncedItemsForTable, syncOfflineQueue, removeOfflineQueueItem } from '../lib/offlineStorage';
 import SearchableBottomSheet from '../components/SearchableBottomSheet';
 
 const MySwal = withReactContent(Swal);
@@ -228,7 +228,7 @@ export default function LimbahAnorganik({ embedded = false }) {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const handleDelete = async (id) => {
+    const handleDelete = async (item) => {
         const confirm = await MySwal.fire({
             title: 'Hapus Data Limbah Anorganik?',
             text: 'Data yang dihapus tidak dapat dikembalikan!',
@@ -239,13 +239,44 @@ export default function LimbahAnorganik({ embedded = false }) {
             confirmButtonText: 'Ya, Hapus!'
         });
         if (!confirm.isConfirmed) return;
+
         try {
-            const { error } = await supabase.from('limbah_anorganik').delete().eq('id', id);
+            if (item.isOffline) {
+                removeOfflineQueueItem(item.offlineId || item.id);
+                MySwal.fire('Terhapus', 'Draft offline berhasil dihapus', 'success');
+                fetchData();
+                return;
+            }
+
+            if (!navigator.onLine) {
+                saveToOfflineQueue('limbah_anorganik', 'delete', { id: item.id }, `Hapus Limbah Anorganik ${item.ruangan || ''}`);
+                MySwal.fire({
+                    icon: 'info',
+                    title: 'Tersimpan Offline',
+                    text: 'Perintah hapus disimpan di HP. Akan diproses otomatis saat terhubung internet.',
+                    confirmButtonColor: '#0891b2'
+                });
+                fetchData();
+                return;
+            }
+
+            const { error } = await supabase.from('limbah_anorganik').delete().eq('id', item.id);
             if (error) throw error;
             MySwal.fire('Terhapus', 'Data berhasil dihapus', 'success');
             fetchData();
         } catch (error) {
-            MySwal.fire('Gagal', error.message, 'error');
+            if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
+                saveToOfflineQueue('limbah_anorganik', 'delete', { id: item.id }, `Hapus Limbah Anorganik ${item.ruangan || ''}`);
+                MySwal.fire({
+                    icon: 'info',
+                    title: 'Tersimpan Offline',
+                    text: 'Jaringan terputus. Perintah hapus disimpan dan akan diproses otomatis.',
+                    confirmButtonColor: '#0891b2'
+                });
+                fetchData();
+            } else {
+                MySwal.fire('Gagal', error.message, 'error');
+            }
         }
     };
 
@@ -480,7 +511,7 @@ export default function LimbahAnorganik({ embedded = false }) {
                                                 <td className="px-3 py-2 text-gray-600">{item.petugas || '-'}</td>
                                                 <td className="px-3 py-2 text-center whitespace-nowrap">
                                                     <button onClick={() => handleEdit(item)} className="bg-blue-100 text-blue-600 hover:bg-blue-200 px-2 py-1 rounded-lg mx-0.5 transition active:scale-95 text-xs"><i className="fas fa-edit"></i></button>
-                                                    <button onClick={() => handleDelete(item.id)} className="bg-red-100 text-red-600 hover:bg-red-200 px-2 py-1 rounded-lg mx-0.5 transition active:scale-95 text-xs"><i className="fas fa-trash"></i></button>
+                                                    <button onClick={() => handleDelete(item)} className="bg-red-100 text-red-600 hover:bg-red-200 px-2 py-1 rounded-lg mx-0.5 transition active:scale-95 text-xs"><i className="fas fa-trash"></i></button>
                                                 </td>
                                             </tr>
                                         );

@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser, getSetting, getSettingCached } from '../lib/api';
-import { saveToOfflineQueue, getUnsyncedItemsForTable, syncOfflineQueue } from '../lib/offlineStorage';
+import { saveToOfflineQueue, getUnsyncedItemsForTable, syncOfflineQueue, removeOfflineQueueItem } from '../lib/offlineStorage';
 import * as XLSX from 'xlsx';
 
 const MySwal = withReactContent(Swal);
@@ -373,13 +373,43 @@ export default function LimbahPadat({ embedded = false }) {
     if (confirm.isConfirmed) {
       try {
         for (const id of idsToDelete) {
+          const idStr = String(id);
+
+          // Data masih draft offline (belum pernah sampai ke server) -> hapus dari antrean lokal saja
+          if (idStr.startsWith('off_')) {
+            removeOfflineQueueItem(idStr);
+            continue;
+          }
+
+          if (!navigator.onLine) {
+            saveToOfflineQueue('limbah_padat', 'delete', { id }, `Hapus Limbah Padat ${item.tanggal}`);
+            continue;
+          }
+
           const { error } = await supabase.from('limbah_padat').delete().eq('id', id);
           if (error) throw error;
         }
-        MySwal.fire('Terhapus', isMixed ? 'Data input manual berhasil dihapus.' : 'Data berhasil dihapus.', 'success');
+
+        MySwal.fire(
+          'Terhapus',
+          navigator.onLine
+            ? (isMixed ? 'Data input manual berhasil dihapus.' : 'Data berhasil dihapus.')
+            : 'Perintah hapus disimpan offline dan akan diproses otomatis saat online.',
+          'success'
+        );
         fetchData();
       } catch (error) {
-        MySwal.fire('Gagal', error.message, 'error');
+        if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
+          MySwal.fire({
+            icon: 'info',
+            title: 'Tersimpan Offline',
+            text: 'Jaringan terputus. Perintah hapus disimpan dan akan diproses otomatis.',
+            confirmButtonColor: '#059669'
+          });
+          fetchData();
+        } else {
+          MySwal.fire('Gagal', error.message, 'error');
+        }
       }
     }
   };

@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser, fetchDaftarRuangan } from '../lib/api';
-import { saveToOfflineQueue, getUnsyncedItemsForTable, syncOfflineQueue } from '../lib/offlineStorage';
+import { saveToOfflineQueue, getUnsyncedItemsForTable, syncOfflineQueue, removeOfflineQueueItem } from '../lib/offlineStorage';
 import * as XLSX from 'xlsx';
 import SearchableBottomSheet from '../components/SearchableBottomSheet';
 
@@ -236,7 +236,7 @@ export default function LimbahRuangan({ embedded = false }) {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (item) => {
     const confirm = await MySwal.fire({
       title: 'Hapus Data Limbah Ruangan?',
       text: "Data yang dihapus tidak dapat dikembalikan!",
@@ -247,13 +247,45 @@ export default function LimbahRuangan({ embedded = false }) {
       confirmButtonText: 'Ya, Hapus!'
     });
 
-    if (confirm.isConfirmed) {
-      try {
-        const { error } = await supabase.from('limbah_ruangan').delete().eq('id', id);
-        if (error) throw error;
-        MySwal.fire('Terhapus', 'Data berhasil dihapus', 'success');
+    if (!confirm.isConfirmed) return;
+
+    try {
+      // Jika data ini masih draft offline yang belum pernah sampai ke server,
+      // cukup hapus dari antrean lokal tanpa memanggil Supabase.
+      if (item.isOffline) {
+        removeOfflineQueueItem(item.offlineId || item.id);
+        MySwal.fire('Terhapus', 'Draft offline berhasil dihapus', 'success');
         fetchData();
-      } catch (error) {
+        return;
+      }
+
+      if (!navigator.onLine) {
+        saveToOfflineQueue('limbah_ruangan', 'delete', { id: item.id }, `Hapus Limbah Ruangan ${item.ruangan || ''}`);
+        MySwal.fire({
+          icon: 'info',
+          title: 'Tersimpan Offline',
+          text: 'Perintah hapus disimpan di HP. Akan diproses otomatis saat terhubung internet.',
+          confirmButtonColor: '#059669'
+        });
+        fetchData();
+        return;
+      }
+
+      const { error } = await supabase.from('limbah_ruangan').delete().eq('id', item.id);
+      if (error) throw error;
+      MySwal.fire('Terhapus', 'Data berhasil dihapus', 'success');
+      fetchData();
+    } catch (error) {
+      if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
+        saveToOfflineQueue('limbah_ruangan', 'delete', { id: item.id }, `Hapus Limbah Ruangan ${item.ruangan || ''}`);
+        MySwal.fire({
+          icon: 'info',
+          title: 'Tersimpan Offline',
+          text: 'Jaringan terputus. Perintah hapus disimpan dan akan diproses otomatis.',
+          confirmButtonColor: '#059669'
+        });
+        fetchData();
+      } else {
         MySwal.fire('Gagal', error.message, 'error');
       }
     }
@@ -1697,7 +1729,7 @@ window.onafterprint = function () {
                         <td className="px-3 py-2 text-gray-600">{item.petugas || '-'}</td>
                         <td className="px-3 py-2 text-center whitespace-nowrap">
                           <button onClick={() => handleEdit(item)} className="bg-blue-100 text-blue-600 hover:bg-blue-200 px-2 py-1 rounded-lg mx-0.5 transition active:scale-95 text-xs"><i className="fas fa-edit"></i></button>
-                          <button onClick={() => handleDelete(item.id)} className="bg-red-100 text-red-600 hover:bg-red-200 px-2 py-1 rounded-lg mx-0.5 transition active:scale-95 text-xs"><i className="fas fa-trash"></i></button>
+                          <button onClick={() => handleDelete(item)} className="bg-red-100 text-red-600 hover:bg-red-200 px-2 py-1 rounded-lg mx-0.5 transition active:scale-95 text-xs"><i className="fas fa-trash"></i></button>
                         </td>
                       </tr>
                     );
