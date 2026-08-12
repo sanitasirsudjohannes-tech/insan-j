@@ -89,14 +89,22 @@ const getServerId = (item) => {
 export const syncOfflineQueue = async (showNotification = true) => {
   if (!navigator.onLine) return { success: 0, failed: 0, total: 0 };
 
-  const queue = getOfflineQueue();
-  if (queue.length === 0) return { success: 0, failed: 0, total: 0 };
+  const initialQueue = getOfflineQueue();
+  if (initialQueue.length === 0) return { success: 0, failed: 0, total: 0 };
 
   let successCount = 0;
   let failedCount = 0;
-  const total = queue.length;
+  const total = initialQueue.length;
 
-  for (const item of queue) {
+  // Selalu baca queue terbaru sebelum memproses item berikutnya.
+  // Ini memastikan hasil INSERT (serverId baru) langsung dipakai oleh
+  // UPDATE/DELETE berikutnya yang masih mereferensikan localId.
+  while (true) {
+    const queue = getOfflineQueue();
+    if (queue.length === 0) break;
+
+    const item = queue[0];
+
     try {
       let error = null;
 
@@ -109,8 +117,6 @@ export const syncOfflineQueue = async (showNotification = true) => {
         error = err;
 
         if (!error && data?.id) {
-          // Mapping penting: update/delete berikutnya yang masih memakai local ID
-          // akan diarahkan ke ID asli yang dibuat Supabase.
           replaceReferencedLocalId(item.localId || item.id, data.id);
         }
       } else if (item.action === 'update') {
@@ -139,13 +145,17 @@ export const syncOfflineQueue = async (showNotification = true) => {
       if (error) {
         console.error(`Gagal sync item ${item.id}:`, error);
         failedCount++;
-      } else {
-        removeOfflineQueueItem(item.id);
-        successCount++;
+        // Jangan memproses item berikutnya jika item pertama gagal.
+        // Item berikutnya bisa bergantung pada hasil item ini (misalnya INSERT -> UPDATE).
+        break;
       }
+
+      removeOfflineQueueItem(item.id);
+      successCount++;
     } catch (err) {
       console.error(`Exception sync item ${item.id}:`, err);
       failedCount++;
+      break;
     }
   }
 
