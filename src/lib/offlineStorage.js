@@ -32,13 +32,16 @@ export const getUnsyncedItemsForTable = (tableName) => {
 export const saveToOfflineQueue = (table, action, payload, description = '') => {
   const queue = getOfflineQueue();
   const localId = `off_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const payloadCopy = { ...(payload || {}) };
+  const referencedId = payloadCopy.serverId || payloadCopy.id || null;
+
   const newItem = {
     id: localId,
     localId,
-    serverId: payload?.serverId || (payload?.id && !String(payload.id).startsWith('off_') ? payload.id : null),
+    serverId: referencedId && !String(referencedId).startsWith('off_') ? referencedId : null,
     table,
     action,
-    payload: { ...(payload || {}) },
+    payload: payloadCopy,
     description: description || `${action.toUpperCase()} data ${table}`,
     createdAt: new Date().toISOString()
   };
@@ -55,15 +58,24 @@ export const removeOfflineQueueItem = (id) => {
   window.dispatchEvent(new CustomEvent('offline-queue-changed', { detail: queue }));
 };
 
-const replaceQueueItemServerId = (localId, serverId) => {
+const replaceReferencedLocalId = (localId, serverId) => {
   const queue = getOfflineQueue().map(item => {
-    if (item.localId !== localId) return item;
+    const payloadId = item.payload?.serverId || item.payload?.id;
+    const referencesInsertedRecord = payloadId === localId || item.localId === localId;
+
+    if (!referencesInsertedRecord) return item;
+
     return {
       ...item,
       serverId,
-      payload: { ...item.payload, id: serverId, serverId }
+      payload: {
+        ...item.payload,
+        id: serverId,
+        serverId
+      }
     };
   });
+
   localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
   window.dispatchEvent(new CustomEvent('offline-queue-changed', { detail: queue }));
 };
@@ -97,7 +109,9 @@ export const syncOfflineQueue = async (showNotification = true) => {
         error = err;
 
         if (!error && data?.id) {
-          replaceQueueItemServerId(item.localId || item.id, data.id);
+          // Mapping penting: update/delete berikutnya yang masih memakai local ID
+          // akan diarahkan ke ID asli yang dibuat Supabase.
+          replaceReferencedLocalId(item.localId || item.id, data.id);
         }
       } else if (item.action === 'update') {
         const serverId = getServerId(item);
