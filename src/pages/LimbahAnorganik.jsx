@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser, fetchDaftarRuangan } from '../lib/api';
-import { saveToOfflineQueue, getUnsyncedItemsForTable, syncOfflineQueue, removeOfflineQueueItem } from '../lib/offlineStorage';
+import { saveToOfflineQueue, getUnsyncedItemsForTable, syncOfflineQueue, removeOfflineQueueItem, removeLocalRecordQueue } from '../lib/offlineStorage';
 import SearchableBottomSheet from '../components/SearchableBottomSheet';
 
 const MySwal = withReactContent(Swal);
@@ -116,8 +116,8 @@ export default function LimbahAnorganik({ embedded = false }) {
                 unsynced = unsynced.filter(item => item.ruangan === filterRuangan);
             }
 
-            const unsyncedIds = new Set(unsynced.map(u => u.id));
-            const filteredDbData = dbData.filter(d => !unsyncedIds.has(d.id));
+            const unsyncedIds = new Set(unsynced.map(u => String(u.id)));
+            const filteredDbData = dbData.filter(d => !unsyncedIds.has(String(d.id)));
 
             setData([...unsynced, ...filteredDbData]);
             setTotalData((count || 0) + unsynced.length);
@@ -241,12 +241,14 @@ export default function LimbahAnorganik({ embedded = false }) {
         if (!confirm.isConfirmed) return;
 
         try {
-            if (item.isOffline) {
-                removeOfflineQueueItem(item.offlineId || item.id);
+            if (item.isOffline && item.offlineAction === 'insert') {
+                removeLocalRecordQueue(item);
                 MySwal.fire('Terhapus', 'Draft offline berhasil dihapus', 'success');
                 fetchData();
                 return;
             }
+
+            removeLocalRecordQueue(item);
 
             if (!navigator.onLine) {
                 saveToOfflineQueue('limbah_anorganik', 'delete', { id: item.id }, `Hapus Limbah Anorganik ${item.ruangan || ''}`);

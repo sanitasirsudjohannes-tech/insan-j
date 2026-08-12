@@ -14,7 +14,7 @@ export const getOfflineQueue = () => {
 };
 
 export const getUnsyncedItemsForTable = (tableName) => {
-  return getOfflineQueue()
+  const items = getOfflineQueue()
     .filter(item => item.table === tableName && item.action !== 'delete')
     .map(item => {
       const payloadData = item.payload && typeof item.payload === 'object' ? item.payload : {};
@@ -28,6 +28,12 @@ export const getUnsyncedItemsForTable = (tableName) => {
         waktu_input: payloadData.waktu_input || item.createdAt || new Date().toISOString()
       };
     });
+
+  const map = new Map();
+  items.forEach(item => {
+    map.set(String(item.id), item);
+  });
+  return Array.from(map.values());
 };
 
 export const saveToOfflineQueue = (table, action, payload, description = '') => {
@@ -94,10 +100,11 @@ const getServerId = (item) => {
 // Jika record belum pernah masuk Supabase (masih memakai ID off_...),
 // operasi DELETE cukup menghapus seluruh operasi lokal yang terkait.
 // Jangan mencoba DELETE ke Supabase dengan ID lokal.
-const removeLocalRecordQueue = (item) => {
+export const removeLocalRecordQueue = (item) => {
   const localIds = new Set([
     item?.id,
     item?.localId,
+    item?.offlineId,
     item?.payload?.id,
     item?.payload?.serverId
   ].filter(Boolean).map(String));

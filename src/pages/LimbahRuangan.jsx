@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser, fetchDaftarRuangan } from '../lib/api';
-import { saveToOfflineQueue, getUnsyncedItemsForTable, syncOfflineQueue, removeOfflineQueueItem } from '../lib/offlineStorage';
+import { saveToOfflineQueue, getUnsyncedItemsForTable, syncOfflineQueue, removeOfflineQueueItem, removeLocalRecordQueue } from '../lib/offlineStorage';
 import * as XLSX from 'xlsx';
 import SearchableBottomSheet from '../components/SearchableBottomSheet';
 
@@ -118,8 +118,8 @@ export default function LimbahRuangan({ embedded = false }) {
         unsynced = unsynced.filter(item => item.ruangan === filterRuangan);
       }
 
-      const unsyncedIds = new Set(unsynced.map(u => u.id));
-      const filteredDbData = dbData.filter(d => !unsyncedIds.has(d.id));
+      const unsyncedIds = new Set(unsynced.map(u => String(u.id)));
+      const filteredDbData = dbData.filter(d => !unsyncedIds.has(String(d.id)));
 
       const combined = [...unsynced, ...filteredDbData];
       setData(combined);
@@ -250,14 +250,16 @@ export default function LimbahRuangan({ embedded = false }) {
     if (!confirm.isConfirmed) return;
 
     try {
-      // Jika data ini masih draft offline yang belum pernah sampai ke server,
-      // cukup hapus dari antrean lokal tanpa memanggil Supabase.
-      if (item.isOffline) {
-        removeOfflineQueueItem(item.offlineId || item.id);
+      // Jika ini adalah draft insert (belum ada di server), hapus sepenuhnya dari lokal
+      if (item.isOffline && item.offlineAction === 'insert') {
+        removeLocalRecordQueue(item);
         MySwal.fire('Terhapus', 'Draft offline berhasil dihapus', 'success');
         fetchData();
         return;
       }
+
+      // Bersihkan antrean update offline agar tidak konflik dengan delete
+      removeLocalRecordQueue(item);
 
       if (!navigator.onLine) {
         saveToOfflineQueue('limbah_ruangan', 'delete', { id: item.id }, `Hapus Limbah Ruangan ${item.ruangan || ''}`);
@@ -1475,9 +1477,9 @@ window.onafterprint = function () {
                 <label className="block text-gray-800 font-bold text-sm mb-2">
                   Jumlah Timbulan Limbah (Kg)
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                   <div>
-                    <label className="block text-sm font-semibold text-red-600 mb-1">Limbah Infeksius (Kg)</label>
+                    <label className="block text-sm font-semibold text-red-600 mb-1">Infeksius</label>
                     <input
                       type="number"
                       step="0.01"
@@ -1492,7 +1494,7 @@ window.onafterprint = function () {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-orange-600 mb-1">Limbah Jarum Suntik (Kg)</label>
+                    <label className="block text-sm font-semibold text-orange-600 mb-1">Jarum Suntik</label>
                     <input
                       type="number"
                       step="0.01"
@@ -1507,7 +1509,7 @@ window.onafterprint = function () {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-blue-600 mb-1">Limbah Botol Obat (Kg)</label>
+                    <label className="block text-sm font-semibold text-blue-600 mb-1">Botol Obat</label>
                     <input
                       type="number"
                       step="0.01"
@@ -1522,7 +1524,7 @@ window.onafterprint = function () {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-purple-600 mb-1">Limbah Sitotoksik (Kg)</label>
+                    <label className="block text-sm font-semibold text-purple-600 mb-1">Sitotoksik</label>
                     <input
                       type="number"
                       step="0.01"

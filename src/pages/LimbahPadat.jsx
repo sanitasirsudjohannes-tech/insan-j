@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser, getSetting, getSettingCached } from '../lib/api';
-import { saveToOfflineQueue, getUnsyncedItemsForTable, syncOfflineQueue, removeOfflineQueueItem } from '../lib/offlineStorage';
+import { saveToOfflineQueue, getUnsyncedItemsForTable, syncOfflineQueue, removeOfflineQueueItem, removeLocalRecordQueue } from '../lib/offlineStorage';
 import * as XLSX from 'xlsx';
 
 const MySwal = withReactContent(Swal);
@@ -83,11 +83,11 @@ export default function LimbahPadat({ embedded = false }) {
       unsyncedRuangan = unsyncedRuangan.filter(i => i.tanggal && i.tanggal.startsWith(targetMonth));
     }
 
-    const unsyncedPadatIds = new Set(unsyncedPadat.map(u => u.id));
-    const filteredDbPadat = dbPadat.filter(d => !unsyncedPadatIds.has(d.id));
+    const unsyncedPadatIds = new Set(unsyncedPadat.map(u => String(u.id)));
+    const filteredDbPadat = dbPadat.filter(d => !unsyncedPadatIds.has(String(d.id)));
 
-    const unsyncedRuanganIds = new Set(unsyncedRuangan.map(u => u.id));
-    const filteredDbRuangan = dbRuangan.filter(d => !unsyncedRuanganIds.has(d.id));
+    const unsyncedRuanganIds = new Set(unsyncedRuangan.map(u => String(u.id)));
+    const filteredDbRuangan = dbRuangan.filter(d => !unsyncedRuanganIds.has(String(d.id)));
 
     const allRuangan = [...unsyncedRuangan, ...filteredDbRuangan];
     const allPadat = [...unsyncedPadat, ...filteredDbPadat];
@@ -154,7 +154,7 @@ export default function LimbahPadat({ embedded = false }) {
       entry.sitotoksik += parseFloat(item.sitotoksik || 0);
       entry.isManual = true;
       // Simpan ID asli dari limbah_padat agar bisa dihapus
-      if (item.id && !item.isOffline) entry.padatIds.push(item.id);
+      if (item.id && !entry.padatIds.includes(item.id)) entry.padatIds.push(item.id);
       if (item.isOffline) entry.isOffline = true;
     });
 
@@ -375,9 +375,11 @@ export default function LimbahPadat({ embedded = false }) {
         for (const id of idsToDelete) {
           const idStr = String(id);
 
-          // Data masih draft offline (belum pernah sampai ke server) -> hapus dari antrean lokal saja
+          // Bersihkan semua update/insert lokal untuk ID ini agar tidak konflik
+          removeLocalRecordQueue({ id: idStr });
+
+          // Jika ini draft murni, maka sudah terhapus oleh removeLocalRecordQueue
           if (idStr.startsWith('off_')) {
-            removeOfflineQueueItem(idStr);
             continue;
           }
 
@@ -1023,12 +1025,12 @@ export default function LimbahPadat({ embedded = false }) {
                       className="w-full border bg-gray-100 text-gray-500 rounded-lg px-3 py-2 cursor-not-allowed" />
                   </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
                   {[
-                    { name: 'infeksius', label: 'Limbah Infeksius' },
-                    { name: 'jarum_suntik', label: 'Limbah Jarum Suntik' },
-                    { name: 'botol_obat', label: 'Limbah Botol Obat' },
-                    { name: 'sitotoksik', label: 'Limbah Sitotoksik' },
+                    { name: 'infeksius', label: 'Infeksius' },
+                    { name: 'jarum_suntik', label: 'Jarum Suntik' },
+                    { name: 'botol_obat', label: 'Botol Obat' },
+                    { name: 'sitotoksik', label: 'Sitotoksik' },
                   ].map(field => (
                     <div key={field.name}>
                       <label className="block text-gray-700 font-medium mb-1">{field.label}</label>
