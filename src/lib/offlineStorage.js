@@ -3,9 +3,6 @@ import Swal from 'sweetalert2';
 
 const QUEUE_KEY = 'insan_j_offline_queue';
 
-/**
- * Mendapatkan antrean data offline dari LocalStorage
- */
 export const getOfflineQueue = () => {
   try {
     const raw = localStorage.getItem(QUEUE_KEY);
@@ -16,60 +13,67 @@ export const getOfflineQueue = () => {
   }
 };
 
-/**
- * Mendapatkan daftar data offline yang belum disinkronkan untuk tabel tertentu
- */
 export const getUnsyncedItemsForTable = (tableName) => {
-  const queue = getOfflineQueue();
-  return queue
+  return getOfflineQueue()
     .filter(item => item.table === tableName && item.action !== 'delete')
     .map(item => {
-      const payloadData = typeof item.payload === 'object' ? item.payload : {};
+      const payloadData = item.payload && typeof item.payload === 'object' ? item.payload : {};
       return {
         ...payloadData,
-        id: item.id,
+        id: item.localId || item.id,
         isOffline: true,
+        offlineId: item.localId || item.id,
         offlineAction: item.action,
         waktu_input: payloadData.waktu_input || item.createdAt || new Date().toISOString()
       };
     });
 };
 
-/**
- * Menyimpan data ke antrean offline
- */
 export const saveToOfflineQueue = (table, action, payload, description = '') => {
   const queue = getOfflineQueue();
+  const localId = `off_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const newItem = {
-    id: `off_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+    id: localId,
+    localId,
+    serverId: payload?.serverId || (payload?.id && !String(payload.id).startsWith('off_') ? payload.id : null),
     table,
-    action, // 'insert' | 'update' | 'delete'
-    payload,
+    action,
+    payload: { ...(payload || {}) },
     description: description || `${action.toUpperCase()} data ${table}`,
     createdAt: new Date().toISOString()
   };
 
   queue.push(newItem);
   localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
-
-  // Dispatch custom event untuk memperbarui UI indikator
   window.dispatchEvent(new CustomEvent('offline-queue-changed', { detail: queue }));
-
   return newItem;
 };
 
-/**
- * Menghapus 1 item dari antrean berdasarkan ID
- */
 export const removeOfflineQueueItem = (id) => {
-  const queue = getOfflineQueue().filter(item => item.id !== id);
+  const queue = getOfflineQueue().filter(item => item.id !== id && item.localId !== id);
   localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
   window.dispatchEvent(new CustomEvent('offline-queue-changed', { detail: queue }));
 };
 
-/**
- * Melakukan sinkronisasi data offline ke Supabase
- */
+const replaceQueueItemServerId = (localId, serverId) => {
+  const queue = getOfflineQueue().map(item => {
+    if (item.localId !== localId) return item;
+    return {
+      ...item,
+      serverId,
+      payload: { ...item.payload, id: serverId, serverId }
+    };
+  });
+  localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+  window.dispatchEvent(new CustomEvent('offline-queue-changed', { detail: queue }));
+};
+
+const getServerId = (item) => {
+  const candidate = item.serverId || item.payload?.serverId || item.payload?.id;
+  if (!candidate || String(candidate).startsWith('off_')) return null;
+  return candidate;
+};
+
 export const syncOfflineQueue = async (showNotification = true) => {
   if (!navigator.onLine) return { success: 0, failed: 0, total: 0 };
 
@@ -78,21 +82,44 @@ export const syncOfflineQueue = async (showNotification = true) => {
 
   let successCount = 0;
   let failedCount = 0;
+  const total = queue.length;
 
   for (const item of queue) {
     try {
       let error = null;
 
       if (item.action === 'insert') {
-        const { error: err } = await supabase.from(item.table).insert([item.payload]);
+        const { data, error: err } = await supabase
+          .from(item.table)
+          .insert([item.payload])
+          .select()
+          .single();
         error = err;
+
+        if (!error && data?.id) {
+          replaceQueueItemServerId(item.localId || item.id, data.id);
+        }
       } else if (item.action === 'update') {
-        const { id: payloadId, ...updateData } = item.payload;
-        const { error: err } = await supabase.from(item.table).update(updateData).eq('id', payloadId);
+        const serverId = getServerId(item);
+        if (!serverId) throw new Error(`Server ID tidak tersedia untuk update item ${item.id}`);
+
+        const { id: _id, serverId: _serverId, ...updateData } = item.payload || {};
+        const { error: err } = await supabase
+          .from(item.table)
+          .update(updateData)
+          .eq('id', serverId);
         error = err;
       } else if (item.action === 'delete') {
-        const { error: err } = await supabase.from(item.table).delete().eq('id', item.payload.id);
+        const serverId = getServerId(item);
+        if (!serverId) throw new Error(`Server ID tidak tersedia untuk delete item ${item.id}`);
+
+        const { error: err } = await supabase
+          .from(item.table)
+          .delete()
+          .eq('id', serverId);
         error = err;
+      } else {
+        throw new Error(`Aksi offline tidak dikenal: ${item.action}`);
       }
 
       if (error) {
@@ -110,9 +137,11 @@ export const syncOfflineQueue = async (showNotification = true) => {
 
   if (showNotification && successCount > 0) {
     Swal.fire({
-      icon: 'success',
-      title: 'Sinkronisasi Berhasil!',
-      text: `${successCount} data offline telah dikirim ke database.`,
+      icon: failedCount > 0 ? 'warning' : 'success',
+      title: failedCount > 0 ? 'Sinkronisasi Sebagian Berhasil' : 'Sinkronisasi Berhasil!',
+      text: failedCount > 0
+        ? `${successCount} berhasil, ${failedCount} gagal. Data gagal tetap berada di antrean.`
+        : `${successCount} data offline telah dikirim ke database.`,
       toast: true,
       position: 'top-end',
       showConfirmButton: false,
@@ -120,10 +149,9 @@ export const syncOfflineQueue = async (showNotification = true) => {
     });
   }
 
-  return { success: successCount, failed: failedCount, total: queue.length };
+  return { success: successCount, failed: failedCount, total };
 };
 
-// Pasang event listener otomatis saat jaringan terhubung (online)
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
     console.log('Koneksi internet kembali aktif. Menjalankan auto-sync...');
