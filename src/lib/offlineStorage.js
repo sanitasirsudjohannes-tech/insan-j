@@ -18,9 +18,10 @@ export const getUnsyncedItemsForTable = (tableName) => {
     .filter(item => item.table === tableName && item.action !== 'delete')
     .map(item => {
       const payloadData = item.payload && typeof item.payload === 'object' ? item.payload : {};
+      const originalId = item.serverId || payloadData.id || item.localId || item.id;
       return {
         ...payloadData,
-        id: item.localId || item.id,
+        id: item.action === 'update' ? originalId : (item.localId || item.id),
         isOffline: true,
         offlineId: item.localId || item.id,
         offlineAction: item.action,

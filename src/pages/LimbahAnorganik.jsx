@@ -555,7 +555,7 @@ export default function LimbahAnorganik({ embedded = false }) {
                                         </div>
                                         <div className="flex gap-1 shrink-0">
                                             <button onClick={() => handleEdit(item)} className="w-7 h-7 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center text-xs"><i className="fas fa-edit"></i></button>
-                                            <button onClick={() => handleDelete(item.id)} className="w-7 h-7 rounded-lg bg-red-100 text-red-600 flex items-center justify-center text-xs"><i className="fas fa-trash"></i></button>
+                                            <button onClick={() => handleDelete(item)} className="w-7 h-7 rounded-lg bg-red-100 text-red-600 flex items-center justify-center text-xs"><i className="fas fa-trash"></i></button>
                                         </div>
                                     </div>
                                 );
