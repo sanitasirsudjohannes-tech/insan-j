@@ -9,9 +9,10 @@
  */
 export function printViaHiddenIframe(htmlContent, frameRef) {
   return new Promise((resolve) => {
-    // Bersihkan iframe cetak sebelumnya jika masih ada
+    // Bersihkan iframe cetak sebelumnya jika masih ada.
     if (frameRef?.current && frameRef.current.parentNode) {
       frameRef.current.parentNode.removeChild(frameRef.current);
+      frameRef.current = null;
     }
 
     const iframe = document.createElement('iframe');
@@ -26,9 +27,23 @@ export function printViaHiddenIframe(htmlContent, frameRef) {
 
     if (frameRef) frameRef.current = iframe;
 
+    let printed = false;
+    let fallbackTimer = null;
+    let cleanupTimer = null;
+
     const cleanup = () => {
-      setTimeout(() => {
-        if (iframe && iframe.parentNode) {
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+      }
+
+      if (cleanupTimer) {
+        clearTimeout(cleanupTimer);
+      }
+
+      // Beri waktu agar dialog print selesai sebelum iframe dibuang.
+      cleanupTimer = setTimeout(() => {
+        if (iframe.parentNode) {
           iframe.parentNode.removeChild(iframe);
         }
         if (frameRef && frameRef.current === iframe) {
@@ -37,7 +52,18 @@ export function printViaHiddenIframe(htmlContent, frameRef) {
       }, 1000);
     };
 
+    // Pastikan print hanya dipanggil sekali. Sebelumnya onload dan fallback
+    // timer sama-sama dapat memanggil triggerPrint(), sehingga browser bisa
+    // membuka dialog cetak dua kali.
     const triggerPrint = () => {
+      if (printed) return;
+      printed = true;
+
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+      }
+
       try {
         iframe.contentWindow.focus();
         iframe.contentWindow.print();
@@ -55,14 +81,13 @@ export function printViaHiddenIframe(htmlContent, frameRef) {
     doc.write(htmlContent);
     doc.close();
 
-    // Beri sedikit waktu agar browser (khususnya HP) selesai merender
-    // tabel sebelum dialog cetak dibuka.
-    if (doc.readyState === 'complete') {
+    // Tunggu iframe selesai dimuat. Jika event load tidak terpanggil pada
+    // browser tertentu, fallback tetap tersedia tetapi hanya bisa men-trigger
+    // print satu kali karena dijaga oleh flag `printed`.
+    iframe.onload = () => {
       setTimeout(triggerPrint, 300);
-    } else {
-      iframe.onload = () => setTimeout(triggerPrint, 300);
-      // Jaga-jaga kalau onload tidak terpanggil di sebagian browser
-      setTimeout(triggerPrint, 1200);
-    }
+    };
+
+    fallbackTimer = setTimeout(triggerPrint, 1200);
   });
 }
