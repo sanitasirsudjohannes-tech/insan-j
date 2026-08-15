@@ -27,6 +27,18 @@ function FullWrapper({ children }) {
 
 const ITEMS_PER_PAGE = 10;
 
+// Keep the same ordering as the Supabase query so offline drafts/updates are
+// merged into the correct global position before slicing the current page.
+const compareAnorganikRows = (a, b) => {
+  const dateA = a?.tanggal || '';
+  const dateB = b?.tanggal || '';
+  if (dateA !== dateB) return dateB.localeCompare(dateA);
+
+  const waktuA = a?.waktu_input || '';
+  const waktuB = b?.waktu_input || '';
+  return waktuB.localeCompare(waktuA);
+};
+
 export default function LimbahAnorganik({ embedded = false }) {
   const user = getCurrentUser();
   const [data, setData] = useState([]);
@@ -53,17 +65,28 @@ export default function LimbahAnorganik({ embedded = false }) {
   };
   const [formData, setFormData] = useState(emptyForm);
 
-  // ── Fetch ruangan ────────────────────────────────────────────────────────────
   useEffect(() => {
     fetchDaftarRuangan().then(setRuanganList);
   }, []);
 
-  // ── Fetch data ───────────────────────────────────────────────────────────────
   const fetchData = async () => {
     setLoading(true);
     try {
       let dbData = [];
       let count = 0;
+
+      // Read the offline overlay first. It must participate in pagination as
+      // virtual rows, rather than being appended to an already paginated DB
+      // page. Otherwise page 1 can contain >10 rows and later pages can skip
+      // or duplicate records.
+      let unsynced = getUnsyncedItemsForTable('limbah_anorganik');
+      if (filterMonth) unsynced = unsynced.filter(i => i.tanggal?.startsWith(filterMonth));
+      if (filterRuangan) unsynced = unsynced.filter(i => i.ruangan === filterRuangan);
+
+      const unsyncedIds = new Set(unsynced.map(u => String(u.id)));
+      const delIds = new Set(getOfflineDeletedIds('limbah_anorganik'));
+      const insertCount = unsynced.filter(i => i.offlineAction === 'insert').length;
+      const updateCount = unsynced.filter(i => i.offlineAction === 'update').length;
 
       try {
         let queryCount = supabase
@@ -81,13 +104,21 @@ export default function LimbahAnorganik({ embedded = false }) {
         const { count: c } = await queryCount;
         count = c || 0;
 
-        const from = (page - 1) * ITEMS_PER_PAGE;
+        // We cannot fetch only the DB slice for the current page because
+        // offline rows may belong anywhere in the global sorted list. Fetch
+        // enough leading DB rows to fill the requested page after the offline
+        // overlay and local deletes are applied.
+        const from = 0;
+        const requiredRows = page * ITEMS_PER_PAGE;
+        const safetyRows = unsynced.length + delIds.size;
+        const to = Math.max(requiredRows + safetyRows - 1, ITEMS_PER_PAGE - 1);
+
         let queryData = supabase
           .from('limbah_anorganik')
           .select('id, tanggal, ruangan, infus, jerigen, kertas, kardus, botol_mineral, bayclin_dll, keterangan, petugas, waktu_input')
           .order('tanggal', { ascending: false })
           .order('waktu_input', { ascending: false })
-          .range(from, from + ITEMS_PER_PAGE - 1);
+          .range(from, to);
 
         if (filterMonth) {
           const [year, month] = filterMonth.split('-');
@@ -103,16 +134,23 @@ export default function LimbahAnorganik({ embedded = false }) {
         console.warn('Handling offline/network error fetching limbah anorganik:', e);
       }
 
-      let unsynced = getUnsyncedItemsForTable('limbah_anorganik');
-      if (filterMonth) unsynced = unsynced.filter(i => i.tanggal?.startsWith(filterMonth));
-      if (filterRuangan) unsynced = unsynced.filter(i => i.ruangan === filterRuangan);
-
-      const unsyncedIds = new Set(unsynced.map(u => String(u.id)));
-      const delIds = new Set(getOfflineDeletedIds('limbah_anorganik'));
+      // Merge DB rows with the offline overlay, replace pending updates,
+      // remove pending deletes, sort globally, then paginate the final list.
       const filteredDb = dbData.filter(d => !unsyncedIds.has(String(d.id)) && !delIds.has(String(d.id)));
+      const mergedData = [...unsynced, ...filteredDb].sort(compareAnorganikRows);
+      const fromIndex = (page - 1) * ITEMS_PER_PAGE;
+      const pageData = mergedData.slice(fromIndex, fromIndex + ITEMS_PER_PAGE);
 
-      setData([...unsynced, ...filteredDb]);
-      setTotalData((count || 0) + unsynced.length);
+      setData(pageData);
+
+      // DB count already includes records that are pending local update, so
+      // updates must not increase the total. Offline inserts are new rows and
+      // pending deletes remove existing DB rows from the visible total.
+      const adjustedTotal = Math.max(0, (count || 0) + insertCount - delIds.size);
+      // updateCount is intentionally not added to the total; keep it explicit
+      // to document the distinction between virtual replacement and insertion.
+      void updateCount;
+      setTotalData(adjustedTotal);
     } catch (error) {
       console.error('Error fetching limbah anorganik:', error);
     } finally {
@@ -133,7 +171,12 @@ export default function LimbahAnorganik({ embedded = false }) {
     };
   }, [page, filterMonth, filterRuangan]);
 
-  // ── Handlers ─────────────────────────────────────────────────────────────────
+  // Reset to the first page whenever a filter changes so a previously selected
+  // page cannot become empty after the result set shrinks.
+  useEffect(() => {
+    setPage(1);
+  }, [filterMonth, filterRuangan]);
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -260,8 +303,6 @@ export default function LimbahAnorganik({ embedded = false }) {
   return (
     <Wrapper>
       <div className="container mx-auto px-4 py-8">
-
-        {/* Header */}
         <div className="bg-linear-to-r from-cyan-600 via-sky-600 to-blue-700 text-white rounded-2xl shadow-xl p-6 mb-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -282,7 +323,6 @@ export default function LimbahAnorganik({ embedded = false }) {
           </div>
         </div>
 
-        {/* Form */}
         <AnorganikForm
           formData={formData}
           emptyForm={emptyForm}
@@ -296,7 +336,6 @@ export default function LimbahAnorganik({ embedded = false }) {
           setShowRuanganSheet={setShowRuanganSheet}
         />
 
-        {/* Tabel */}
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
           <OfflineBanner data={data} />
           <AnorganikTable
@@ -321,7 +360,6 @@ export default function LimbahAnorganik({ embedded = false }) {
             accentColor="cyan"
           />
         </div>
-
       </div>
     </Wrapper>
   );
