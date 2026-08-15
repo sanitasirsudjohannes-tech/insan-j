@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser, fetchDaftarRuangan } from '../lib/api';
-import { saveToOfflineQueue, getUnsyncedItemsForTable, removeLocalRecordQueue } from '../lib/offlineStorage';
+import { saveToOfflineQueue, getUnsyncedItemsForTable, removeLocalRecordQueue, getOfflineDeletedIds } from '../lib/offlineStorage';
 import * as XLSX from 'xlsx';
 
 import RuanganForm from '../components/limbah/ruangan/RuanganForm';
@@ -68,7 +68,8 @@ export default function LimbahRuangan({ embedded = false }) {
       if (filterMonth) unsynced=unsynced.filter(i=>i.tanggal?.startsWith(filterMonth));
       if (filterRuangan) unsynced=unsynced.filter(i=>i.ruangan===filterRuangan);
       const ids = new Set(unsynced.map(u=>String(u.id)));
-      setData([...unsynced,...dbData.filter(d=>!ids.has(String(d.id)))]);
+      const delIds = new Set(getOfflineDeletedIds('limbah_ruangan'));
+      setData([...unsynced,...dbData.filter(d=>!ids.has(String(d.id)) && !delIds.has(String(d.id)))]);
       setTotalData((count||0)+unsynced.length);
     } catch(error) { console.error('Error fetching limbah ruangan data:',error); }
     finally { setLoading(false); }

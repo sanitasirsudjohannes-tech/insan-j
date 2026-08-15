@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { getUnsyncedItemsForTable, getOfflineDeletedIds } from '../lib/offlineStorage';
 
 export function useRiwayat({ user, isAdmin, selectedMonth }) {
   const [data, setData] = useState([]);
@@ -35,10 +36,33 @@ export function useRiwayat({ user, isAdmin, selectedMonth }) {
           query = query.gte('tanggal_pemeriksaan', startDate).lt('tanggal_pemeriksaan', endDate);
         }
 
-        const { data: resData, error: err } = await query;
-        if (err) throw new Error(err.message);
+        let dbData = [];
+        try {
+          const { data: resData, error: err } = await query;
+          if (err) throw new Error(err.message);
+          dbData = resData || [];
+        } catch (e) {
+          console.warn(`Offline or network error fetching ${table.name}`, e);
+        }
 
-        return (resData || []).map(item => ({
+        let unsynced = getUnsyncedItemsForTable(table.name);
+        const delIds = new Set(getOfflineDeletedIds(table.name));
+        const unsyncedIds = new Set(unsynced.map(u => String(u.id)));
+
+        if (!isAdmin) {
+          unsynced = unsynced.filter(item => item.petugas === user?.nama);
+        }
+
+        if (selectedMonth) {
+          unsynced = unsynced.filter(item => item.tanggal_pemeriksaan && item.tanggal_pemeriksaan.startsWith(selectedMonth));
+        }
+
+        const combinedData = [
+          ...unsynced,
+          ...dbData.filter(d => !unsyncedIds.has(String(d.id)) && !delIds.has(String(d.id)))
+        ];
+
+        return combinedData.map(item => ({
           id: `${table.name}_${item.id}`,
           originalId: item.id,
           tanggal: item.tanggal_pemeriksaan,

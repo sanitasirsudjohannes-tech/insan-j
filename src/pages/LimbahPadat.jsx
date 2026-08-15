@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser, getSetting, getSettingCached } from '../lib/api';
-import { saveToOfflineQueue, getUnsyncedItemsForTable, removeLocalRecordQueue } from '../lib/offlineStorage';
+import { saveToOfflineQueue, getUnsyncedItemsForTable, removeLocalRecordQueue, getOfflineDeletedIds } from '../lib/offlineStorage';
 import * as XLSX from 'xlsx';
 
 import PadatForm, { EMPTY_FORM } from '../components/limbah/padat/PadatForm';
@@ -64,8 +64,12 @@ export default function LimbahPadat({ embedded = false }) {
     }
     const pIds = new Set(unsyncedP.map(u => String(u.id)));
     const rIds = new Set(unsyncedR.map(u => String(u.id)));
-    const allPadat = [...unsyncedP, ...dbPadat.filter(d => !pIds.has(String(d.id)))];
-    const allRuangan = [...unsyncedR, ...dbRuangan.filter(d => !rIds.has(String(d.id)))];
+
+    const delPIds = new Set(getOfflineDeletedIds('limbah_padat'));
+    const delRIds = new Set(getOfflineDeletedIds('limbah_ruangan'));
+
+    const allPadat = [...unsyncedP, ...dbPadat.filter(d => !pIds.has(String(d.id)) && !delPIds.has(String(d.id)))];
+    const allRuangan = [...unsyncedR, ...dbRuangan.filter(d => !rIds.has(String(d.id)) && !delRIds.has(String(d.id)))];
 
     const dateMap = new Map();
     allRuangan.forEach(item => {

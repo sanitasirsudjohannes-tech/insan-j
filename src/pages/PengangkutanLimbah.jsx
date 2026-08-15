@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser } from '../lib/api';
-import { saveToOfflineQueue, getUnsyncedItemsForTable, syncOfflineQueue } from '../lib/offlineStorage';
+import { saveToOfflineQueue, getUnsyncedItemsForTable, syncOfflineQueue, getOfflineDeletedIds, removeLocalRecordQueue } from '../lib/offlineStorage';
 import * as XLSX from 'xlsx';
 import PengangkutanForm from '../components/limbah/pengangkutan/PengangkutanForm';
 import PengangkutanImportExportToolbar from '../components/limbah/pengangkutan/PengangkutanImportExportToolbar';
@@ -80,8 +80,9 @@ export default function PengangkutanLimbah() {
                 unsynced = unsynced.filter(item => item.tanggal && item.tanggal.startsWith(filterMonth));
             }
 
-            const unsyncedIds = new Set(unsynced.map(u => u.id));
-            const filteredDbData = rows.filter(d => !unsyncedIds.has(d.id));
+            const unsyncedIds = new Set(unsynced.map(u => String(u.id)));
+            const delIds = new Set(getOfflineDeletedIds('pengangkutan_limbah'));
+            const filteredDbData = rows.filter(d => !unsyncedIds.has(String(d.id)) && !delIds.has(String(d.id)));
 
             const combined = [...unsynced, ...filteredDbData];
             setData(combined);
@@ -170,19 +171,40 @@ export default function PengangkutanLimbah() {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const handleDelete = async (id) => {
+    const handleDelete = async (item) => {
+        const id = item.id;
         const { isConfirmed } = await MySwal.fire({
             title: 'Hapus Data?', text: 'Data tidak dapat dikembalikan!', icon: 'warning',
             showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Ya, Hapus!'
         });
         if (!isConfirmed) return;
         try {
+            if (item.isOffline && item.offlineAction === 'insert') {
+                removeLocalRecordQueue(item);
+                MySwal.fire('Terhapus!', 'Draft offline berhasil dihapus', 'success');
+                fetchData();
+                return;
+            }
+            removeLocalRecordQueue(item);
+
+            if (!navigator.onLine) {
+                saveToOfflineQueue('pengangkutan_limbah', 'delete', { id }, `Hapus Pengangkutan ${item.tanggal}`);
+                MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Perintah hapus disimpan di HP dan akan diproses otomatis.', confirmButtonColor: '#ea580c' });
+                fetchData();
+                return;
+            }
             const { error } = await supabase.from('pengangkutan_limbah').delete().eq('id', id);
             if (error) throw error;
             MySwal.fire('Terhapus!', 'Data berhasil dihapus', 'success');
             fetchData();
         } catch (e) {
-            MySwal.fire('Gagal', e.message, 'error');
+            if (!navigator.onLine || e.message?.includes('Failed to fetch') || e.message?.includes('network')) {
+                saveToOfflineQueue('pengangkutan_limbah', 'delete', { id }, `Hapus Pengangkutan ${item.tanggal}`);
+                MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Jaringan terputus. Perintah hapus disimpan dan akan diproses otomatis.', confirmButtonColor: '#ea580c' });
+                fetchData();
+            } else {
+                MySwal.fire('Gagal', e.message, 'error');
+            }
         }
     };
 

@@ -9,6 +9,7 @@ import RekapPengisianTable from '../components/riwayat/RekapPengisianTable';
 import RekapRuanganTable from '../components/riwayat/RekapRuanganTable';
 import DetailRiwayatTable from '../components/riwayat/DetailRiwayatTable';
 import { useRiwayat } from '../hooks/useRiwayat';
+import { saveToOfflineQueue, removeLocalRecordQueue } from '../lib/offlineStorage';
 
 const MySwal = withReactContent(Swal);
 
@@ -62,6 +63,21 @@ export default function Riwayat() {
         }
       });
 
+      if (item.isOffline && item.offlineAction === 'insert') {
+        removeLocalRecordQueue(item);
+        MySwal.fire('Terhapus!', 'Draft offline berhasil dihapus.', 'success');
+        setData(prev => prev.filter(d => d.id !== item.id));
+        return;
+      }
+      removeLocalRecordQueue(item);
+
+      if (!navigator.onLine) {
+        saveToOfflineQueue(item.tableName, 'delete', { id: item.originalId }, `Hapus Riwayat ${item.formName}`);
+        MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Perintah hapus disimpan di HP dan akan diproses otomatis.', confirmButtonColor: '#2563eb' });
+        setData(prev => prev.filter(d => d.id !== item.id));
+        return;
+      }
+
       const { error } = await supabase
         .from(item.tableName)
         .delete()
@@ -74,7 +90,13 @@ export default function Riwayat() {
 
     } catch (error) {
       console.error(error);
-      MySwal.fire('Error', 'Gagal menghapus data. ' + error.message, 'error');
+      if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
+        saveToOfflineQueue(item.tableName, 'delete', { id: item.originalId }, `Hapus Riwayat ${item.formName}`);
+        MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Jaringan terputus. Perintah hapus disimpan dan akan diproses otomatis.', confirmButtonColor: '#2563eb' });
+        setData(prev => prev.filter(d => d.id !== item.id));
+      } else {
+        MySwal.fire('Error', 'Gagal menghapus data. ' + error.message, 'error');
+      }
     }
   };
 

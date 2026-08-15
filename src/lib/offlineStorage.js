@@ -36,6 +36,12 @@ export const getUnsyncedItemsForTable = (tableName) => {
   return Array.from(map.values());
 };
 
+export const getOfflineDeletedIds = (tableName) => {
+  return getOfflineQueue()
+    .filter(item => item.table === tableName && item.action === 'delete')
+    .map(item => String(item.serverId || item.payload?.id || item.localId || item.id));
+};
+
 /**
  * saveToOfflineQueue (UPSERT)
  */

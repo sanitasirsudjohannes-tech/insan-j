@@ -102,7 +102,7 @@ export default function PengangkutanTable({
                     <i className="fas fa-edit"></i>
                   </button>
                   <button
-                    onClick={() => handleDelete(item.id)}
+                    onClick={() => handleDelete(item)}
                     className="bg-red-100 text-red-600 hover:bg-red-200 px-2 py-1 rounded mx-1 transition"
                   >
                     <i className="fas fa-trash"></i>

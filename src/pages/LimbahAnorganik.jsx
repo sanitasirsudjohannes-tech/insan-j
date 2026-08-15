@@ -8,6 +8,7 @@ import {
   saveToOfflineQueue,
   getUnsyncedItemsForTable,
   removeLocalRecordQueue,
+  getOfflineDeletedIds,
 } from '../lib/offlineStorage';
 
 import AnorganikForm, { JENIS_FIELDS } from '../components/limbah/anorganik/AnorganikForm';
@@ -107,7 +108,8 @@ export default function LimbahAnorganik({ embedded = false }) {
       if (filterRuangan) unsynced = unsynced.filter(i => i.ruangan === filterRuangan);
 
       const unsyncedIds = new Set(unsynced.map(u => String(u.id)));
-      const filteredDb = dbData.filter(d => !unsyncedIds.has(String(d.id)));
+      const delIds = new Set(getOfflineDeletedIds('limbah_anorganik'));
+      const filteredDb = dbData.filter(d => !unsyncedIds.has(String(d.id)) && !delIds.has(String(d.id)));
 
       setData([...unsynced, ...filteredDb]);
       setTotalData((count || 0) + unsynced.length);
