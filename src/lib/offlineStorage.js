@@ -3,6 +3,11 @@ import Swal from 'sweetalert2';
 
 const QUEUE_KEY = 'insan_j_offline_queue';
 
+// Global in-tab mutex for offline synchronization.
+// Prevents auto-sync (online event) and manual sync from processing the same
+// queue concurrently and sending duplicate INSERT/UPDATE/DELETE requests.
+let syncPromise = null;
+
 export const getOfflineQueue = () => {
   try {
     const raw = localStorage.getItem(QUEUE_KEY);
@@ -190,7 +195,7 @@ export const removeLocalRecordQueue = (item) => {
   window.dispatchEvent(new CustomEvent('offline-queue-changed', { detail: queue }));
 };
 
-export const syncOfflineQueue = async (showNotification = true) => {
+const performOfflineSync = async (showNotification = true) => {
   if (!navigator.onLine) return { success: 0, failed: 0, total: 0 };
 
   const initialQueue = getOfflineQueue();
@@ -286,9 +291,26 @@ export const syncOfflineQueue = async (showNotification = true) => {
   return { success: successCount, failed: failedCount, total };
 };
 
+/**
+ * Runs at most one sync operation per browser tab.
+ * If auto-sync and manual sync are triggered at the same time, both callers
+ * receive the same Promise and only one queue-processing loop runs.
+ */
+export const syncOfflineQueue = (showNotification = true) => {
+  if (syncPromise) return syncPromise;
+
+  syncPromise = performOfflineSync(showNotification).finally(() => {
+    syncPromise = null;
+  });
+
+  return syncPromise;
+};
+
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
     console.log('Koneksi internet kembali aktif. Menjalankan auto-sync...');
-    syncOfflineQueue(true);
+    syncOfflineQueue(true).catch((err) => {
+      console.error('Auto-sync offline queue gagal:', err);
+    });
   });
 }
