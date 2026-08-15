@@ -5,6 +5,8 @@ import {
   ResponsiveContainer, LineChart, Line, ReferenceLine
 } from 'recharts';
 
+import { fetchWasteRows } from '../../lib/wasteQueries';
+
 export default function TabPengangkutan() {
   const [chartData, setChartData] = useState([]);
   const [allData, setAllData] = useState([]);
@@ -26,17 +28,7 @@ export default function TabPengangkutan() {
     const fetchAll = async () => {
       setLoading(true);
       try {
-        // Limbah input manual (per hari, tanpa ruangan spesifik)
-        const { data: limbahPadatRows } = await supabase
-          .from('limbah_padat')
-          .select('tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
-          .order('tanggal', { ascending: true });
-
-        // Limbah input per ruangan — juga harus dihitung sebagai limbah masuk
-        const { data: limbahRuanganRows } = await supabase
-          .from('limbah_ruangan')
-          .select('tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
-          .order('tanggal', { ascending: true });
+        const { padatRows: limbahPadatRows, ruanganRows: limbahRuanganRows } = await fetchWasteRows();
 
         const { data: angkutRows } = await supabase
           .from('pengangkutan_limbah')

@@ -6,6 +6,9 @@ import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser } from '../lib/api';
 import { saveToOfflineQueue, getUnsyncedItemsForTable, syncOfflineQueue } from '../lib/offlineStorage';
 import * as XLSX from 'xlsx';
+import PengangkutanForm from '../components/limbah/pengangkutan/PengangkutanForm';
+import PengangkutanImportExportToolbar from '../components/limbah/pengangkutan/PengangkutanImportExportToolbar';
+import PengangkutanTable from '../components/limbah/pengangkutan/PengangkutanTable';
 
 const MySwal = withReactContent(Swal);
 
@@ -320,200 +323,36 @@ export default function PengangkutanLimbah() {
     return (
         <AppLayout title="Pengangkutan Limbah Padat">
             <div className="container mx-auto px-4 py-8 max-w-5xl">
+                <PengangkutanForm
+                    form={form}
+                    handleChange={handleChange}
+                    handleSubmit={handleSubmit}
+                    submitting={submitting}
+                    emptyForm={emptyForm}
+                    setForm={setForm}
+                />
 
-                {/* ── Form ── */}
-                <div className="bg-white rounded-xl shadow-lg mb-6 overflow-hidden">
-                    <div className="bg-orange-600 text-white px-6 py-4 flex items-center gap-3">
-                        <i className="fas fa-truck text-xl"></i>
-                        <h2 className="text-lg font-bold">Form Input Pengangkutan Limbah</h2>
-                    </div>
-                    <form onSubmit={handleSubmit} className="p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-1">Tanggal Pengangkutan</label>
-                                <input type="date" name="tanggal" value={form.tanggal} onChange={handleChange} required
-                                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-400 outline-none" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-1">Jumlah Diangkut (Kg)</label>
-                                <input type="number" step="0.01" min="0" name="jumlah_kg" value={form.jumlah_kg} onChange={handleChange} required
-                                    placeholder="0.00"
-                                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-400 outline-none" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-1">Keterangan</label>
-                                <input type="text" name="keterangan" value={form.keterangan} onChange={handleChange}
-                                    placeholder="Pengangkutan rutin, dll."
-                                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-400 outline-none" />
-                            </div>
-                        </div>
-                        <div className="flex justify-end gap-3">
-                            {form.id && (
-                                <button type="button" onClick={() => setForm(emptyForm)}
-                                    className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition">
-                                    Batal Edit
-                                </button>
-                            )}
-                            <button type="submit" disabled={submitting}
-                                className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-lg font-medium transition disabled:opacity-50 flex items-center gap-2">
-                                {submitting ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-save"></i>}
-                                {form.id ? 'Update Data' : 'Simpan Data'}
-                            </button>
-                        </div>
-                    </form>
-                </div>
+                <PengangkutanImportExportToolbar
+                    handleDownloadTemplate={handleDownloadTemplate}
+                    handleImportFile={handleImportFile}
+                    handleExport={handleExport}
+                    importRef={importRef}
+                />
 
-                {/* ── Import/Export Toolbar ── */}
-                <div className="bg-white rounded-xl shadow-lg mb-6 overflow-hidden">
-                    <div className="bg-teal-700 text-white px-6 py-4">
-                        <h2 className="text-lg font-bold"><i className="fas fa-file-excel mr-2"></i>Import / Export Excel</h2>
-                    </div>
-                    <div className="p-5 flex flex-wrap gap-3 items-center">
-                        <button onClick={handleDownloadTemplate}
-                            className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-4 py-2.5 rounded-lg font-semibold text-sm transition">
-                            <i className="fas fa-download"></i> Download Template
-                        </button>
-                        <div>
-                            <input ref={importRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFile} />
-                            <button onClick={() => importRef.current?.click()}
-                                className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 rounded-lg font-semibold text-sm transition">
-                                <i className="fas fa-upload"></i> Import Excel
-                            </button>
-                        </div>
-                        <button onClick={handleExport}
-                            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-lg font-semibold text-sm transition">
-                            <i className="fas fa-file-excel"></i> Export Excel
-                        </button>
-                        <div className="hidden sm:block w-px h-8 bg-gray-200 mx-1"></div>
-                        <div className="text-xs text-gray-500 w-full sm:w-auto sm:flex-1 min-w-0">
-                            <p><i className="fas fa-info-circle text-teal-400 mr-1"></i>
-                            <strong>Format:</strong> Tanggal, Jumlah Diangkut (Kg), Keterangan</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* ── Tabel ── */}
-                <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-                    {/* Banner Peringatan Data Offline Belum Sinkron */}
-                    {data.some(i => i.isOffline) && (
-                        <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-6 py-3 text-xs sm:text-sm font-medium flex flex-col sm:flex-row items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                                <i className="fas fa-exclamation-triangle text-amber-600 text-base animate-pulse"></i>
-                                <span>Terdapat <strong>{data.filter(i => i.isOffline).length} data offline</strong> yang tersimpan di HP dan <strong>belum tersinkronisasi</strong> ke server.</span>
-                            </div>
-                            {navigator.onLine && (
-                                <button
-                                    onClick={() => syncOfflineQueue(true)}
-                                    className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
-                                >
-                                    <i className="fas fa-cloud-upload-alt"></i> Sinkronkan Sekarang
-                                </button>
-                            )}
-                        </div>
-                    )}
-
-                    <div className="bg-gray-800 text-white px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
-                        <h2 className="text-lg font-bold">
-                            <i className="fas fa-table mr-2"></i> Riwayat Pengangkutan
-                            <span className="ml-2 text-sm font-normal text-gray-400">({totalData} data)</span>
-                        </h2>
-                        <div className="flex items-center">
-                            <input
-                                type="month"
-                                value={filterMonth}
-                                onChange={(e) => {
-                                    setFilterMonth(e.target.value);
-                                    setPage(1);
-                                }}
-                                className="bg-white text-gray-800 px-3 py-1.5 rounded-lg text-sm border focus:ring-2 focus:ring-blue-500 outline-none"
-                            />
-                        </div>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-gray-50 text-gray-600 text-sm border-b">
-                                    <th className="px-4 py-3">No.</th>
-                                    <th className="px-4 py-3">Tanggal</th>
-                                    <th className="px-4 py-3 text-right">Jumlah Diangkut (Kg)</th>
-                                    <th className="px-4 py-3">Keterangan</th>
-                                    <th className="px-4 py-3">Petugas</th>
-                                    <th className="px-4 py-3 text-center">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {loading ? (
-                                    <tr><td colSpan="6" className="text-center py-10">
-                                        <i className="fas fa-spinner fa-spin text-orange-500 text-2xl"></i>
-                                    </td></tr>
-                                ) : data.length === 0 ? (
-                                    <tr><td colSpan="6" className="text-center py-10 text-gray-400">
-                                        <i className="fas fa-truck text-4xl block mb-2 opacity-30"></i>
-                                        Belum ada data pengangkutan.
-                                    </td></tr>
-                                ) : data.map((item, idx) => (
-                                    <tr
-                                        key={item.id}
-                                        className={item.isOffline ? "bg-amber-50/70 hover:bg-amber-100/70 border-l-4 border-l-amber-500 border-b transition-colors" : "border-b hover:bg-orange-50 transition-colors"}
-                                    >
-                                        <td className="px-4 py-3 text-gray-500 text-sm">{(page - 1) * itemsPerPage + idx + 1}</td>
-                                        <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">
-                                            {new Date(item.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                                            {item.isOffline && (
-                                                <span className="ml-2 inline-flex items-center gap-1 text-[10px] font-extrabold bg-amber-200 text-amber-900 border border-amber-400 px-2 py-0.5 rounded-full shadow-2xs animate-pulse whitespace-nowrap">
-                                                    <i className="fas fa-wifi-slash text-amber-700"></i> Belum Sinkron
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-3 text-right">
-                                            <span className="font-bold text-orange-600">{parseFloat(item.jumlah_kg || 0).toFixed(2)} Kg</span>
-                                        </td>
-                                        <td className="px-4 py-3 text-gray-600 text-sm">{item.keterangan || '-'}</td>
-                                        <td className="px-4 py-3 text-gray-600 text-sm">{item.petugas}</td>
-                                        <td className="px-4 py-3 text-center">
-                                            <button onClick={() => handleEdit(item)}
-                                                className="bg-blue-100 text-blue-600 hover:bg-blue-200 px-2 py-1 rounded mx-1 transition">
-                                                <i className="fas fa-edit"></i>
-                                            </button>
-                                            <button onClick={() => handleDelete(item.id)}
-                                                className="bg-red-100 text-red-600 hover:bg-red-200 px-2 py-1 rounded mx-1 transition">
-                                                <i className="fas fa-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                    {totalPages > 0 && (
-                        <div className="flex justify-between items-center px-6 py-4 bg-gray-50 border-t text-sm">
-                            <div className="flex items-center space-x-2 text-gray-600">
-                                <span>Hal.</span>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    max={totalPages}
-                                    value={page}
-                                    onChange={(e) => {
-                                        let val = parseInt(e.target.value);
-                                        if (isNaN(val) || val < 1) val = 1;
-                                        if (val > totalPages) val = totalPages;
-                                        setPage(val);
-                                    }}
-                                    className="w-16 px-2 py-1 border rounded text-center outline-none focus:ring-2 focus:ring-blue-500"
-                                />
-                                <span>/ {totalPages}</span>
-                            </div>
-                            <div className="flex gap-2">
-                                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                                    className="px-3 py-1 bg-white border rounded hover:bg-gray-100 disabled:opacity-50">Sebelumnya</button>
-                                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                                    className="px-3 py-1 bg-white border rounded hover:bg-gray-100 disabled:opacity-50">Selanjutnya</button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-
+                <PengangkutanTable
+                    data={data}
+                    loading={loading}
+                    totalData={totalData}
+                    filterMonth={filterMonth}
+                    setFilterMonth={setFilterMonth}
+                    page={page}
+                    setPage={setPage}
+                    itemsPerPage={itemsPerPage}
+                    totalPages={totalPages}
+                    handleEdit={handleEdit}
+                    handleDelete={handleDelete}
+                    syncOfflineQueue={syncOfflineQueue}
+                />
             </div>
         </AppLayout>
     );

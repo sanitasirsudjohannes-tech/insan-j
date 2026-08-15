@@ -5,6 +5,8 @@ import {
   ResponsiveContainer, AreaChart, Area
 } from 'recharts';
 
+import { fetchWasteRows } from '../../lib/wasteQueries';
+
 export default function TabJenisLimbah() {
   const [loading, setLoading] = useState(true);
   const [dailyData, setDailyData] = useState([]);
@@ -25,20 +27,7 @@ export default function TabJenisLimbah() {
     const fetchLimbah = async () => {
       setLoading(true);
       try {
-        // Ambil dari kedua sumber: input manual (limbah_padat) & akumulasi per ruangan (limbah_ruangan)
-        const [{ data: padatRows, error: errPadat }, { data: ruanganRows, error: errRuangan }] = await Promise.all([
-          supabase
-            .from('limbah_padat')
-            .select('tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
-            .order('tanggal', { ascending: true }),
-          supabase
-            .from('limbah_ruangan')
-            .select('tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
-            .order('tanggal', { ascending: true })
-        ]);
-
-        if (errPadat) throw errPadat;
-        if (errRuangan) throw errRuangan;
+        const { padatRows, ruanganRows } = await fetchWasteRows();
 
         const dailyMap = {};
         const monthlyMap = {};

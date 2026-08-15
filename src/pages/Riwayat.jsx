@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import AppLayout from '../components/AppLayout';
 import { getCurrentUser } from '../lib/api';
 import { supabase } from '../lib/supabase';
@@ -8,6 +8,7 @@ import EditRiwayatModal from '../components/riwayat/EditRiwayatModal';
 import RekapPengisianTable from '../components/riwayat/RekapPengisianTable';
 import RekapRuanganTable from '../components/riwayat/RekapRuanganTable';
 import DetailRiwayatTable from '../components/riwayat/DetailRiwayatTable';
+import { useRiwayat } from '../hooks/useRiwayat';
 
 const MySwal = withReactContent(Swal);
 
@@ -15,9 +16,6 @@ export default function Riwayat() {
   const user = getCurrentUser();
   const isAdmin = user?.role?.toLowerCase() === 'admin' || user?.role === 'Admin';
 
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState(isAdmin ? 'rekap' : 'detail');
 
   // Modal State
@@ -28,85 +26,14 @@ export default function Riwayat() {
   const currentMonth = new Date().toISOString().slice(0, 7);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
 
+  const { data, loading, error, fetchRiwayat, setData } = useRiwayat({ user, isAdmin, selectedMonth });
+
   const formatMonthYear = (yyyy_mm) => {
     if (!yyyy_mm) return '';
     const [year, month] = yyyy_mm.split('-');
     const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
     return `${months[parseInt(month, 10) - 1]} ${year}`;
   };
-
-  const fetchRiwayat = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const tables = [
-        { name: 'ruang_bangunan', formName: 'Ruang Bangunan', formId: 'ruang_bangunan' },
-        { name: 'limbah_medis', formName: 'Pengolahan Limbah', formId: 'pengolahan_limbah' },
-        { name: 'pemeriksaan_toilet', formName: 'Kebersihan Toilet', formId: 'toilet' },
-        { name: 'pemeriksaan_reservoir', formName: 'Kebersihan Bak Reservoir', formId: 'reservoir' },
-        { name: 'pemeriksaan_gizi', formName: 'Ceklist Gizi', formId: 'gizi' }
-      ];
-
-      const promises = tables.map(async (table) => {
-        let query = supabase
-          .from(table.name)
-          .select('id, tanggal_pemeriksaan, ruangan, total, nilai_maks, persen, petugas, waktu_input');
-
-        if (!isAdmin) {
-          query = query.eq('petugas', user?.nama);
-        }
-
-        // Optimasi: Filter berdasarkan bulan langsung di server database
-        if (selectedMonth) {
-          const startDate = `${selectedMonth}-01`;
-          const dateObj = new Date(startDate);
-          dateObj.setMonth(dateObj.getMonth() + 1);
-          const endDate = dateObj.toISOString().split('T')[0];
-          query = query.gte('tanggal_pemeriksaan', startDate).lt('tanggal_pemeriksaan', endDate);
-        }
-
-        const { data, error } = await query;
-        if (error) throw new Error(error.message);
-
-        return data.map(item => ({
-          id: `${table.name}_${item.id}`,
-          originalId: item.id,
-          tanggal: item.tanggal_pemeriksaan,
-          formName: table.formName,
-          formId: table.formId,
-          tableName: table.name,
-          lokasi: item.ruangan,
-          nilai: item.total,
-          maksimal: item.nilai_maks,
-          persentase: item.persen ? parseFloat(item.persen) : 0,
-          petugas: item.petugas,
-          waktu_input: item.waktu_input
-        }));
-      });
-
-      const results = await Promise.all(promises);
-      const allData = results.flat().sort((a, b) => {
-        const dateA = new Date(a.tanggal).getTime();
-        const dateB = new Date(b.tanggal).getTime();
-        if (dateB !== dateA) return dateB - dateA;
-
-        const timeA = new Date(a.waktu_input || 0).getTime();
-        const timeB = new Date(b.waktu_input || 0).getTime();
-        return timeB - timeA;
-      });
-
-      setData(allData);
-    } catch (err) {
-      console.error(err);
-      setError('Gagal memuat data dari server Supabase. ' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchRiwayat();
-  }, [selectedMonth]);
 
   const handleEditClick = (item) => {
     setEditingItem(item);
