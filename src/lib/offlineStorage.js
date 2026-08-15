@@ -36,16 +36,76 @@ export const getUnsyncedItemsForTable = (tableName) => {
   return Array.from(map.values());
 };
 
+/**
+ * saveToOfflineQueue (UPSERT)
+ */
+
 export const saveToOfflineQueue = (table, action, payload, description = '') => {
   const queue = getOfflineQueue();
-  const localId = `off_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const payloadCopy = { ...(payload || {}) };
-  const referencedId = payloadCopy.serverId || payloadCopy.id || null;
 
+  // id yang sedang "disasar" oleh operasi ini: bisa berupa id draft lokal
+  // (off_...) atau id asli dari database (record yang sudah pernah tersinkron
+  // lalu diedit lagi secara offline).
+  const targetId = payloadCopy.serverId || payloadCopy.id || null;
+
+  if (targetId) {
+    const existingIndex = queue.findIndex(item => {
+      const refs = [item.id, item.localId, item.serverId, item.payload?.id, item.payload?.serverId]
+        .filter(v => v !== null && v !== undefined && v !== '')
+        .map(String);
+      return refs.includes(String(targetId));
+    });
+
+    if (existingIndex !== -1) {
+      const existing = queue[existingIndex];
+      // Entri lama masih berupa "insert" berarti record ini belum pernah
+      // sampai ke server sama sekali (masih draft murni).
+      const isLocalDraft = existing.action === 'insert';
+
+      if (action === 'delete') {
+        if (isLocalDraft) {
+          // Draft belum pernah ada di server -> cukup buang dari antrean,
+          // tidak ada yang perlu disinkronkan.
+          queue.splice(existingIndex, 1);
+        } else {
+          // Record sudah ada di server -> ganti operasi update yang tertunda
+          // menjadi operasi delete.
+          queue[existingIndex] = {
+            ...existing,
+            action: 'delete',
+            payload: { id: existing.serverId, serverId: existing.serverId },
+            description: description || existing.description,
+            createdAt: new Date().toISOString(),
+          };
+        }
+      } else {
+        // Amandemen entri yang sudah ada, JANGAN buat entri baru.
+        const { id: _omitId, serverId: _omitServerId, ...restPayload } = payloadCopy;
+        queue[existingIndex] = {
+          ...existing,
+          action: isLocalDraft ? 'insert' : 'update',
+          payload: isLocalDraft
+            ? { ...existing.payload, ...restPayload } // insert payload tetap tanpa field id
+            : { ...existing.payload, ...restPayload, id: existing.serverId },
+          description: description || existing.description,
+          createdAt: new Date().toISOString(),
+        };
+      }
+
+      localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
+      window.dispatchEvent(new CustomEvent('offline-queue-changed', { detail: queue }));
+      return queue[existingIndex] || null;
+    }
+  }
+
+  // Belum ada entri untuk record ini -> ini kali pertama record ditulis
+  // secara offline, buat entri baru.
+  const localId = `off_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const newItem = {
     id: localId,
     localId,
-    serverId: referencedId && !String(referencedId).startsWith('off_') ? referencedId : null,
+    serverId: targetId && !String(targetId).startsWith('off_') ? targetId : null,
     table,
     action,
     payload: payloadCopy,
