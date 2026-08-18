@@ -43,6 +43,7 @@ export default function LimbahRuangan({ embedded = false }) {
   const [filterRuangan, setFilterRuangan] = useState('');
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [showRuanganSheet, setShowRuanganSheet] = useState(false);
+  const [filterDate, setFilterDate] = useState('');
   const importInputRef = useRef(null);
 
   useEffect(() => { fetchDaftarRuangan().then(setRuanganList); }, []);
@@ -54,20 +55,23 @@ export default function LimbahRuangan({ embedded = false }) {
       let dbData = [], count = 0;
       try {
         let qCount = supabase.from('limbah_ruangan').select('id', { count:'exact', head:true });
-        if (filterMonth) { const [y,m]=filterMonth.split('-'); const s=`${y}-${m}-01`,en=`${y}-${m}-${String(new Date(y,m,0).getDate()).padStart(2,'0')}`; qCount=qCount.gte('tanggal',s).lte('tanggal',en); }
+        if (filterDate) { qCount=qCount.eq('tanggal',filterDate); }
+        else if (filterMonth) { const [y,m]=filterMonth.split('-'); const s=`${y}-${m}-01`,en=`${y}-${m}-${String(new Date(y,m,0).getDate()).padStart(2,'0')}`; qCount=qCount.gte('tanggal',s).lte('tanggal',en); }
         if (filterRuangan) qCount=qCount.eq('ruangan',filterRuangan);
         const { count:c } = await qCount; count=c||0;
 
         const from=(page-1)*ITEMS_PER_PAGE;
         let qData = supabase.from('limbah_ruangan').select('id, tanggal, ruangan, infeksius, jarum_suntik, botol_obat, sitotoksik, petugas, keterangan, waktu_input').order('tanggal',{ascending:false}).order('waktu_input',{ascending:false}).range(from,from+ITEMS_PER_PAGE-1);
-        if (filterMonth) { const [y,m]=filterMonth.split('-'); const s=`${y}-${m}-01`,en=`${y}-${m}-${String(new Date(y,m,0).getDate()).padStart(2,'0')}`; qData=qData.gte('tanggal',s).lte('tanggal',en); }
+        if (filterDate) { qData=qData.eq('tanggal',filterDate); }
+        else if (filterMonth) { const [y,m]=filterMonth.split('-'); const s=`${y}-${m}-01`,en=`${y}-${m}-${String(new Date(y,m,0).getDate()).padStart(2,'0')}`; qData=qData.gte('tanggal',s).lte('tanggal',en); }
         if (filterRuangan) qData=qData.eq('ruangan',filterRuangan);
         const { data:result, error } = await qData;
         if (!error) dbData=result||[];
       } catch(e) { console.warn('Handling offline/network error during DB fetch:',e); }
 
       let unsynced = getUnsyncedItemsForTable('limbah_ruangan');
-      if (filterMonth) unsynced=unsynced.filter(i=>i.tanggal?.startsWith(filterMonth));
+      if (filterDate) unsynced=unsynced.filter(i=>i.tanggal===filterDate);
+      else if (filterMonth) unsynced=unsynced.filter(i=>i.tanggal?.startsWith(filterMonth));
       if (filterRuangan) unsynced=unsynced.filter(i=>i.ruangan===filterRuangan);
       const ids = new Set(unsynced.map(u=>String(u.id)));
       const delIds = new Set(getOfflineDeletedIds('limbah_ruangan'));
@@ -82,7 +86,7 @@ export default function LimbahRuangan({ embedded = false }) {
     const h=()=>fetchData();
     window.addEventListener('offline-queue-changed',h); window.addEventListener('online',h); window.addEventListener('offline',h);
     return ()=>{ window.removeEventListener('offline-queue-changed',h); window.removeEventListener('online',h); window.removeEventListener('offline',h); };
-  }, [page, filterMonth, filterRuangan]);
+  }, [page, filterMonth, filterDate, filterRuangan]);
 
   // ── Handlers form ─────────────────────────────────────────────────────────────
   const handleInputChange = (e) => setFormData(prev=>({...prev,[e.target.name]:e.target.value}));
@@ -338,9 +342,11 @@ export default function LimbahRuangan({ embedded = false }) {
             itemsPerPage={ITEMS_PER_PAGE}
             totalData={totalData}
             filterMonth={filterMonth}
+            filterDate={filterDate}
             filterRuangan={filterRuangan}
             ruanganList={ruanganList}
             setFilterMonth={setFilterMonth}
+            setFilterDate={setFilterDate}
             setFilterRuangan={setFilterRuangan}
             setPage={setPage}
             onEdit={handleEdit}
