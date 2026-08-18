@@ -195,7 +195,7 @@ export default function LimbahPadat({ embedded = false }) {
 
   // ── Export Excel ──────────────────────────────────────────────────────────────
   const handleExportExcel = async () => {
-    const { value: selectedMonth } = await MySwal.fire({ title: 'Pilih Bulan & Tahun', html: `<p class="text-sm text-gray-500 mb-2">Pilih periode data yang ingin diekspor</p><input id="swal-input-month" type="month" class="swal2-input" value="${filterMonth || new Date().toISOString().slice(0, 7)}">`, focusConfirm: false, showCancelButton: true, confirmButtonText: '<i class="fas fa-file-excel mr-2"></i>Export', cancelButtonText: 'Batal', preConfirm: () => document.getElementById('swal-input-month').value });
+    const { value: selectedMonth } = await MySwal.fire({ title: 'Export Data Limbah', html: `<div class="text-left mt-4"><label class="block text-sm font-bold text-gray-700 mb-1.5">Bulan & Tahun</label><input id="swal-input-month" type="month" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-gray-50" value="${filterMonth || new Date().toISOString().slice(0, 7)}"></div>`, focusConfirm: false, showCancelButton: true, confirmButtonText: '<i class="fas fa-file-excel mr-2"></i>Export', cancelButtonText: 'Batal', confirmButtonColor: '#059669', preConfirm: () => document.getElementById('swal-input-month').value });
     if (!selectedMonth) return;
     MySwal.fire({ title: 'Mengambil Data...', allowOutsideClick: false, didOpen: () => MySwal.showLoading() });
     try {
@@ -256,7 +256,7 @@ export default function LimbahPadat({ embedded = false }) {
 
   // ── Print ─────────────────────────────────────────────────────────────────────
   const handlePrint = async () => {
-    const { value: formValues } = await MySwal.fire({ title:'Cetak Laporan Bulanan', html:`<p class="text-sm text-gray-500 mb-2">Pilih bulan & tahun yang ingin dicetak</p><input id="swal-input-month" type="month" class="swal2-input" value="${filterMonth||new Date().toISOString().slice(0,7)}">`, focusConfirm:false, showCancelButton:true, confirmButtonText:'<i class="fas fa-print mr-2"></i>Lanjutkan', cancelButtonText:'Batal', confirmButtonColor:'#2563eb', preConfirm:()=>{ const i=document.getElementById('swal-input-month'); return i?i.value:''; } });
+    const { value: formValues } = await MySwal.fire({ title:'Cetak Laporan', html:`<div class="text-left mt-4"><label class="block text-sm font-bold text-gray-700 mb-1.5">Bulan & Tahun</label><input id="swal-input-month" type="month" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-gray-50" value="${filterMonth||new Date().toISOString().slice(0,7)}"></div>`, focusConfirm:false, showCancelButton:true, confirmButtonText:'<i class="fas fa-print mr-2"></i>Cetak', cancelButtonText:'Batal', confirmButtonColor:'#2563eb', preConfirm:()=>{ const i=document.getElementById('swal-input-month'); return i?i.value:''; } });
     if(!formValues) return;
     MySwal.fire({ title:'Menyiapkan Laporan...', text:'Mohon tunggu sebentar', allowOutsideClick:false, allowEscapeKey:false, didOpen:()=>MySwal.showLoading() });
     try {
