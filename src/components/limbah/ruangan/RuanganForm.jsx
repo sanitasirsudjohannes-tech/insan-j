@@ -39,7 +39,27 @@ export default function RuanganForm({
           <form onSubmit={handleSubmit}>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
               <div>
-                <label className="block text-gray-700 font-bold text-sm mb-1">Tanggal</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="block text-gray-700 font-bold text-sm">Tanggal</label>
+                  {!formData.id && (
+                    <label className="flex items-center gap-1.5 text-xs cursor-pointer text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 hover:bg-emerald-100 transition">
+                      <input
+                        type="checkbox"
+                        checked={formData.isDistribusi || false}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setFormData(prev => ({
+                            ...prev,
+                            isDistribusi: checked,
+                            distribusiDates: checked ? (prev.distribusiDates?.length ? prev.distribusiDates : ['']) : []
+                          }));
+                        }}
+                        className="accent-emerald-600 w-3.5 h-3.5"
+                      />
+                      Distribusi ke Tgl Lain
+                    </label>
+                  )}
+                </div>
                 <input
                   type="date"
                   name="tanggal"
@@ -74,6 +94,56 @@ export default function RuanganForm({
                 />
               </div>
             </div>
+
+            {formData.isDistribusi && !formData.id && (
+              <div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                <div className="flex justify-between items-center mb-3">
+                  <label className="block text-emerald-800 font-bold text-sm">Tanggal Distribusi Tambahan</label>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, distribusiDates: [...(prev.distribusiDates || []), ''] }))}
+                    className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 rounded-lg transition flex items-center gap-1 shadow-sm font-semibold"
+                  >
+                    <i className="fas fa-plus"></i> Tambah
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  {(formData.distribusiDates || []).map((tgl, idx) => (
+                    <div key={idx} className="flex items-center gap-1.5 bg-white p-1.5 rounded-lg border border-emerald-200 shadow-sm">
+                      <input
+                        type="date"
+                        value={tgl}
+                        onChange={(e) => {
+                          const newDates = [...formData.distribusiDates];
+                          newDates[idx] = e.target.value;
+                          setFormData(prev => ({ ...prev, distribusiDates: newDates }));
+                        }}
+                        required
+                        className="border-none bg-transparent px-2 py-1 outline-none text-sm text-emerald-900 font-medium w-[130px]"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newDates = formData.distribusiDates.filter((_, i) => i !== idx);
+                          setFormData(prev => ({ ...prev, distribusiDates: newDates }));
+                        }}
+                        className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-md transition"
+                        title="Hapus Tanggal"
+                      >
+                        <i className="fas fa-times"></i>
+                      </button>
+                    </div>
+                  ))}
+                  {formData.distribusiDates?.length === 0 && (
+                    <span className="text-xs text-emerald-600 italic py-2">Silakan tambah tanggal untuk distribusi.</span>
+                  )}
+                </div>
+                <div className="mt-3 text-xs text-emerald-700 bg-emerald-100/50 p-2 rounded-lg border border-emerald-100">
+                  <i className="fas fa-info-circle mr-1"></i>
+                  Total jumlah limbah akan <strong>dibagi rata</strong> ke <strong>{1 + (formData.distribusiDates?.filter(d => d && d !== formData.tanggal).length || 0)} hari</strong> (termasuk tanggal utama).
+                </div>
+              </div>
+            )}
 
             <div className="mb-4">
               <label className="block text-gray-800 font-bold text-sm mb-2">Jumlah Timbulan Limbah (Kg)</label>

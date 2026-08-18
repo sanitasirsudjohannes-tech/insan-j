@@ -26,6 +26,8 @@ const EMPTY_FORM = {
   id: null,
   tanggal: new Date().toISOString().split('T')[0],
   ruangan: '', infeksius: '', jarum_suntik: '', botol_obat: '', sitotoksik: '', keterangan: '',
+  isDistribusi: false,
+  distribusiDates: []
 };
 
 export default function LimbahRuangan({ embedded = false }) {
@@ -88,27 +90,77 @@ export default function LimbahRuangan({ embedded = false }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.ruangan) { MySwal.fire('Peringatan','Silakan pilih ruangan terlebih dahulu!','warning'); return; }
+    if (formData.isDistribusi && (!formData.distribusiDates || formData.distribusiDates.length === 0)) {
+      MySwal.fire('Peringatan','Silakan tambah minimal 1 tanggal distribusi!','warning'); return;
+    }
     setSubmitting(true);
-    const payload = { tanggal:formData.tanggal, ruangan:formData.ruangan, petugas:user?.nama||'Petugas', infeksius:parseFloat(formData.infeksius)||0, jarum_suntik:parseFloat(formData.jarum_suntik)||0, botol_obat:parseFloat(formData.botol_obat)||0, sitotoksik:parseFloat(formData.sitotoksik)||0, keterangan:formData.keterangan||'', waktu_input:new Date().toISOString() };
+    
+    // Hitung tanggal dan pembagian jika distribusi aktif
+    let datesToSave = [formData.tanggal];
+    if (formData.isDistribusi && !formData.id) {
+      const extra = (formData.distribusiDates || []).filter(d => d && d !== formData.tanggal);
+      datesToSave = [formData.tanggal, ...new Set(extra)];
+    }
+    const totalHari = datesToSave.length;
+
+    const vInf = (parseFloat(formData.infeksius)||0) / totalHari;
+    const vJar = (parseFloat(formData.jarum_suntik)||0) / totalHari;
+    const vBot = (parseFloat(formData.botol_obat)||0) / totalHari;
+    const vSit = (parseFloat(formData.sitotoksik)||0) / totalHari;
+
+    const payloads = datesToSave.map(tgl => ({
+      tanggal: tgl,
+      ruangan: formData.ruangan,
+      petugas: user?.nama||'Petugas',
+      infeksius: +vInf.toFixed(2),
+      jarum_suntik: +vJar.toFixed(2),
+      botol_obat: +vBot.toFixed(2),
+      sitotoksik: +vSit.toFixed(2),
+      keterangan: formData.keterangan||'',
+      waktu_input: new Date().toISOString()
+    }));
+    
     try {
       if (!navigator.onLine) {
-        saveToOfflineQueue('limbah_ruangan', formData.id?'update':'insert', formData.id?{...payload,id:formData.id}:payload, `Input Limbah Ruangan ${formData.ruangan}`);
+        if (formData.id) {
+          saveToOfflineQueue('limbah_ruangan', 'update', {...payloads[0], id:formData.id}, `Update Limbah Ruangan ${formData.ruangan}`);
+        } else {
+          payloads.forEach(p => saveToOfflineQueue('limbah_ruangan', 'insert', p, `Input Limbah Ruangan ${formData.ruangan}`));
+        }
         MySwal.fire({ icon:'info', title:'Tersimpan Offline', text:'Data tersimpan di HP dan akan dikirim otomatis saat online.', confirmButtonColor:'#059669' });
       } else if (formData.id) {
-        const {error}=await supabase.from('limbah_ruangan').update(payload).eq('id',formData.id);
+        const {error}=await supabase.from('limbah_ruangan').update(payloads[0]).eq('id',formData.id);
         if (error) throw error;
         MySwal.fire('Berhasil','Data limbah ruangan berhasil diubah','success');
       } else {
-        const {error}=await supabase.from('limbah_ruangan').insert([payload]);
+        const {error}=await supabase.from('limbah_ruangan').insert(payloads);
         if (error) throw error;
-        MySwal.fire('Berhasil','Data limbah ruangan berhasil ditambahkan','success');
+        MySwal.fire('Berhasil',`Data berhasil disimpan untuk ${totalHari} hari (dibagi rata)`,`success`);
       }
-      setFormData(EMPTY_FORM); fetchData();
+      
+      // Retain date and distribution settings for next input
+      setFormData({
+        ...EMPTY_FORM,
+        tanggal: formData.tanggal,
+        isDistribusi: formData.isDistribusi,
+        distribusiDates: formData.distribusiDates
+      });
+      fetchData();
     } catch(error) {
       if (!navigator.onLine||error.message?.includes('Failed to fetch')||error.message?.includes('network')) {
-        saveToOfflineQueue('limbah_ruangan', formData.id?'update':'insert', formData.id?{...payload,id:formData.id}:payload, `Input Limbah Ruangan ${formData.ruangan}`);
+        if (formData.id) {
+          saveToOfflineQueue('limbah_ruangan', 'update', {...payloads[0], id:formData.id}, `Update Limbah Ruangan ${formData.ruangan}`);
+        } else {
+          payloads.forEach(p => saveToOfflineQueue('limbah_ruangan', 'insert', p, `Input Limbah Ruangan ${formData.ruangan}`));
+        }
         MySwal.fire({ icon:'info', title:'Tersimpan Offline', text:'Jaringan terputus. Data tersimpan di HP.', confirmButtonColor:'#059669' });
-        setFormData(EMPTY_FORM);
+        
+        setFormData({
+          ...EMPTY_FORM,
+          tanggal: formData.tanggal,
+          isDistribusi: formData.isDistribusi,
+          distribusiDates: formData.distribusiDates
+        });
       } else { MySwal.fire('Gagal',error.message,'error'); }
     } finally { setSubmitting(false); }
   };
