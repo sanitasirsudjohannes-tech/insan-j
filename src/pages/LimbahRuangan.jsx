@@ -22,6 +22,18 @@ function FullWrapper({ children }) { return <AppLayout title="Limbah Per Ruangan
 
 const ITEMS_PER_PAGE = 10;
 
+// Urutan harus konsisten dengan query Supabase agar draft/update offline
+// tergabung ke posisi global yang benar sebelum di-slice per halaman.
+const compareRuanganRows = (a, b) => {
+  const dateA = a?.tanggal || '';
+  const dateB = b?.tanggal || '';
+  if (dateA !== dateB) return dateB.localeCompare(dateA);
+
+  const waktuA = a?.waktu_input || '';
+  const waktuB = b?.waktu_input || '';
+  return waktuB.localeCompare(waktuA);
+};
+
 const EMPTY_FORM = {
   id: null,
   tanggal: new Date().toISOString().split('T')[0],
@@ -53,32 +65,70 @@ export default function LimbahRuangan({ embedded = false }) {
     setLoading(true);
     try {
       let dbData = [], count = 0;
-      try {
-        let qCount = supabase.from('limbah_ruangan').select('id', { count:'exact', head:true });
-        if (filterDate) { qCount=qCount.eq('tanggal',filterDate); }
-        else if (filterMonth) { const [y,m]=filterMonth.split('-'); const s=`${y}-${m}-01`,en=`${y}-${m}-${String(new Date(y,m,0).getDate()).padStart(2,'0')}`; qCount=qCount.gte('tanggal',s).lte('tanggal',en); }
-        if (filterRuangan) qCount=qCount.eq('ruangan',filterRuangan);
-        const { count:c } = await qCount; count=c||0;
 
-        const from=(page-1)*ITEMS_PER_PAGE;
-        let qData = supabase.from('limbah_ruangan').select('id, tanggal, ruangan, infeksius, jarum_suntik, botol_obat, sitotoksik, petugas, keterangan, waktu_input').order('tanggal',{ascending:false}).order('waktu_input',{ascending:false}).range(from,from+ITEMS_PER_PAGE-1);
-        if (filterDate) { qData=qData.eq('tanggal',filterDate); }
-        else if (filterMonth) { const [y,m]=filterMonth.split('-'); const s=`${y}-${m}-01`,en=`${y}-${m}-${String(new Date(y,m,0).getDate()).padStart(2,'0')}`; qData=qData.gte('tanggal',s).lte('tanggal',en); }
-        if (filterRuangan) qData=qData.eq('ruangan',filterRuangan);
-        const { data:result, error } = await qData;
-        if (!error) dbData=result||[];
-      } catch(e) { console.warn('Handling offline/network error during DB fetch:',e); }
-
+      // Overlay offline dibaca lebih dulu karena baris ini harus ikut serta
+      // dalam penghitungan halaman (bukan ditempel begitu saja di setiap
+      // halaman hasil query DB).
       let unsynced = getUnsyncedItemsForTable('limbah_ruangan');
-      if (filterDate) unsynced=unsynced.filter(i=>i.tanggal===filterDate);
-      else if (filterMonth) unsynced=unsynced.filter(i=>i.tanggal?.startsWith(filterMonth));
-      if (filterRuangan) unsynced=unsynced.filter(i=>i.ruangan===filterRuangan);
-      const ids = new Set(unsynced.map(u=>String(u.id)));
+      if (filterDate) unsynced = unsynced.filter(i => i.tanggal === filterDate);
+      else if (filterMonth) unsynced = unsynced.filter(i => i.tanggal?.startsWith(filterMonth));
+      if (filterRuangan) unsynced = unsynced.filter(i => i.ruangan === filterRuangan);
+
+      const unsyncedIds = new Set(unsynced.map(u => String(u.id)));
       const delIds = new Set(getOfflineDeletedIds('limbah_ruangan'));
-      setData([...unsynced,...dbData.filter(d=>!ids.has(String(d.id)) && !delIds.has(String(d.id)))]);
-      setTotalData((count||0)+unsynced.length);
-    } catch(error) { console.error('Error fetching limbah ruangan data:',error); }
-    finally { setLoading(false); }
+      const insertCount = unsynced.filter(i => i.offlineAction === 'insert').length;
+
+      try {
+        let qCount = supabase.from('limbah_ruangan').select('id', { count: 'exact', head: true });
+        if (filterDate) { qCount = qCount.eq('tanggal', filterDate); }
+        else if (filterMonth) { const [y, m] = filterMonth.split('-'); const s = `${y}-${m}-01`, en = `${y}-${m}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`; qCount = qCount.gte('tanggal', s).lte('tanggal', en); }
+        if (filterRuangan) qCount = qCount.eq('ruangan', filterRuangan);
+        const { count: c } = await qCount;
+        count = c || 0;
+
+        // Tidak bisa langsung mengambil slice DB sesuai halaman karena baris
+        // offline bisa berada di posisi mana pun pada daftar gabungan yang
+        // sudah diurutkan. Ambil baris DB dari awal secukupnya agar setelah
+        // digabung dengan overlay offline & dikurangi hapus lokal, halaman
+        // yang diminta tetap terisi penuh.
+        const requiredRows = page * ITEMS_PER_PAGE;
+        const safetyRows = unsynced.length + delIds.size;
+        const to = Math.max(requiredRows + safetyRows - 1, ITEMS_PER_PAGE - 1);
+
+        let qData = supabase.from('limbah_ruangan')
+          .select('id, tanggal, ruangan, infeksius, jarum_suntik, botol_obat, sitotoksik, petugas, keterangan, waktu_input')
+          .order('tanggal', { ascending: false })
+          .order('waktu_input', { ascending: false })
+          .range(0, to);
+        if (filterDate) { qData = qData.eq('tanggal', filterDate); }
+        else if (filterMonth) { const [y, m] = filterMonth.split('-'); const s = `${y}-${m}-01`, en = `${y}-${m}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`; qData = qData.gte('tanggal', s).lte('tanggal', en); }
+        if (filterRuangan) qData = qData.eq('ruangan', filterRuangan);
+
+        const { data: result, error } = await qData;
+        if (!error) dbData = result || [];
+      } catch (e) {
+        console.warn('Handling offline/network error during DB fetch:', e);
+      }
+
+      // Gabungkan baris DB dengan overlay offline, buang yang sudah dihapus
+      // secara offline, urutkan ulang secara global, baru ambil slice sesuai
+      // halaman aktif.
+      const filteredDb = dbData.filter(d => !unsyncedIds.has(String(d.id)) && !delIds.has(String(d.id)));
+      const mergedData = [...unsynced, ...filteredDb].sort(compareRuanganRows);
+      const fromIndex = (page - 1) * ITEMS_PER_PAGE;
+      setData(mergedData.slice(fromIndex, fromIndex + ITEMS_PER_PAGE));
+
+      // Jumlah dari DB sudah termasuk baris yang sedang menunggu update
+      // offline, jadi update tidak boleh menambah total. Insert offline
+      // menambah baris baru, dan hapus offline mengurangi baris yang
+      // sebelumnya sudah ada di DB.
+      const adjustedTotal = Math.max(0, (count || 0) + insertCount - delIds.size);
+      setTotalData(adjustedTotal);
+    } catch (error) {
+      console.error('Error fetching limbah ruangan data:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -170,8 +220,21 @@ export default function LimbahRuangan({ embedded = false }) {
   };
 
   const handleEdit = (item) => {
-    setFormData({ id:item.id, tanggal:item.tanggal, ruangan:item.ruangan, infeksius:item.infeksius, jarum_suntik:item.jarum_suntik, botol_obat:item.botol_obat, sitotoksik:item.sitotoksik, keterangan:item.keterangan||'' });
-    window.scrollTo({ top:0, behavior:'smooth' });
+    setFormData({
+      id: item.id,
+      tanggal: item.tanggal,
+      ruangan: item.ruangan,
+      infeksius: item.infeksius,
+      jarum_suntik: item.jarum_suntik,
+      botol_obat: item.botol_obat,
+      sitotoksik: item.sitotoksik,
+      keterangan: item.keterangan || '',
+      // Reset state distribusi peninggalan dari input sebelumnya agar
+      // tidak ikut terbawa ke sesi edit ini.
+      isDistribusi: false,
+      distribusiDates: [],
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = async (item) => {

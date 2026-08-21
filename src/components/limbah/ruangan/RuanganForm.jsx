@@ -2,11 +2,6 @@ import SearchableBottomSheet from '../../SearchableBottomSheet';
 
 /**
  * RuanganForm – form input / edit data limbah per ruangan.
- *
- * Props:
- *  formData, emptyForm, setFormData, handleInputChange, handleSubmit,
- *  submitting, user, ruanganList,
- *  showRuanganSheet, setShowRuanganSheet
  */
 export default function RuanganForm({
   formData,
