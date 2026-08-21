@@ -83,7 +83,7 @@ export default function LimbahRuangan({ embedded = false }) {
       if (filterDate) offlineDeletedItems = offlineDeletedItems.filter(i => i.tanggal === filterDate);
       else if (filterMonth) offlineDeletedItems = offlineDeletedItems.filter(i => i.tanggal?.startsWith(filterMonth));
       if (filterRuangan) offlineDeletedItems = offlineDeletedItems.filter(i => i.ruangan === filterRuangan);
-      
+
       const filteredDelCount = offlineDeletedItems.length;
 
       try {
@@ -100,7 +100,7 @@ export default function LimbahRuangan({ embedded = false }) {
         // digabung dengan overlay offline & dikurangi hapus lokal, halaman
         // yang diminta tetap terisi penuh.
         const requiredRows = page * ITEMS_PER_PAGE;
-        const safetyRows = unsynced.length + delIds.size;
+        const safetyRows = unsynced.length + filteredDelCount;
         const to = Math.max(requiredRows + safetyRows - 1, ITEMS_PER_PAGE - 1);
 
         let qData = supabase.from('limbah_ruangan')
@@ -141,22 +141,22 @@ export default function LimbahRuangan({ embedded = false }) {
 
   useEffect(() => {
     fetchData();
-    const h=()=>fetchData();
-    window.addEventListener('offline-queue-changed',h); window.addEventListener('online',h); window.addEventListener('offline',h);
-    return ()=>{ window.removeEventListener('offline-queue-changed',h); window.removeEventListener('online',h); window.removeEventListener('offline',h); };
+    const h = () => fetchData();
+    window.addEventListener('offline-queue-changed', h); window.addEventListener('online', h); window.addEventListener('offline', h);
+    return () => { window.removeEventListener('offline-queue-changed', h); window.removeEventListener('online', h); window.removeEventListener('offline', h); };
   }, [page, filterMonth, filterDate, filterRuangan]);
 
   // ── Handlers form ─────────────────────────────────────────────────────────────
-  const handleInputChange = (e) => setFormData(prev=>({...prev,[e.target.name]:e.target.value}));
+  const handleInputChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.ruangan) { MySwal.fire('Peringatan','Silakan pilih ruangan terlebih dahulu!','warning'); return; }
+    if (!formData.ruangan) { MySwal.fire('Peringatan', 'Silakan pilih ruangan terlebih dahulu!', 'warning'); return; }
     if (formData.isDistribusi && (!formData.distribusiDates || formData.distribusiDates.length === 0)) {
-      MySwal.fire('Peringatan','Silakan tambah minimal 1 tanggal distribusi!','warning'); return;
+      MySwal.fire('Peringatan', 'Silakan tambah minimal 1 tanggal distribusi!', 'warning'); return;
     }
     setSubmitting(true);
-    
+
     // Hitung tanggal dan pembagian jika distribusi aktif
     let datesToSave = [formData.tanggal];
     if (formData.isDistribusi && !formData.id) {
@@ -169,16 +169,16 @@ export default function LimbahRuangan({ embedded = false }) {
       if (!total || days <= 0) return Array(days).fill(0);
       const parsed = parseFloat(total);
       if (isNaN(parsed) || parsed === 0) return Array(days).fill(0);
-      
+
       // Mengubah ke integer agar tidak ada floating point bug (misal: kalikan 100)
       const totalInt = Math.round(parsed * 100);
       const baseShareInt = Math.floor(totalInt / days);
       const remainderInt = totalInt - (baseShareInt * days);
-      
+
       const result = Array(days).fill(baseShareInt / 100);
       // Selisih pembulatan diberikan ke tanggal terakhir
       result[days - 1] = (baseShareInt + remainderInt) / 100;
-      
+
       return result;
     };
 
@@ -190,33 +190,33 @@ export default function LimbahRuangan({ embedded = false }) {
     const payloads = datesToSave.map((tgl, idx) => ({
       tanggal: tgl,
       ruangan: formData.ruangan,
-      petugas: user?.nama||'Petugas',
+      petugas: user?.nama || 'Petugas',
       infeksius: arrInf[idx],
       jarum_suntik: arrJar[idx],
       botol_obat: arrBot[idx],
       sitotoksik: arrSit[idx],
-      keterangan: formData.keterangan||'',
+      keterangan: formData.keterangan || '',
       waktu_input: new Date().toISOString()
     }));
-    
+
     try {
       if (!navigator.onLine) {
         if (formData.id) {
-          saveToOfflineQueue('limbah_ruangan', 'update', {...payloads[0], id:formData.id}, `Update Limbah Ruangan ${formData.ruangan}`);
+          saveToOfflineQueue('limbah_ruangan', 'update', { ...payloads[0], id: formData.id }, `Update Limbah Ruangan ${formData.ruangan}`);
         } else {
           payloads.forEach(p => saveToOfflineQueue('limbah_ruangan', 'insert', p, `Input Limbah Ruangan ${formData.ruangan}`));
         }
-        MySwal.fire({ icon:'info', title:'Tersimpan Offline', text:'Data tersimpan di HP dan akan dikirim otomatis saat online.', confirmButtonColor:'#059669' });
+        MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Data tersimpan di HP dan akan dikirim otomatis saat online.', confirmButtonColor: '#059669' });
       } else if (formData.id) {
-        const {error}=await supabase.from('limbah_ruangan').update(payloads[0]).eq('id',formData.id);
+        const { error } = await supabase.from('limbah_ruangan').update(payloads[0]).eq('id', formData.id);
         if (error) throw error;
-        MySwal.fire('Berhasil','Data limbah ruangan berhasil diubah','success');
+        MySwal.fire('Berhasil', 'Data limbah ruangan berhasil diubah', 'success');
       } else {
-        const {error}=await supabase.from('limbah_ruangan').insert(payloads);
+        const { error } = await supabase.from('limbah_ruangan').insert(payloads);
         if (error) throw error;
-        MySwal.fire('Berhasil',`Data berhasil disimpan untuk ${totalHari} hari (dibagi rata)`,`success`);
+        MySwal.fire('Berhasil', `Data berhasil disimpan untuk ${totalHari} hari (dibagi rata)`, `success`);
       }
-      
+
       // Retain date and distribution settings for next input
       setFormData({
         ...EMPTY_FORM,
@@ -225,22 +225,22 @@ export default function LimbahRuangan({ embedded = false }) {
         distribusiDates: formData.distribusiDates
       });
       fetchData();
-    } catch(error) {
-      if (!navigator.onLine||error.message?.includes('Failed to fetch')||error.message?.includes('network')) {
+    } catch (error) {
+      if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
         if (formData.id) {
-          saveToOfflineQueue('limbah_ruangan', 'update', {...payloads[0], id:formData.id}, `Update Limbah Ruangan ${formData.ruangan}`);
+          saveToOfflineQueue('limbah_ruangan', 'update', { ...payloads[0], id: formData.id }, `Update Limbah Ruangan ${formData.ruangan}`);
         } else {
           payloads.forEach(p => saveToOfflineQueue('limbah_ruangan', 'insert', p, `Input Limbah Ruangan ${formData.ruangan}`));
         }
-        MySwal.fire({ icon:'info', title:'Tersimpan Offline', text:'Jaringan terputus. Data tersimpan di HP.', confirmButtonColor:'#059669' });
-        
+        MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Jaringan terputus. Data tersimpan di HP.', confirmButtonColor: '#059669' });
+
         setFormData({
           ...EMPTY_FORM,
           tanggal: formData.tanggal,
           isDistribusi: formData.isDistribusi,
           distribusiDates: formData.distribusiDates
         });
-      } else { MySwal.fire('Gagal',error.message,'error'); }
+      } else { MySwal.fire('Gagal', error.message, 'error'); }
     } finally { setSubmitting(false); }
   };
 
@@ -263,114 +263,114 @@ export default function LimbahRuangan({ embedded = false }) {
   };
 
   const handleDelete = async (item) => {
-    const { isConfirmed } = await MySwal.fire({ title:'Hapus Data Limbah Ruangan?', text:'Data yang dihapus tidak dapat dikembalikan!', icon:'warning', showCancelButton:true, confirmButtonColor:'#d33', cancelButtonColor:'#3085d6', confirmButtonText:'Ya, Hapus!' });
+    const { isConfirmed } = await MySwal.fire({ title: 'Hapus Data Limbah Ruangan?', text: 'Data yang dihapus tidak dapat dikembalikan!', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: 'Ya, Hapus!' });
     if (!isConfirmed) return;
     try {
-      if (item.isOffline && item.offlineAction==='insert') { removeLocalRecordQueue(item); MySwal.fire('Terhapus','Draft offline berhasil dihapus','success'); fetchData(); return; }
+      if (item.isOffline && item.offlineAction === 'insert') { removeLocalRecordQueue(item); MySwal.fire('Terhapus', 'Draft offline berhasil dihapus', 'success'); fetchData(); return; }
       removeLocalRecordQueue(item);
       if (!navigator.onLine) {
-        saveToOfflineQueue('limbah_ruangan','delete',item,`Hapus Limbah Ruangan ${item.ruangan||''}`);
-        MySwal.fire({ icon:'info', title:'Tersimpan Offline', text:'Perintah hapus akan diproses otomatis saat online.', confirmButtonColor:'#059669' });
+        saveToOfflineQueue('limbah_ruangan', 'delete', item, `Hapus Limbah Ruangan ${item.ruangan || ''}`);
+        MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Perintah hapus akan diproses otomatis saat online.', confirmButtonColor: '#059669' });
         fetchData(); return;
       }
-      const {error}=await supabase.from('limbah_ruangan').delete().eq('id',item.id);
+      const { error } = await supabase.from('limbah_ruangan').delete().eq('id', item.id);
       if (error) throw error;
-      MySwal.fire('Terhapus','Data berhasil dihapus','success'); fetchData();
-    } catch(error) {
-      if (!navigator.onLine||error.message?.includes('Failed to fetch')||error.message?.includes('network')) {
-        saveToOfflineQueue('limbah_ruangan','delete',item,`Hapus Limbah Ruangan ${item.ruangan||''}`);
-        MySwal.fire({ icon:'info', title:'Tersimpan Offline', text:'Perintah hapus disimpan dan akan diproses otomatis.', confirmButtonColor:'#059669' });
+      MySwal.fire('Terhapus', 'Data berhasil dihapus', 'success'); fetchData();
+    } catch (error) {
+      if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
+        saveToOfflineQueue('limbah_ruangan', 'delete', item, `Hapus Limbah Ruangan ${item.ruangan || ''}`);
+        MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Perintah hapus disimpan dan akan diproses otomatis.', confirmButtonColor: '#059669' });
         fetchData();
-      } else { MySwal.fire('Gagal',error.message,'error'); }
+      } else { MySwal.fire('Gagal', error.message, 'error'); }
     }
   };
 
   // ── Export Excel ──────────────────────────────────────────────────────────────
   const handleExportExcel = async () => {
-    const { value: fv } = await MySwal.fire({ title:'Export Data Limbah', html:`<div class="text-left mt-4 space-y-4"><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Bulan & Tahun</label><input id="swal-export-month" type="month" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-gray-50" value="${new Date().toISOString().slice(0,7)}"/></div><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Filter Ruangan (Opsional)</label><select id="swal-export-ruangan" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-gray-50 appearance-none"><option value="">-- Semua Ruangan --</option>${ruanganList.map(r=>`<option value="${r}">${r}</option>`).join('')}</select></div></div>`, focusConfirm:false, showCancelButton:true, confirmButtonText:'<i class="fas fa-file-excel mr-2"></i>Export Excel', cancelButtonText:'Batal', confirmButtonColor:'#059669', preConfirm:()=>({ month:document.getElementById('swal-export-month').value, ruangan:document.getElementById('swal-export-ruangan').value }) });
-    if (!fv||!fv.month) return;
-    const { month:sel, ruangan:selR } = fv;
-    const [y,m]=sel.split('-'); const s=`${y}-${m}-01`,en=`${y}-${m}-${String(new Date(y,m,0).getDate()).padStart(2,'0')}`;
-    MySwal.fire({ title:'Mengambil Data...', allowOutsideClick:false, didOpen:()=>MySwal.showLoading() });
+    const { value: fv } = await MySwal.fire({ title: 'Export Data Limbah', html: `<div class="text-left mt-4 space-y-4"><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Bulan & Tahun</label><input id="swal-export-month" type="month" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-gray-50" value="${new Date().toISOString().slice(0, 7)}"/></div><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Filter Ruangan (Opsional)</label><select id="swal-export-ruangan" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-gray-50 appearance-none"><option value="">-- Semua Ruangan --</option>${ruanganList.map(r => `<option value="${r}">${r}</option>`).join('')}</select></div></div>`, focusConfirm: false, showCancelButton: true, confirmButtonText: '<i class="fas fa-file-excel mr-2"></i>Export Excel', cancelButtonText: 'Batal', confirmButtonColor: '#059669', preConfirm: () => ({ month: document.getElementById('swal-export-month').value, ruangan: document.getElementById('swal-export-ruangan').value }) });
+    if (!fv || !fv.month) return;
+    const { month: sel, ruangan: selR } = fv;
+    const [y, m] = sel.split('-'); const s = `${y}-${m}-01`, en = `${y}-${m}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+    MySwal.fire({ title: 'Mengambil Data...', allowOutsideClick: false, didOpen: () => MySwal.showLoading() });
     try {
-      let q=supabase.from('limbah_ruangan').select('tanggal,ruangan,infeksius,jarum_suntik,botol_obat,sitotoksik,petugas,keterangan').gte('tanggal',s).lte('tanggal',en).order('tanggal',{ascending:true});
-      if (selR) q=q.eq('ruangan',selR);
-      const {data:exportData,error}=await q; if(error) throw error;
-      if (!exportData?.length) { MySwal.fire('Informasi','Tidak ada data untuk filter yang dipilih.','info'); return; }
-      const monthNames=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-      const mLabel=`${monthNames[parseInt(m)-1]} ${y}`;
-      const wsData=[['LAPORAN LIMBAH MEDIS PADAT PER RUANGAN'],[`Periode: ${mLabel}`+(selR?` | Ruangan: ${selR}`:'')],[`Dicetak: ${new Date().toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'})}`],[],['No.','Tanggal','Ruangan','Infeksius (Kg)','Jarum Suntik (Kg)','Botol Obat (Kg)','Sitotoksik (Kg)','Total (Kg)','Petugas','Keterangan']];
-      let tI=0,tJ=0,tB=0,tS=0;
-      exportData.forEach((item,idx)=>{ const inf=parseFloat(item.infeksius)||0,jar=parseFloat(item.jarum_suntik)||0,bot=parseFloat(item.botol_obat)||0,sit=parseFloat(item.sitotoksik)||0,tot=inf+jar+bot+sit; tI+=inf;tJ+=jar;tB+=bot;tS+=sit; wsData.push([idx+1,new Date(item.tanggal).toLocaleDateString('id-ID'),item.ruangan,inf,jar,bot,sit,tot,item.petugas||'',item.keterangan||'']); });
-      wsData.push(['','TOTAL','',tI,tJ,tB,tS,tI+tJ+tB+tS,'','']);
-      const ws=XLSX.utils.aoa_to_sheet(wsData); ws['!cols']=[{wch:5},{wch:14},{wch:24},{wch:16},{wch:18},{wch:16},{wch:16},{wch:16},{wch:18},{wch:24}];
-      const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,`Limbah Ruangan ${mLabel}`);
-      XLSX.writeFile(wb,`Laporan_Limbah_Ruangan_${selR?selR+'_':''}${mLabel.replace(' ','_')}.xlsx`);
-      MySwal.fire({ icon:'success', title:'Export Berhasil!', text:`${exportData.length} data berhasil diekspor.`, timer:2000, showConfirmButton:false });
-    } catch(error) { MySwal.fire('Gagal','Terjadi kesalahan: '+error.message,'error'); }
+      let q = supabase.from('limbah_ruangan').select('tanggal,ruangan,infeksius,jarum_suntik,botol_obat,sitotoksik,petugas,keterangan').gte('tanggal', s).lte('tanggal', en).order('tanggal', { ascending: true });
+      if (selR) q = q.eq('ruangan', selR);
+      const { data: exportData, error } = await q; if (error) throw error;
+      if (!exportData?.length) { MySwal.fire('Informasi', 'Tidak ada data untuk filter yang dipilih.', 'info'); return; }
+      const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+      const mLabel = `${monthNames[parseInt(m) - 1]} ${y}`;
+      const wsData = [['LAPORAN LIMBAH MEDIS PADAT PER RUANGAN'], [`Periode: ${mLabel}` + (selR ? ` | Ruangan: ${selR}` : '')], [`Dicetak: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`], [], ['No.', 'Tanggal', 'Ruangan', 'Infeksius (Kg)', 'Jarum Suntik (Kg)', 'Botol Obat (Kg)', 'Sitotoksik (Kg)', 'Total (Kg)', 'Petugas', 'Keterangan']];
+      let tI = 0, tJ = 0, tB = 0, tS = 0;
+      exportData.forEach((item, idx) => { const inf = parseFloat(item.infeksius) || 0, jar = parseFloat(item.jarum_suntik) || 0, bot = parseFloat(item.botol_obat) || 0, sit = parseFloat(item.sitotoksik) || 0, tot = inf + jar + bot + sit; tI += inf; tJ += jar; tB += bot; tS += sit; wsData.push([idx + 1, new Date(item.tanggal).toLocaleDateString('id-ID'), item.ruangan, inf, jar, bot, sit, tot, item.petugas || '', item.keterangan || '']); });
+      wsData.push(['', 'TOTAL', '', tI, tJ, tB, tS, tI + tJ + tB + tS, '', '']);
+      const ws = XLSX.utils.aoa_to_sheet(wsData); ws['!cols'] = [{ wch: 5 }, { wch: 14 }, { wch: 24 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, { wch: 24 }];
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, `Limbah Ruangan ${mLabel}`);
+      XLSX.writeFile(wb, `Laporan_Limbah_Ruangan_${selR ? selR + '_' : ''}${mLabel.replace(' ', '_')}.xlsx`);
+      MySwal.fire({ icon: 'success', title: 'Export Berhasil!', text: `${exportData.length} data berhasil diekspor.`, timer: 2000, showConfirmButton: false });
+    } catch (error) { MySwal.fire('Gagal', 'Terjadi kesalahan: ' + error.message, 'error'); }
   };
 
   // ── Download Template ─────────────────────────────────────────────────────────
   const handleDownloadTemplate = () => {
-    const r1=ruanganList[0]||'Poli Jantung', r2=ruanganList[1]||'Cempaka';
-    const ws=XLSX.utils.aoa_to_sheet([['No.','Tanggal','Ruangan','Limbah Infeksius (Kg)','Jarum Suntik (Kg)','Botol Obat (Kg)','Sitotoksik (Kg)','Keterangan'],['','Format: YYYY-MM-DD','Pilih dari daftar ruangan yang valid','','','','',''],[1,'2025-01-15',r1,1.5,0.5,0.2,0,'Rutin'],[2,'2025-01-15',r2,2.0,0.8,0.4,0.1,'Rutin']]);
-    ws['!cols']=[{wch:5},{wch:16},{wch:24},{wch:22},{wch:18},{wch:16},{wch:16},{wch:20}];
-    const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Template Limbah Ruangan'); XLSX.writeFile(wb,'Template_Import_Limbah_Ruangan.xlsx');
+    const r1 = ruanganList[0] || 'Poli Jantung', r2 = ruanganList[1] || 'Cempaka';
+    const ws = XLSX.utils.aoa_to_sheet([['No.', 'Tanggal', 'Ruangan', 'Limbah Infeksius (Kg)', 'Jarum Suntik (Kg)', 'Botol Obat (Kg)', 'Sitotoksik (Kg)', 'Keterangan'], ['', 'Format: YYYY-MM-DD', 'Pilih dari daftar ruangan yang valid', '', '', '', '', ''], [1, '2025-01-15', r1, 1.5, 0.5, 0.2, 0, 'Rutin'], [2, '2025-01-15', r2, 2.0, 0.8, 0.4, 0.1, 'Rutin']]);
+    ws['!cols'] = [{ wch: 5 }, { wch: 16 }, { wch: 24 }, { wch: 22 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 20 }];
+    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Template Limbah Ruangan'); XLSX.writeFile(wb, 'Template_Import_Limbah_Ruangan.xlsx');
   };
 
   // ── Import Excel ──────────────────────────────────────────────────────────────
   const handleImportFile = (e) => {
-    const file=e.target.files[0]; if(!file) return; e.target.value='';
-    const reader=new FileReader();
-    reader.onload=async(evt)=>{
+    const file = e.target.files[0]; if (!file) return; e.target.value = '';
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
       try {
-        const wb=XLSX.read(evt.target.result,{type:'binary',cellDates:false});
-        const ws=wb.Sheets[wb.SheetNames[0]];
-        const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-        let headerIdx=-1;
-        for(let i=0;i<rows.length;i++){ const s=rows[i].join('').toLowerCase(); if(s.includes('tanggal')&&s.includes('ruangan')){ headerIdx=i; break; } }
-        if(headerIdx===-1){ MySwal.fire('Format Salah','Header Tanggal dan Ruangan tidak ditemukan. Gunakan template yang disediakan.','error'); return; }
-        const dataRows=rows.slice(headerIdx+1).filter(r=>{ const t=r[1],rn=r[2]; return t&&String(t).trim()!==''&&rn&&String(rn).trim()!==''&&!String(t).toLowerCase().includes('format')&&!String(t).toLowerCase().includes('total'); });
-        if(!dataRows.length){ MySwal.fire('Tidak Ada Data','Tidak ditemukan baris data yang valid.','warning'); return; }
-        const payloads=dataRows.map(r=>({ tanggal:formatDateFromExcel(r[1]), ruangan:String(r[2]).trim(), infeksius:parseFloat(r[3])||0, jarum_suntik:parseFloat(r[4])||0, botol_obat:parseFloat(r[5])||0, sitotoksik:parseFloat(r[6])||0, keterangan:r[7]?String(r[7]).trim():'', petugas:user?.nama||'Petugas', waktu_input:new Date().toISOString() })).filter(p=>p.tanggal&&p.ruangan);
-        if(!payloads.length){ MySwal.fire('Gagal','Tidak ada baris dengan tanggal dan ruangan yang valid.','error'); return; }
-        const {isConfirmed}=await MySwal.fire({ title:'Konfirmasi Import', html:`<p>Ditemukan <strong>${payloads.length} data limbah ruangan</strong>. Lanjutkan import?</p>`, icon:'question', showCancelButton:true, confirmButtonColor:'#059669', confirmButtonText:'Ya, Import!' });
-        if(!isConfirmed) return;
-        setImporting(true); MySwal.fire({ title:'Mengimport Data...', allowOutsideClick:false, didOpen:()=>MySwal.showLoading() });
-        let inserted=0;
-        for(let i=0;i<payloads.length;i+=50){ const batch=payloads.slice(i,i+50); const {error}=await supabase.from('limbah_ruangan').insert(batch); if(error) throw error; inserted+=batch.length; }
-        fetchData(); MySwal.fire({ icon:'success', title:'Import Berhasil!', text:`${inserted} data berhasil diimport.`, timer:2500, showConfirmButton:false });
-      } catch(err){ MySwal.fire('Gagal Import',err.message||'Terjadi kesalahan saat membaca file.','error'); }
-      finally{ setImporting(false); }
+        const wb = XLSX.read(evt.target.result, { type: 'binary', cellDates: false });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+        let headerIdx = -1;
+        for (let i = 0; i < rows.length; i++) { const s = rows[i].join('').toLowerCase(); if (s.includes('tanggal') && s.includes('ruangan')) { headerIdx = i; break; } }
+        if (headerIdx === -1) { MySwal.fire('Format Salah', 'Header Tanggal dan Ruangan tidak ditemukan. Gunakan template yang disediakan.', 'error'); return; }
+        const dataRows = rows.slice(headerIdx + 1).filter(r => { const t = r[1], rn = r[2]; return t && String(t).trim() !== '' && rn && String(rn).trim() !== '' && !String(t).toLowerCase().includes('format') && !String(t).toLowerCase().includes('total'); });
+        if (!dataRows.length) { MySwal.fire('Tidak Ada Data', 'Tidak ditemukan baris data yang valid.', 'warning'); return; }
+        const payloads = dataRows.map(r => ({ tanggal: formatDateFromExcel(r[1]), ruangan: String(r[2]).trim(), infeksius: parseFloat(r[3]) || 0, jarum_suntik: parseFloat(r[4]) || 0, botol_obat: parseFloat(r[5]) || 0, sitotoksik: parseFloat(r[6]) || 0, keterangan: r[7] ? String(r[7]).trim() : '', petugas: user?.nama || 'Petugas', waktu_input: new Date().toISOString() })).filter(p => p.tanggal && p.ruangan);
+        if (!payloads.length) { MySwal.fire('Gagal', 'Tidak ada baris dengan tanggal dan ruangan yang valid.', 'error'); return; }
+        const { isConfirmed } = await MySwal.fire({ title: 'Konfirmasi Import', html: `<p>Ditemukan <strong>${payloads.length} data limbah ruangan</strong>. Lanjutkan import?</p>`, icon: 'question', showCancelButton: true, confirmButtonColor: '#059669', confirmButtonText: 'Ya, Import!' });
+        if (!isConfirmed) return;
+        setImporting(true); MySwal.fire({ title: 'Mengimport Data...', allowOutsideClick: false, didOpen: () => MySwal.showLoading() });
+        let inserted = 0;
+        for (let i = 0; i < payloads.length; i += 50) { const batch = payloads.slice(i, i + 50); const { error } = await supabase.from('limbah_ruangan').insert(batch); if (error) throw error; inserted += batch.length; }
+        fetchData(); MySwal.fire({ icon: 'success', title: 'Import Berhasil!', text: `${inserted} data berhasil diimport.`, timer: 2500, showConfirmButton: false });
+      } catch (err) { MySwal.fire('Gagal Import', err.message || 'Terjadi kesalahan saat membaca file.', 'error'); }
+      finally { setImporting(false); }
     };
     reader.readAsBinaryString(file);
   };
 
   // ── Print ─────────────────────────────────────────────────────────────────────
   const handlePrint = async () => {
-    const currentMonth = filterMonth||new Date().toISOString().slice(0,7);
-    const {value:fv}=await MySwal.fire({ title:'Cetak Laporan Limbah', html:`<div class="text-left mt-4 space-y-4"><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Bulan & Tahun</label><input id="swal-print-month" type="month" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-gray-50" value="${currentMonth}"/></div><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Ruangan (Opsional)</label><select id="swal-print-ruangan" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-gray-50 appearance-none"><option value="">-- Semua Ruangan --</option>${ruanganList.map(r=>`<option value="${r}">${r}</option>`).join('')}</select></div></div>`, focusConfirm:false, showCancelButton:true, confirmButtonText:'<i class="fas fa-print mr-2"></i>Cetak', cancelButtonText:'Batal', confirmButtonColor:'#2563eb', preConfirm:()=>{ const mi=document.getElementById('swal-print-month'); if(!mi?.value){ Swal.showValidationMessage('Silakan pilih bulan terlebih dahulu.'); return false; } return { month:mi.value, ruangan:document.getElementById('swal-print-ruangan')?.value||'' }; } });
+    const currentMonth = filterMonth || new Date().toISOString().slice(0, 7);
+    const { value: fv } = await MySwal.fire({ title: 'Cetak Laporan Limbah', html: `<div class="text-left mt-4 space-y-4"><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Bulan & Tahun</label><input id="swal-print-month" type="month" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-gray-50" value="${currentMonth}"/></div><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Ruangan (Opsional)</label><select id="swal-print-ruangan" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-gray-50 appearance-none"><option value="">-- Semua Ruangan --</option>${ruanganList.map(r => `<option value="${r}">${r}</option>`).join('')}</select></div></div>`, focusConfirm: false, showCancelButton: true, confirmButtonText: '<i class="fas fa-print mr-2"></i>Cetak', cancelButtonText: 'Batal', confirmButtonColor: '#2563eb', preConfirm: () => { const mi = document.getElementById('swal-print-month'); if (!mi?.value) { Swal.showValidationMessage('Silakan pilih bulan terlebih dahulu.'); return false; } return { month: mi.value, ruangan: document.getElementById('swal-print-ruangan')?.value || '' }; } });
     if (!fv) return;
-    const {month:sel,ruangan:selR}=fv;
-    const [y,m]=sel.split('-'); const s=`${y}-${m}-01`,en=`${y}-${m}-${String(new Date(+y,+m,0).getDate()).padStart(2,'0')}`;
+    const { month: sel, ruangan: selR } = fv;
+    const [y, m] = sel.split('-'); const s = `${y}-${m}-01`, en = `${y}-${m}-${String(new Date(+y, +m, 0).getDate()).padStart(2, '0')}`;
     try {
-      MySwal.fire({ title:'Menyiapkan Laporan...', html:'Mohon tunggu, data sedang diproses.', allowOutsideClick:false, allowEscapeKey:false, didOpen:()=>MySwal.showLoading() });
-      let q=supabase.from('limbah_ruangan').select('tanggal,ruangan,infeksius,jarum_suntik,botol_obat,sitotoksik,petugas,keterangan').gte('tanggal',s).lte('tanggal',en).order('tanggal',{ascending:true}).order('ruangan',{ascending:true});
-      if (selR) q=q.eq('ruangan',selR);
-      const {data:printData,error}=await q; if(error) throw error;
-      if (!printData?.length){ MySwal.fire({ icon:'info', title:'Tidak Ada Data', text:'Tidak ada data limbah untuk periode dan ruangan yang dipilih.', confirmButtonColor:'#2563eb' }); return; }
-      const monthNames=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-      const periodeText=`${monthNames[+m-1]} ${y}`;
-      const ruanganText=selR?`Ruangan: ${selR}`:'Semua Ruangan';
-      const printedDate=new Date().toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'});
-      const html=buildRuanganPrintHTML(printData,periodeText,ruanganText,printedDate);
+      MySwal.fire({ title: 'Menyiapkan Laporan...', html: 'Mohon tunggu, data sedang diproses.', allowOutsideClick: false, allowEscapeKey: false, didOpen: () => MySwal.showLoading() });
+      let q = supabase.from('limbah_ruangan').select('tanggal,ruangan,infeksius,jarum_suntik,botol_obat,sitotoksik,petugas,keterangan').gte('tanggal', s).lte('tanggal', en).order('tanggal', { ascending: true }).order('ruangan', { ascending: true });
+      if (selR) q = q.eq('ruangan', selR);
+      const { data: printData, error } = await q; if (error) throw error;
+      if (!printData?.length) { MySwal.fire({ icon: 'info', title: 'Tidak Ada Data', text: 'Tidak ada data limbah untuk periode dan ruangan yang dipilih.', confirmButtonColor: '#2563eb' }); return; }
+      const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+      const periodeText = `${monthNames[+m - 1]} ${y}`;
+      const ruanganText = selR ? `Ruangan: ${selR}` : 'Semua Ruangan';
+      const printedDate = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+      const html = buildRuanganPrintHTML(printData, periodeText, ruanganText, printedDate);
       MySwal.close();
-      const iframe=document.createElement('iframe');
-      iframe.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
+      const iframe = document.createElement('iframe');
+      iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
       document.body.appendChild(iframe);
-      const doc=iframe.contentWindow.document; doc.open(); doc.write(html); doc.close();
-      iframe.onload=()=>{ setTimeout(()=>{ try{ iframe.contentWindow.focus(); iframe.contentWindow.print(); }catch(printError){ console.error('Print error:',printError); MySwal.fire('Gagal','Browser tidak dapat membuka dialog cetak.','error'); } setTimeout(()=>{ if(iframe.parentNode) iframe.parentNode.removeChild(iframe); },1500); },500); };
-    } catch(error){ MySwal.fire({ icon:'error', title:'Gagal Mencetak', text:'Terjadi kesalahan saat mengambil data: '+error.message, confirmButtonColor:'#dc2626' }); }
+      const doc = iframe.contentWindow.document; doc.open(); doc.write(html); doc.close();
+      iframe.onload = () => { setTimeout(() => { try { iframe.contentWindow.focus(); iframe.contentWindow.print(); } catch (printError) { console.error('Print error:', printError); MySwal.fire('Gagal', 'Browser tidak dapat membuka dialog cetak.', 'error'); } setTimeout(() => { if (iframe.parentNode) iframe.parentNode.removeChild(iframe); }, 1500); }, 500); };
+    } catch (error) { MySwal.fire({ icon: 'error', title: 'Gagal Mencetak', text: 'Terjadi kesalahan saat mengambil data: ' + error.message, confirmButtonColor: '#dc2626' }); }
   };
 
   const totalPages = Math.ceil(totalData / ITEMS_PER_PAGE);
