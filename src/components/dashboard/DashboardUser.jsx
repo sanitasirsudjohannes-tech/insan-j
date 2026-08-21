@@ -2,6 +2,7 @@ import { useState } from 'react';
 import AppLayout from '../AppLayout';
 import TabPengangkutan from './TabPengangkutan';
 import TabJenisLimbah from './TabJenisLimbah';
+import DashboardNotification from './DashboardNotification';
 
 export default function DashboardUser({ user }) {
   const [activeTab, setActiveTab] = useState('pengangkutan');
@@ -9,6 +10,7 @@ export default function DashboardUser({ user }) {
   return (
     <AppLayout title="Dashboard Petugas">
       <div className="container mx-auto px-4 py-8">
+        <DashboardNotification />
 
         {/* Welcome Banner */}
         <div className="bg-white rounded-2xl shadow-sm p-6 md:p-8 mb-6 border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">

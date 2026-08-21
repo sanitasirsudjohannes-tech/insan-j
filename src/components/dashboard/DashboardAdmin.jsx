@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import AppLayout from '../AppLayout';
 import { supabase } from '../../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
+import DashboardNotification from './DashboardNotification';
 
 export default function DashboardAdmin() {
   const [loading, setLoading] = useState(true);
@@ -114,6 +115,7 @@ export default function DashboardAdmin() {
   return (
     <AppLayout title="Dashboard Admin">
       <div className="container mx-auto px-4 py-8">
+        <DashboardNotification />
         <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between border-b border-gray-100 pb-6">
           <div>
             <h2 className="text-3xl font-extrabold text-gray-800">Dashboard Statistik</h2>
