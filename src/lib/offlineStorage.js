@@ -47,6 +47,15 @@ export const getOfflineDeletedIds = (tableName) => {
     .map(item => String(item.serverId || item.payload?.id || item.localId || item.id));
 };
 
+export const getOfflineDeletedItems = (tableName) => {
+  return getOfflineQueue()
+    .filter(item => item.table === tableName && item.action === 'delete')
+    .map(item => ({
+      ...item.payload,
+      id: String(item.serverId || item.payload?.id || item.localId || item.id)
+    }));
+};
+
 /**
  * saveToOfflineQueue (UPSERT)
  */
@@ -85,7 +94,7 @@ export const saveToOfflineQueue = (table, action, payload, description = '') => 
           queue[existingIndex] = {
             ...existing,
             action: 'delete',
-            payload: { id: existing.serverId, serverId: existing.serverId },
+            payload: { ...existing.payload, id: existing.serverId, serverId: existing.serverId },
             description: description || existing.description,
             createdAt: new Date().toISOString(),
           };

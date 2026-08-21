@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser, fetchDaftarRuangan } from '../lib/api';
-import { saveToOfflineQueue, getUnsyncedItemsForTable, removeLocalRecordQueue, getOfflineDeletedIds } from '../lib/offlineStorage';
+import { saveToOfflineQueue, getUnsyncedItemsForTable, removeLocalRecordQueue, getOfflineDeletedIds, getOfflineDeletedItems } from '../lib/offlineStorage';
 import * as XLSX from 'xlsx';
 
 import RuanganForm from '../components/limbah/ruangan/RuanganForm';
@@ -78,6 +78,14 @@ export default function LimbahRuangan({ embedded = false }) {
       const delIds = new Set(getOfflineDeletedIds('limbah_ruangan'));
       const insertCount = unsynced.filter(i => i.offlineAction === 'insert').length;
 
+      // Filter offline deleted items agar ukurannya sesuai dengan filter yang aktif
+      let offlineDeletedItems = getOfflineDeletedItems('limbah_ruangan');
+      if (filterDate) offlineDeletedItems = offlineDeletedItems.filter(i => i.tanggal === filterDate);
+      else if (filterMonth) offlineDeletedItems = offlineDeletedItems.filter(i => i.tanggal?.startsWith(filterMonth));
+      if (filterRuangan) offlineDeletedItems = offlineDeletedItems.filter(i => i.ruangan === filterRuangan);
+      
+      const filteredDelCount = offlineDeletedItems.length;
+
       try {
         let qCount = supabase.from('limbah_ruangan').select('id', { count: 'exact', head: true });
         if (filterDate) { qCount = qCount.eq('tanggal', filterDate); }
@@ -121,8 +129,8 @@ export default function LimbahRuangan({ embedded = false }) {
       // Jumlah dari DB sudah termasuk baris yang sedang menunggu update
       // offline, jadi update tidak boleh menambah total. Insert offline
       // menambah baris baru, dan hapus offline mengurangi baris yang
-      // sebelumnya sudah ada di DB.
-      const adjustedTotal = Math.max(0, (count || 0) + insertCount - delIds.size);
+      // sebelumnya sudah ada di DB (dengan syarat memenuhi filter yang sama).
+      const adjustedTotal = Math.max(0, (count || 0) + insertCount - filteredDelCount);
       setTotalData(adjustedTotal);
     } catch (error) {
       console.error('Error fetching limbah ruangan data:', error);
@@ -157,19 +165,36 @@ export default function LimbahRuangan({ embedded = false }) {
     }
     const totalHari = datesToSave.length;
 
-    const vInf = (parseFloat(formData.infeksius)||0) / totalHari;
-    const vJar = (parseFloat(formData.jarum_suntik)||0) / totalHari;
-    const vBot = (parseFloat(formData.botol_obat)||0) / totalHari;
-    const vSit = (parseFloat(formData.sitotoksik)||0) / totalHari;
+    const distributeValue = (total, days) => {
+      if (!total || days <= 0) return Array(days).fill(0);
+      const parsed = parseFloat(total);
+      if (isNaN(parsed) || parsed === 0) return Array(days).fill(0);
+      
+      // Mengubah ke integer agar tidak ada floating point bug (misal: kalikan 100)
+      const totalInt = Math.round(parsed * 100);
+      const baseShareInt = Math.floor(totalInt / days);
+      const remainderInt = totalInt - (baseShareInt * days);
+      
+      const result = Array(days).fill(baseShareInt / 100);
+      // Selisih pembulatan diberikan ke tanggal terakhir
+      result[days - 1] = (baseShareInt + remainderInt) / 100;
+      
+      return result;
+    };
 
-    const payloads = datesToSave.map(tgl => ({
+    const arrInf = distributeValue(formData.infeksius, totalHari);
+    const arrJar = distributeValue(formData.jarum_suntik, totalHari);
+    const arrBot = distributeValue(formData.botol_obat, totalHari);
+    const arrSit = distributeValue(formData.sitotoksik, totalHari);
+
+    const payloads = datesToSave.map((tgl, idx) => ({
       tanggal: tgl,
       ruangan: formData.ruangan,
       petugas: user?.nama||'Petugas',
-      infeksius: +vInf.toFixed(2),
-      jarum_suntik: +vJar.toFixed(2),
-      botol_obat: +vBot.toFixed(2),
-      sitotoksik: +vSit.toFixed(2),
+      infeksius: arrInf[idx],
+      jarum_suntik: arrJar[idx],
+      botol_obat: arrBot[idx],
+      sitotoksik: arrSit[idx],
       keterangan: formData.keterangan||'',
       waktu_input: new Date().toISOString()
     }));
@@ -244,7 +269,7 @@ export default function LimbahRuangan({ embedded = false }) {
       if (item.isOffline && item.offlineAction==='insert') { removeLocalRecordQueue(item); MySwal.fire('Terhapus','Draft offline berhasil dihapus','success'); fetchData(); return; }
       removeLocalRecordQueue(item);
       if (!navigator.onLine) {
-        saveToOfflineQueue('limbah_ruangan','delete',{id:item.id},`Hapus Limbah Ruangan ${item.ruangan||''}`);
+        saveToOfflineQueue('limbah_ruangan','delete',item,`Hapus Limbah Ruangan ${item.ruangan||''}`);
         MySwal.fire({ icon:'info', title:'Tersimpan Offline', text:'Perintah hapus akan diproses otomatis saat online.', confirmButtonColor:'#059669' });
         fetchData(); return;
       }
@@ -253,7 +278,7 @@ export default function LimbahRuangan({ embedded = false }) {
       MySwal.fire('Terhapus','Data berhasil dihapus','success'); fetchData();
     } catch(error) {
       if (!navigator.onLine||error.message?.includes('Failed to fetch')||error.message?.includes('network')) {
-        saveToOfflineQueue('limbah_ruangan','delete',{id:item.id},`Hapus Limbah Ruangan ${item.ruangan||''}`);
+        saveToOfflineQueue('limbah_ruangan','delete',item,`Hapus Limbah Ruangan ${item.ruangan||''}`);
         MySwal.fire({ icon:'info', title:'Tersimpan Offline', text:'Perintah hapus disimpan dan akan diproses otomatis.', confirmButtonColor:'#059669' });
         fetchData();
       } else { MySwal.fire('Gagal',error.message,'error'); }

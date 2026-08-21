@@ -9,6 +9,7 @@ import {
   getUnsyncedItemsForTable,
   removeLocalRecordQueue,
   getOfflineDeletedIds,
+  getOfflineDeletedItems,
 } from '../lib/offlineStorage';
 
 import AnorganikForm, { JENIS_FIELDS } from '../components/limbah/anorganik/AnorganikForm';
@@ -88,6 +89,13 @@ export default function LimbahAnorganik({ embedded = false }) {
       const insertCount = unsynced.filter(i => i.offlineAction === 'insert').length;
       const updateCount = unsynced.filter(i => i.offlineAction === 'update').length;
 
+      // Filter offline deleted items agar ukurannya sesuai dengan filter yang aktif
+      let offlineDeletedItems = getOfflineDeletedItems('limbah_anorganik');
+      if (filterMonth) offlineDeletedItems = offlineDeletedItems.filter(i => i.tanggal?.startsWith(filterMonth));
+      if (filterRuangan) offlineDeletedItems = offlineDeletedItems.filter(i => i.ruangan === filterRuangan);
+      
+      const filteredDelCount = offlineDeletedItems.length;
+
       try {
         let queryCount = supabase
           .from('limbah_anorganik')
@@ -146,7 +154,7 @@ export default function LimbahAnorganik({ embedded = false }) {
       // DB count already includes records that are pending local update, so
       // updates must not increase the total. Offline inserts are new rows and
       // pending deletes remove existing DB rows from the visible total.
-      const adjustedTotal = Math.max(0, (count || 0) + insertCount - delIds.size);
+      const adjustedTotal = Math.max(0, (count || 0) + insertCount - filteredDelCount);
       // updateCount is intentionally not added to the total; keep it explicit
       // to document the distinction between virtual replacement and insertion.
       void updateCount;
@@ -276,7 +284,7 @@ export default function LimbahAnorganik({ embedded = false }) {
       removeLocalRecordQueue(item);
 
       if (!navigator.onLine) {
-        saveToOfflineQueue('limbah_anorganik', 'delete', { id: item.id }, `Hapus Limbah Anorganik ${item.ruangan || ''}`);
+        saveToOfflineQueue('limbah_anorganik', 'delete', item, `Hapus Limbah Anorganik ${item.ruangan || ''}`);
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Perintah hapus disimpan di HP. Akan diproses otomatis saat terhubung internet.', confirmButtonColor: '#0891b2' });
         fetchData();
         return;
@@ -288,7 +296,7 @@ export default function LimbahAnorganik({ embedded = false }) {
       fetchData();
     } catch (error) {
       if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
-        saveToOfflineQueue('limbah_anorganik', 'delete', { id: item.id }, `Hapus Limbah Anorganik ${item.ruangan || ''}`);
+        saveToOfflineQueue('limbah_anorganik', 'delete', item, `Hapus Limbah Anorganik ${item.ruangan || ''}`);
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Jaringan terputus. Perintah hapus disimpan dan akan diproses otomatis.', confirmButtonColor: '#0891b2' });
         fetchData();
       } else {
