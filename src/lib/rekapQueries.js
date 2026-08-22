@@ -71,10 +71,12 @@ export function formatKg(num, suffix = ' kg') {
   const val = Number(num);
   if (isNaN(val)) return 'Tidak ada data';
 
+  const rounded = Math.round(val);
+
   const formatted = new Intl.NumberFormat('id-ID', {
     minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(val);
+    maximumFractionDigits: 0,
+  }).format(rounded);
 
   return `${formatted}${suffix}`;
 }
