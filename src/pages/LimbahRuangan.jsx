@@ -57,11 +57,13 @@ export default function LimbahRuangan({ embedded = false }) {
   const [showRuanganSheet, setShowRuanganSheet] = useState(false);
   const [filterDate, setFilterDate] = useState('');
   const importInputRef = useRef(null);
+  const fetchIdRef = useRef(0);
 
   useEffect(() => { fetchDaftarRuangan().then(setRuanganList); }, []);
 
   // ── fetchData ─────────────────────────────────────────────────────────────────
   const fetchData = async () => {
+    const currentFetchId = ++fetchIdRef.current;
     setLoading(true);
     try {
       let dbData = [], count = 0;
@@ -91,7 +93,8 @@ export default function LimbahRuangan({ embedded = false }) {
         if (filterDate) { qCount = qCount.eq('tanggal', filterDate); }
         else if (filterMonth) { const [y, m] = filterMonth.split('-'); const s = `${y}-${m}-01`, en = `${y}-${m}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`; qCount = qCount.gte('tanggal', s).lte('tanggal', en); }
         if (filterRuangan) qCount = qCount.eq('ruangan', filterRuangan);
-        const { count: c } = await qCount;
+        const { count: c, error: errCount } = await qCount;
+        if (errCount) throw errCount;
         count = c || 0;
 
         // Tidak bisa langsung mengambil slice DB sesuai halaman karena baris
@@ -113,10 +116,14 @@ export default function LimbahRuangan({ embedded = false }) {
         if (filterRuangan) qData = qData.eq('ruangan', filterRuangan);
 
         const { data: result, error } = await qData;
-        if (!error) dbData = result || [];
+        if (error) throw error;
+        dbData = result || [];
       } catch (e) {
         console.warn('Handling offline/network error during DB fetch:', e);
+        throw e;
       }
+
+      if (currentFetchId !== fetchIdRef.current) return;
 
       // Gabungkan baris DB dengan overlay offline, buang yang sudah dihapus
       // secara offline, urutkan ulang secara global, baru ambil slice sesuai
@@ -135,7 +142,7 @@ export default function LimbahRuangan({ embedded = false }) {
     } catch (error) {
       console.error('Error fetching limbah ruangan data:', error);
     } finally {
-      setLoading(false);
+      if (currentFetchId === fetchIdRef.current) setLoading(false);
     }
   };
 
@@ -143,7 +150,23 @@ export default function LimbahRuangan({ embedded = false }) {
     fetchData();
     const h = () => fetchData();
     window.addEventListener('offline-queue-changed', h); window.addEventListener('online', h); window.addEventListener('offline', h);
-    return () => { window.removeEventListener('offline-queue-changed', h); window.removeEventListener('online', h); window.removeEventListener('offline', h); };
+    
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') h();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (['INITIAL_SESSION', 'SIGNED_IN', 'TOKEN_REFRESHED'].includes(event)) h();
+    });
+
+    return () => { 
+      window.removeEventListener('offline-queue-changed', h); 
+      window.removeEventListener('online', h); 
+      window.removeEventListener('offline', h); 
+      document.removeEventListener('visibilitychange', handleVisibility);
+      subscription?.unsubscribe();
+    };
   }, [page, filterMonth, filterDate, filterRuangan]);
 
   // ── Handlers form ─────────────────────────────────────────────────────────────

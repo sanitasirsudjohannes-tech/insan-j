@@ -36,6 +36,7 @@ export default function LimbahPadat({ embedded = false }) {
   const [formData, setFormData] = useState(EMPTY_FORM);
   const importInputRef = useRef(null);
   const printFrameRef = useRef(null);
+  const fetchIdRef = useRef(0);
 
   // ── Akumulasi data (padat + ruangan) ─────────────────────────────────────────
   const getAccumulatedData = async (targetMonth = null) => {
@@ -51,9 +52,14 @@ export default function LimbahPadat({ embedded = false }) {
           qP = qP.gte('tanggal', s).lte('tanggal', e);
           qR = qR.gte('tanggal', s).lte('tanggal', e);
         }
-        const [{ data: pD }, { data: rD }] = await Promise.all([qP, qR]);
+        const [{ data: pD, error: pError }, { data: rD, error: rError }] = await Promise.all([qP, qR]);
+        if (pError) throw pError;
+        if (rError) throw rError;
         dbPadat = pD || []; dbRuangan = rD || [];
-      } catch (err) { console.warn('Network issue fetching accumulated data:', err); }
+      } catch (err) {
+        console.warn('Network issue fetching accumulated data:', err);
+        throw err;
+      }
     }
 
     let unsyncedP = getUnsyncedItemsForTable('limbah_padat');
@@ -96,15 +102,21 @@ export default function LimbahPadat({ embedded = false }) {
 
   // ── fetchData ─────────────────────────────────────────────────────────────────
   const fetchData = async () => {
+    const currentFetchId = ++fetchIdRef.current;
     setLoading(true);
     try {
       const accumulated = await getAccumulatedData(filterMonth);
+      if (currentFetchId !== fetchIdRef.current) return;
       accumulated.sort((a, b) => b.tanggal.localeCompare(a.tanggal));
       setTotalData(accumulated.length);
       const from = (page - 1) * ITEMS_PER_PAGE;
       setData(accumulated.slice(from, from + ITEMS_PER_PAGE));
-    } catch (err) { console.error('Error fetching accumulated data:', err); }
-    finally { setLoading(false); }
+    } catch (err) { 
+      console.error('Error fetching accumulated data:', err); 
+    }
+    finally { 
+      if (currentFetchId === fetchIdRef.current) setLoading(false); 
+    }
   };
 
   useEffect(() => {
@@ -113,7 +125,27 @@ export default function LimbahPadat({ embedded = false }) {
     window.addEventListener('offline-queue-changed', h);
     window.addEventListener('online', h);
     window.addEventListener('offline', h);
-    return () => { window.removeEventListener('offline-queue-changed', h); window.removeEventListener('online', h); window.removeEventListener('offline', h); };
+    
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        h();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (['INITIAL_SESSION', 'SIGNED_IN', 'TOKEN_REFRESHED'].includes(event)) {
+        h();
+      }
+    });
+
+    return () => { 
+      window.removeEventListener('offline-queue-changed', h); 
+      window.removeEventListener('online', h); 
+      window.removeEventListener('offline', h); 
+      document.removeEventListener('visibilitychange', handleVisibility);
+      subscription?.unsubscribe();
+    };
   }, [page, filterMonth]);
 
   useEffect(() => {
