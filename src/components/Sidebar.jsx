@@ -10,8 +10,11 @@ export default function Sidebar({ isOpen, onClose }) {
     ...(!isAdmin ? [
       { to: '/limbah-dihasilkan', label: 'Limbah Dihasilkan', icon: 'fas fa-biohazard' },
       { to: '/pengangkutan', label: 'Pengangkutan Limbah', icon: 'fas fa-truck' },
+      { to: '/rekap-limbah', label: 'Rekap Limbah', icon: 'fas fa-file-invoice' },
       { to: '/inspeksi', label: 'Form Inspeksi', icon: 'fas fa-clipboard-list' }
-    ] : []),
+    ] : [
+      { to: '/rekap-limbah', label: 'Rekap Limbah', icon: 'fas fa-file-invoice' }
+    ]),
     { to: '/riwayat', label: 'Riwayat Inspeksi', icon: 'fas fa-history' },
     ...(isAdmin ? [{ to: '/kelola-admin', label: 'Kelola Pengguna', icon: 'fas fa-users-cog', adminOnly: true }] : []),
     { to: '/akun', label: 'Setting Akun', icon: 'fas fa-cog' },
