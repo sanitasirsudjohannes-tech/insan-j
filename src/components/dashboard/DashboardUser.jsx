@@ -2,6 +2,7 @@ import { useState } from 'react';
 import AppLayout from '../AppLayout';
 import TabPengangkutan from './TabPengangkutan';
 import TabJenisLimbah from './TabJenisLimbah';
+import TabAnorganik from './TabAnorganik';
 import DashboardNotification from './DashboardNotification';
 
 export default function DashboardUser({ user }) {
@@ -46,12 +47,22 @@ export default function DashboardUser({ user }) {
           >
             <i className="fas fa-layer-group mr-2"></i> Jenis & Trend Bulanan
           </button>
+          <button
+            onClick={() => setActiveTab('anorganik')}
+            className={`px-5 py-2.5 rounded-lg font-semibold text-sm transition-all duration-200 flex items-center ${activeTab === 'anorganik'
+              ? 'bg-cyan-600 text-white shadow-md shadow-cyan-500/30'
+              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+              }`}
+          >
+            <i className="fas fa-recycle mr-2"></i> Limbah Anorganik
+          </button>
         </div>
 
         {/* Tab Content */}
         <div className="min-h-[400px]">
           {activeTab === 'pengangkutan' && <TabPengangkutan />}
           {activeTab === 'jenis_limbah' && <TabJenisLimbah />}
+          {activeTab === 'anorganik' && <TabAnorganik />}
         </div>
 
       </div>

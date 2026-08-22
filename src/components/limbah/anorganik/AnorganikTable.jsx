@@ -24,6 +24,7 @@ export default function AnorganikTable({
   setPage,
   onEdit,
   onDelete,
+  onPrint,
 }) {
   return (
     <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
@@ -50,6 +51,15 @@ export default function AnorganikTable({
             onChange={(e) => { setFilterMonth(e.target.value); setPage(1); }}
             className="bg-white text-gray-800 px-3 py-2 rounded-xl text-xs sm:text-sm border outline-none font-medium"
           />
+
+          {onPrint && (
+            <button
+              onClick={onPrint}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl transition text-xs font-semibold flex items-center gap-1.5 shadow-sm"
+            >
+              <i className="fas fa-print" /> Cetak
+            </button>
+          )}
         </div>
       </div>
 
