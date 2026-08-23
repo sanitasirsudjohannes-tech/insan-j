@@ -1,51 +1,61 @@
 export const USER_NIP_SETTING_KEY = 'nip_pengguna';
 export const KEPALA_UNIT_SETTING_KEY = 'kepala_unit_sanitasi';
 
-const randomInteger = (min, max) => {
-  if (globalThis.crypto?.getRandomValues) {
-    const values = new Uint32Array(1);
-    globalThis.crypto.getRandomValues(values);
-    return min + (values[0] % (max - min + 1));
-  }
+export const getUserNipSettingKey = (userId) => `${USER_NIP_SETTING_KEY}_${userId}`;
 
-  return min + Math.floor(Math.random() * (max - min + 1));
-};
+export const getUserNipSettingKeys = (users) => [
+  USER_NIP_SETTING_KEY,
+  KEPALA_UNIT_SETTING_KEY,
+  ...users.map((user) => getUserNipSettingKey(user.id)),
+];
 
-export const generateTemporaryNip = (existingNips = new Set()) => {
-  let nip = '';
+const normalizeNip = (value) => typeof value === 'string' && value.trim()
+  ? value.trim()
+  : null;
 
-  do {
-    const birthYear = randomInteger(1975, 2001);
-    const birthMonth = String(randomInteger(1, 12)).padStart(2, '0');
-    const birthDay = String(randomInteger(1, 28)).padStart(2, '0');
-    const appointmentYear = Math.min(birthYear + randomInteger(20, 28), new Date().getFullYear());
-    const appointmentMonth = String(randomInteger(1, 12)).padStart(2, '0');
-    const gender = randomInteger(1, 2);
-    const sequence = String(randomInteger(1, 999)).padStart(3, '0');
-
-    nip = `${birthYear}${birthMonth}${birthDay}${appointmentYear}${appointmentMonth}${gender}${sequence}`;
-  } while (existingNips.has(nip));
-
-  return nip;
-};
-
-export const createInitialUserNipMap = (users, storedNips) => {
-  const nips = storedNips && typeof storedNips === 'object' && !Array.isArray(storedNips)
-    ? { ...storedNips }
+export const buildUserNipState = (users, settingsRows = []) => {
+  const settingsByKey = new Map(settingsRows.map((setting) => [setting.key, setting.value]));
+  const legacyValue = settingsByKey.get(USER_NIP_SETTING_KEY);
+  const legacyNips = legacyValue && typeof legacyValue === 'object' && !Array.isArray(legacyValue)
+    ? legacyValue
     : {};
-  const existingNips = new Set(Object.values(nips).filter(Boolean));
-  let hasNewNips = false;
+  const nips = {};
+  const migrationSettings = [];
 
   users.forEach((user) => {
-    if (Object.prototype.hasOwnProperty.call(nips, user.id)) return;
+    const settingKey = getUserNipSettingKey(user.id);
 
-    const temporaryNip = generateTemporaryNip(existingNips);
-    nips[user.id] = temporaryNip;
-    existingNips.add(temporaryNip);
-    hasNewNips = true;
+    if (settingsByKey.has(settingKey)) {
+      nips[user.id] = normalizeNip(settingsByKey.get(settingKey));
+      return;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(legacyNips, user.id)) {
+      const nip = normalizeNip(legacyNips[user.id]);
+      nips[user.id] = nip;
+      migrationSettings.push({ key: settingKey, value: nip || '' });
+      return;
+    }
+
+    nips[user.id] = null;
   });
 
-  return { nips, hasNewNips };
+  return {
+    nips,
+    migrationSettings,
+    kepalaUnit: settingsByKey.get(KEPALA_UNIT_SETTING_KEY) || null,
+  };
+};
+
+export const findDuplicateNipUserId = (userNips, currentUserId, nip) => {
+  const normalizedNip = normalizeNip(nip);
+  if (!normalizedNip) return null;
+
+  const duplicate = Object.entries(userNips).find(([userId, storedNip]) => (
+    userId !== String(currentUserId) && normalizeNip(storedNip) === normalizedNip
+  ));
+
+  return duplicate?.[0] || null;
 };
 
 export const getUpdatedKepalaUnit = (kepalaUnit, userNips) => {

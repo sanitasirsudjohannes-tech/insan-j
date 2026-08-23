@@ -9,10 +9,12 @@ import PenggunaTab from '../components/kelola-admin/PenggunaTab';
 import RuanganTab from '../components/kelola-admin/RuanganTab';
 import PengaturanTab from '../components/kelola-admin/PengaturanTab';
 import {
-  createInitialUserNipMap,
+  buildUserNipState,
+  findDuplicateNipUserId,
   getUpdatedKepalaUnit,
+  getUserNipSettingKey,
+  getUserNipSettingKeys,
   KEPALA_UNIT_SETTING_KEY,
-  USER_NIP_SETTING_KEY,
 } from '../lib/userNipSettings';
 
 const MySwal = withReactContent(Swal);
@@ -35,6 +37,7 @@ export default function KelolaAdmin() {
   const [savingKepalaUnit, setSavingKepalaUnit] = useState(false);
   const [userNips, setUserNips] = useState({});
   const [savingNipId, setSavingNipId] = useState(null);
+  const [settingsReady, setSettingsReady] = useState(false);
 
   // Ruangan Management State
   const [ruanganList, setRuanganList] = useState([]);
@@ -57,56 +60,80 @@ export default function KelolaAdmin() {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setSettingsReady(false);
     try {
       const { data, error: err } = await supabase
         .from('profiles')
         .select('id, username, nama, role')
         .order('nama', { ascending: true });
 
-      if (err) throw new Error(err.message);
+      if (err) throw new Error(`Gagal memuat daftar pengguna: ${err.message}`);
 
       const profiles = data || [];
       setUsers(profiles);
 
-      const [storedNips, storedKepalaUnit] = await Promise.all([
-        getSetting(USER_NIP_SETTING_KEY, {}),
-        getSetting(KEPALA_UNIT_SETTING_KEY, null),
-      ]);
-      const { nips, hasNewNips } = createInitialUserNipMap(profiles, storedNips);
-      const updatedKepalaUnit = getUpdatedKepalaUnit(storedKepalaUnit, nips);
-      const kepalaNipChanged = Boolean(storedKepalaUnit)
-        && updatedKepalaUnit.nip !== (storedKepalaUnit.nip || '');
+      const settingKeys = getUserNipSettingKeys(profiles);
+      const { data: storedSettings, error: readError } = await supabase
+        .from('app_settings')
+        .select('key, value')
+        .in('key', settingKeys);
 
-      if (hasNewNips || kepalaNipChanged) {
-        const settings = [];
-
-        if (hasNewNips) {
-          settings.push({ key: USER_NIP_SETTING_KEY, value: nips });
-        }
-
-        if (kepalaNipChanged) {
-          settings.push({ key: KEPALA_UNIT_SETTING_KEY, value: updatedKepalaUnit });
-        }
-
-        const { error: settingError } = await supabase
-          .from('app_settings')
-          .upsert(settings, { onConflict: 'key' });
-
-        if (settingError) throw settingError;
+      if (readError) {
+        throw new Error(`Pengaturan NIP gagal dibaca dari database: ${readError.message}`);
       }
 
-      localStorage.setItem(`insan_j_setting_${USER_NIP_SETTING_KEY}`, JSON.stringify(nips));
-      setUserNips(nips);
-      setKepalaUnit(updatedKepalaUnit);
+      let currentState = buildUserNipState(profiles, storedSettings || []);
+
+      if (currentState.migrationSettings.length > 0) {
+        const { error: migrationError } = await supabase
+          .from('app_settings')
+          .upsert(currentState.migrationSettings, {
+            onConflict: 'key',
+            ignoreDuplicates: true,
+          });
+
+        if (migrationError) {
+          throw new Error(`Migrasi NIP lama gagal disimpan: ${migrationError.message}`);
+        }
+
+        const { data: migratedSettings, error: rereadError } = await supabase
+          .from('app_settings')
+          .select('key, value')
+          .in('key', settingKeys);
+
+        if (rereadError) {
+          throw new Error(`Pengaturan NIP gagal diverifikasi: ${rereadError.message}`);
+        }
+
+        currentState = buildUserNipState(profiles, migratedSettings || []);
+      }
+
+      const updatedKepalaUnit = getUpdatedKepalaUnit(currentState.kepalaUnit, currentState.nips);
+      const kepalaNipChanged = Boolean(currentState.kepalaUnit)
+        && updatedKepalaUnit.nip !== (currentState.kepalaUnit.nip || '');
 
       if (kepalaNipChanged) {
-        localStorage.setItem(
-          `insan_j_setting_${KEPALA_UNIT_SETTING_KEY}`,
-          JSON.stringify(updatedKepalaUnit)
-        );
+        const { error: settingError } = await supabase
+          .from('app_settings')
+          .upsert({ key: KEPALA_UNIT_SETTING_KEY, value: updatedKepalaUnit }, { onConflict: 'key' });
+
+        if (settingError) {
+          throw new Error(`Sinkronisasi NIP Kepala Unit gagal: ${settingError.message}`);
+        }
       }
+
+      Object.entries(currentState.nips).forEach(([userId, nip]) => {
+        localStorage.setItem(`insan_j_setting_${getUserNipSettingKey(userId)}`, JSON.stringify(nip));
+      });
+      localStorage.setItem(
+        `insan_j_setting_${KEPALA_UNIT_SETTING_KEY}`,
+        JSON.stringify(updatedKepalaUnit)
+      );
+      setUserNips(currentState.nips);
+      setKepalaUnit(updatedKepalaUnit);
+      setSettingsReady(true);
     } catch (err) {
-      setError('Gagal memuat data pengguna: ' + err.message);
+      setError(err.message || 'Gagal memuat data pengguna dan pengaturan NIP.');
     } finally {
       setLoading(false);
     }
@@ -140,18 +167,32 @@ export default function KelolaAdmin() {
   }, [isAdmin, fetchUsers, fetchRuangan]);
 
   const handleSetKepalaUnit = async (userId) => {
-    const selectedUser = users.find((item) => item.id === userId);
-    const nextKepalaUnit = selectedUser
-      ? {
-          userId: selectedUser.id,
-          nama: selectedUser.nama,
-          nip: userNips[selectedUser.id] || '',
-        }
-      : null;
+    if (!settingsReady || savingNipId) return;
 
+    const selectedUser = users.find((item) => item.id === userId);
     setSavingKepalaUnit(true);
 
     try {
+      let nextKepalaUnit = null;
+
+      if (selectedUser) {
+        const { data: nipSetting, error: nipReadError } = await supabase
+          .from('app_settings')
+          .select('value')
+          .eq('key', getUserNipSettingKey(selectedUser.id))
+          .maybeSingle();
+
+        if (nipReadError) {
+          throw new Error(`NIP Kepala Unit gagal dibaca: ${nipReadError.message}`);
+        }
+
+        nextKepalaUnit = {
+          userId: selectedUser.id,
+          nama: selectedUser.nama,
+          nip: typeof nipSetting?.value === 'string' ? nipSetting.value : '',
+        };
+      }
+
       const { error: settingError } = await supabase
         .from('app_settings')
         .upsert({ key: KEPALA_UNIT_SETTING_KEY, value: nextKepalaUnit }, { onConflict: 'key' });
@@ -188,15 +229,34 @@ export default function KelolaAdmin() {
   };
 
   const persistUserNip = async (targetUser, nip) => {
+    if (!settingsReady || savingNipId || savingKepalaUnit) return;
+
     setSavingNipId(targetUser.id);
 
     try {
-      const nextNips = { ...userNips, [targetUser.id]: nip || null };
-      const isKepalaUnit = kepalaUnit?.userId === targetUser.id;
+      const { data: currentSettings, error: readError } = await supabase
+        .from('app_settings')
+        .select('key, value')
+        .in('key', getUserNipSettingKeys(users));
+
+      if (readError) {
+        throw new Error(`NIP terbaru gagal dibaca dari database: ${readError.message}`);
+      }
+
+      const currentState = buildUserNipState(users, currentSettings || []);
+      const duplicateUserId = findDuplicateNipUserId(currentState.nips, targetUser.id, nip);
+
+      if (duplicateUserId) {
+        const duplicateUser = users.find((item) => item.id === duplicateUserId);
+        throw new Error(`NIP tersebut sudah digunakan oleh ${duplicateUser?.nama || 'petugas lain'}.`);
+      }
+
+      const nextNips = { ...currentState.nips, [targetUser.id]: nip || null };
+      const isKepalaUnit = currentState.kepalaUnit?.userId === targetUser.id;
       const nextKepalaUnit = isKepalaUnit
-        ? getUpdatedKepalaUnit(kepalaUnit, nextNips)
-        : kepalaUnit;
-      const settings = [{ key: USER_NIP_SETTING_KEY, value: nextNips }];
+        ? getUpdatedKepalaUnit(currentState.kepalaUnit, nextNips)
+        : currentState.kepalaUnit;
+      const settings = [{ key: getUserNipSettingKey(targetUser.id), value: nip || '' }];
 
       if (isKepalaUnit) {
         settings.push({ key: KEPALA_UNIT_SETTING_KEY, value: nextKepalaUnit });
@@ -208,7 +268,10 @@ export default function KelolaAdmin() {
 
       if (settingError) throw settingError;
 
-      localStorage.setItem(`insan_j_setting_${USER_NIP_SETTING_KEY}`, JSON.stringify(nextNips));
+      localStorage.setItem(
+        `insan_j_setting_${getUserNipSettingKey(targetUser.id)}`,
+        JSON.stringify(nip || null)
+      );
       setUserNips(nextNips);
 
       if (isKepalaUnit) {
@@ -262,8 +325,17 @@ export default function KelolaAdmin() {
       cancelButtonText: 'Batal',
       confirmButtonColor: '#4f46e5',
       inputValidator: (input) => {
-        if (!/^\d{18}$/.test(String(input || '').trim())) {
+        const normalizedNip = String(input || '').trim();
+
+        if (!/^\d{18}$/.test(normalizedNip)) {
           return 'NIP harus terdiri dari tepat 18 angka.';
+        }
+
+        const duplicateUserId = findDuplicateNipUserId(userNips, targetUser.id, normalizedNip);
+
+        if (duplicateUserId) {
+          const duplicateUser = users.find((item) => item.id === duplicateUserId);
+          return `NIP sudah digunakan oleh ${duplicateUser?.nama || 'petugas lain'}.`;
         }
 
         return undefined;
@@ -490,6 +562,7 @@ export default function KelolaAdmin() {
             handleSetKepalaUnit={handleSetKepalaUnit}
             userNips={userNips}
             savingNipId={savingNipId}
+            settingsReady={settingsReady}
             handleEditNip={handleEditNip}
             handleDeleteNip={handleDeleteNip}
           />

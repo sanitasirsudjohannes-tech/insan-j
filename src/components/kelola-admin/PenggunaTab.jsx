@@ -14,6 +14,7 @@ export default function PenggunaTab({
   handleSetKepalaUnit,
   userNips,
   savingNipId,
+  settingsReady,
   handleEditNip,
   handleDeleteNip
 }) {
@@ -53,7 +54,7 @@ export default function PenggunaTab({
             aria-label="Pilih Kepala Unit Sanitasi"
             value={kepalaUnit?.userId || ''}
             onChange={(event) => handleSetKepalaUnit(event.target.value)}
-            disabled={loading || savingKepalaUnit}
+            disabled={loading || !settingsReady || savingKepalaUnit || Boolean(savingNipId)}
             className="w-full appearance-none rounded-xl border border-indigo-200 bg-white px-4 py-3 pr-10 text-sm font-semibold text-gray-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <option value="">-- Pilih Kepala Unit Sanitasi --</option>
@@ -69,7 +70,7 @@ export default function PenggunaTab({
         </div>
 
         <p className="mt-2 text-[11px] text-gray-500">
-          NIP sementara dapat diubah atau dihapus melalui daftar pengguna di bawah.
+          NIP diisi manual melalui daftar pengguna dan otomatis muncul pada tanda tangan Kepala Unit.
         </p>
       </div>
 
@@ -181,7 +182,7 @@ export default function PenggunaTab({
                         <button
                           type="button"
                           onClick={() => handleEditNip(u)}
-                          disabled={savingNipId === u.id}
+                          disabled={!settingsReady || Boolean(savingNipId) || savingKepalaUnit}
                           title={userNips[u.id] ? 'Ubah NIP' : 'Tambah NIP'}
                           className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700 transition hover:bg-indigo-200 disabled:opacity-50"
                         >
@@ -191,7 +192,7 @@ export default function PenggunaTab({
                           <button
                             type="button"
                             onClick={() => handleDeleteNip(u)}
-                            disabled={savingNipId === u.id}
+                            disabled={!settingsReady || Boolean(savingNipId) || savingKepalaUnit}
                             title="Hapus NIP"
                             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600 transition hover:bg-red-100 disabled:opacity-50"
                           >
@@ -263,7 +264,7 @@ export default function PenggunaTab({
                       <button
                         type="button"
                         onClick={() => handleEditNip(u)}
-                        disabled={savingNipId === u.id}
+                        disabled={!settingsReady || Boolean(savingNipId) || savingKepalaUnit}
                         aria-label={userNips[u.id] ? 'Ubah NIP' : 'Tambah NIP'}
                         className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-indigo-700 shadow-sm transition hover:bg-indigo-100 disabled:opacity-50"
                       >
@@ -273,7 +274,7 @@ export default function PenggunaTab({
                         <button
                           type="button"
                           onClick={() => handleDeleteNip(u)}
-                          disabled={savingNipId === u.id}
+                          disabled={!settingsReady || Boolean(savingNipId) || savingKepalaUnit}
                           aria-label="Hapus NIP"
                           className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-red-600 shadow-sm transition hover:bg-red-50 disabled:opacity-50"
                         >
