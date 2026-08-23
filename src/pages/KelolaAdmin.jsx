@@ -576,10 +576,21 @@ export default function KelolaAdmin() {
       setActiveTab('pengguna');
       return true;
     } catch (err) {
+      let errorMessage = err.message || 'Terjadi kesalahan saat membuat akun.';
+
+      if (err.context instanceof Response) {
+        try {
+          const responseBody = await err.context.clone().json();
+          errorMessage = responseBody?.error || errorMessage;
+        } catch {
+          // Pertahankan pesan bawaan jika respons bukan JSON.
+        }
+      }
+
       MySwal.fire({
         icon: 'error',
         title: 'Gagal Membuat Akun',
-        text: err.message || 'Terjadi kesalahan saat membuat akun.',
+        text: errorMessage,
         confirmButtonColor: '#dc2626',
       });
       return false;
