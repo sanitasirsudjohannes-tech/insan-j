@@ -18,7 +18,7 @@ export function buildKepalaUnitSignatureHTML(kepalaUnit) {
   const nama = kepalaUnit?.nama
     ? escapeHTML(kepalaUnit.nama)
     : '__________________________';
-  const nip = kepalaUnit?.nip
+  const nip = kepalaUnit?.nip && kepalaUnit?.nipVerified === true
     ? `<div class="nip">NIP. ${escapeHTML(kepalaUnit.nip)}</div>`
     : '';
 

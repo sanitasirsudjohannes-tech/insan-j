@@ -13,10 +13,12 @@ export default function PenggunaTab({
   savingKepalaUnit,
   handleSetKepalaUnit,
   userNips,
+  verifiedNips,
   savingNipId,
   settingsReady,
   handleEditNip,
-  handleDeleteNip
+  handleDeleteNip,
+  handleVerifyNip
 }) {
   const getRoleBadge = (role) => {
     const r = role?.toLowerCase();
@@ -44,7 +46,7 @@ export default function PenggunaTab({
           <div className="min-w-0">
             <h2 className="text-sm font-bold text-gray-900">Kepala Unit Sanitasi</h2>
             <p className="mt-0.5 text-xs leading-relaxed text-gray-600">
-              Nama dan NIP pengguna terpilih otomatis dicantumkan pada bagian tanda tangan laporan.
+              Nama Kepala Unit otomatis dicantumkan. NIP hanya muncul setelah diverifikasi.
             </p>
           </div>
         </div>
@@ -70,7 +72,7 @@ export default function PenggunaTab({
         </div>
 
         <p className="mt-2 text-[11px] text-gray-500">
-          NIP diisi manual melalui daftar pengguna dan otomatis muncul pada tanda tangan Kepala Unit.
+          Gunakan ikon centang untuk memverifikasi NIP lama sebelum mencetak dokumen.
         </p>
       </div>
 
@@ -171,9 +173,14 @@ export default function PenggunaTab({
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         {userNips[u.id] ? (
-                          <span className="whitespace-nowrap rounded-lg bg-indigo-50 px-2.5 py-1 font-mono text-xs font-semibold text-indigo-700">
-                            {userNips[u.id]}
-                          </span>
+                          <div className="flex min-w-0 flex-col gap-1">
+                            <span className="whitespace-nowrap rounded-lg bg-indigo-50 px-2.5 py-1 font-mono text-xs font-semibold text-indigo-700">
+                              {userNips[u.id]}
+                            </span>
+                            <span className={`text-[10px] font-semibold ${verifiedNips[u.id] ? 'text-emerald-600' : 'text-amber-600'}`}>
+                              {verifiedNips[u.id] ? 'Terverifikasi' : 'Belum diverifikasi'}
+                            </span>
+                          </div>
                         ) : (
                           <span className="whitespace-nowrap text-xs italic text-gray-400">
                             Belum ada NIP
@@ -188,6 +195,17 @@ export default function PenggunaTab({
                         >
                           <i className={`fas ${savingNipId === u.id ? 'fa-spinner fa-spin' : userNips[u.id] ? 'fa-pen' : 'fa-plus'} text-xs`}></i>
                         </button>
+                        {userNips[u.id] && !verifiedNips[u.id] && (
+                          <button
+                            type="button"
+                            onClick={() => handleVerifyNip(u)}
+                            disabled={!settingsReady || Boolean(savingNipId) || savingKepalaUnit}
+                            title="Verifikasi NIP"
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
+                          >
+                            <i className="fas fa-check text-xs"></i>
+                          </button>
+                        )}
                         {userNips[u.id] && (
                           <button
                             type="button"
@@ -205,8 +223,8 @@ export default function PenggunaTab({
                     <td className="px-6 py-4 text-center">
                       <button
                         onClick={() => handleResetPassword(u)}
-                        disabled={resettingId === u.id}
-                        title="Reset password ke bawaan"
+                        disabled={resettingId === u.id || u.id === user?.id}
+                        title={u.id === user?.id ? 'Ubah password sendiri melalui menu Akun' : 'Buat password sementara yang aman'}
                         className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-all shadow-sm active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         {resettingId === u.id ? (
@@ -253,9 +271,14 @@ export default function PenggunaTab({
                     <div className="min-w-0">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">NIP Petugas</p>
                       {userNips[u.id] ? (
-                        <p className="mt-1 break-all font-mono text-sm font-semibold text-indigo-700">
-                          {userNips[u.id]}
-                        </p>
+                        <>
+                          <p className="mt-1 break-all font-mono text-sm font-semibold text-indigo-700">
+                            {userNips[u.id]}
+                          </p>
+                          <p className={`mt-1 text-[10px] font-semibold ${verifiedNips[u.id] ? 'text-emerald-600' : 'text-amber-600'}`}>
+                            {verifiedNips[u.id] ? 'Terverifikasi' : 'Belum diverifikasi'}
+                          </p>
+                        </>
                       ) : (
                         <p className="mt-1 text-xs italic text-gray-400">Belum ada NIP</p>
                       )}
@@ -270,6 +293,17 @@ export default function PenggunaTab({
                       >
                         <i className={`fas ${savingNipId === u.id ? 'fa-spinner fa-spin' : userNips[u.id] ? 'fa-pen' : 'fa-plus'} text-sm`}></i>
                       </button>
+                      {userNips[u.id] && !verifiedNips[u.id] && (
+                        <button
+                          type="button"
+                          onClick={() => handleVerifyNip(u)}
+                          disabled={!settingsReady || Boolean(savingNipId) || savingKepalaUnit}
+                          aria-label="Verifikasi NIP"
+                          className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-emerald-700 shadow-sm transition hover:bg-emerald-50 disabled:opacity-50"
+                        >
+                          <i className="fas fa-check text-sm"></i>
+                        </button>
+                      )}
                       {userNips[u.id] && (
                         <button
                           type="button"
@@ -287,13 +321,13 @@ export default function PenggunaTab({
 
                 <button
                   onClick={() => handleResetPassword(u)}
-                  disabled={resettingId === u.id}
+                  disabled={resettingId === u.id || u.id === user?.id}
                   className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
                 >
                   {resettingId === u.id ? (
                     <><i className="fas fa-spinner fa-spin"></i>Mereset Password...</>
                   ) : (
-                    <><i className="fas fa-key"></i>Reset Password ke Bawaan</>
+                    <><i className="fas fa-key"></i>{u.id === user?.id ? 'Ubah Password di Menu Akun' : 'Buat Password Sementara'}</>
                   )}
                 </button>
               </div>

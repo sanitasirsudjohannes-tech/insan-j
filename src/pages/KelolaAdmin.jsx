@@ -9,21 +9,30 @@ import PenggunaTab from '../components/kelola-admin/PenggunaTab';
 import RuanganTab from '../components/kelola-admin/RuanganTab';
 import PengaturanTab from '../components/kelola-admin/PengaturanTab';
 import {
+  escapeAdminHTML,
+  generateSecureTemporaryPassword,
+  isVerifiedAdminProfile,
+} from '../lib/adminSecurity';
+import {
   buildUserNipState,
+  createUserNipSettingValue,
+  findActiveKepalaUnit,
   findDuplicateNipUserId,
   getUpdatedKepalaUnit,
   getUserNipSettingKey,
   getUserNipSettingKeys,
   KEPALA_UNIT_SETTING_KEY,
+  parseUserNipSetting,
 } from '../lib/userNipSettings';
 
 const MySwal = withReactContent(Swal);
-const DEFAULT_PASSWORD = '12345678';
 
 export default function KelolaAdmin() {
   const user = getCurrentUser();
   const navigate = useNavigate();
-  const isAdmin = user?.role?.toLowerCase() === 'admin';
+  const claimsAdmin = user?.role?.toLowerCase() === 'admin';
+  const [adminVerified, setAdminVerified] = useState(null);
+  const isAdmin = claimsAdmin && adminVerified === true;
 
   const [activeTab, setActiveTab] = useState('pengguna'); // 'pengguna' | 'ruangan' | 'pengaturan'
 
@@ -36,6 +45,7 @@ export default function KelolaAdmin() {
   const [kepalaUnit, setKepalaUnit] = useState(null);
   const [savingKepalaUnit, setSavingKepalaUnit] = useState(false);
   const [userNips, setUserNips] = useState({});
+  const [verifiedNips, setVerifiedNips] = useState({});
   const [savingNipId, setSavingNipId] = useState(null);
   const [settingsReady, setSettingsReady] = useState(false);
 
@@ -50,12 +60,49 @@ export default function KelolaAdmin() {
   const [formLimbahPadatEnabled, setFormLimbahPadatEnabled] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
 
-  // Guard: redirect non-admin
+  // Verifikasi sesi dan role dari Supabase; jangan percaya role pada localStorage saja.
   useEffect(() => {
-    if (!isAdmin) {
+    let active = true;
+
+    if (!claimsAdmin || !user?.id) {
+      setAdminVerified(false);
       navigate('/dashboard', { replace: true });
+      return undefined;
     }
-  }, [isAdmin, navigate]);
+
+    const verifyAdmin = async () => {
+      try {
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !authData?.user?.id) {
+          throw new Error('Sesi administrator tidak valid.');
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, role')
+          .eq('id', authData.user.id)
+          .single();
+
+        if (profileError || !isVerifiedAdminProfile(profile, authData.user.id, user.id)) {
+          throw new Error('Akun ini tidak memiliki hak administrator.');
+        }
+
+        if (active) setAdminVerified(true);
+      } catch (err) {
+        if (!active) return;
+        console.warn('Verifikasi administrator gagal:', err.message);
+        setAdminVerified(false);
+        navigate('/dashboard', { replace: true });
+      }
+    };
+
+    verifyAdmin();
+
+    return () => {
+      active = false;
+    };
+  }, [claimsAdmin, navigate, user?.id]);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -108,28 +155,39 @@ export default function KelolaAdmin() {
         currentState = buildUserNipState(profiles, migratedSettings || []);
       }
 
-      const updatedKepalaUnit = getUpdatedKepalaUnit(currentState.kepalaUnit, currentState.nips);
-      const kepalaNipChanged = Boolean(currentState.kepalaUnit)
-        && updatedKepalaUnit.nip !== (currentState.kepalaUnit.nip || '');
+      const activeKepalaProfile = findActiveKepalaUnit(currentState.kepalaUnit, profiles);
+      const updatedKepalaUnit = activeKepalaProfile
+        ? getUpdatedKepalaUnit(
+            { ...currentState.kepalaUnit, nama: activeKepalaProfile.nama },
+            currentState.nips,
+            currentState.verifiedNips
+          )
+        : null;
+      const kepalaChanged = JSON.stringify(updatedKepalaUnit)
+        !== JSON.stringify(currentState.kepalaUnit || null);
 
-      if (kepalaNipChanged) {
+      if (kepalaChanged) {
         const { error: settingError } = await supabase
           .from('app_settings')
           .upsert({ key: KEPALA_UNIT_SETTING_KEY, value: updatedKepalaUnit }, { onConflict: 'key' });
 
         if (settingError) {
-          throw new Error(`Sinkronisasi NIP Kepala Unit gagal: ${settingError.message}`);
+          throw new Error(`Validasi Kepala Unit gagal disimpan: ${settingError.message}`);
         }
       }
 
       Object.entries(currentState.nips).forEach(([userId, nip]) => {
-        localStorage.setItem(`insan_j_setting_${getUserNipSettingKey(userId)}`, JSON.stringify(nip));
+        localStorage.setItem(
+          `insan_j_setting_${getUserNipSettingKey(userId)}`,
+          JSON.stringify(createUserNipSettingValue(nip, currentState.verifiedNips[userId]))
+        );
       });
       localStorage.setItem(
         `insan_j_setting_${KEPALA_UNIT_SETTING_KEY}`,
         JSON.stringify(updatedKepalaUnit)
       );
       setUserNips(currentState.nips);
+      setVerifiedNips(currentState.verifiedNips);
       setKepalaUnit(updatedKepalaUnit);
       setSettingsReady(true);
     } catch (err) {
@@ -186,10 +244,12 @@ export default function KelolaAdmin() {
           throw new Error(`NIP Kepala Unit gagal dibaca: ${nipReadError.message}`);
         }
 
+        const nipData = parseUserNipSetting(nipSetting?.value);
         nextKepalaUnit = {
           userId: selectedUser.id,
           nama: selectedUser.nama,
-          nip: typeof nipSetting?.value === 'string' ? nipSetting.value : '',
+          nip: nipData.nip || '',
+          nipVerified: nipData.verified,
         };
       }
 
@@ -228,7 +288,7 @@ export default function KelolaAdmin() {
     }
   };
 
-  const persistUserNip = async (targetUser, nip) => {
+  const persistUserNip = async (targetUser, nip, verified = Boolean(nip)) => {
     if (!settingsReady || savingNipId || savingKepalaUnit) return;
 
     setSavingNipId(targetUser.id);
@@ -252,11 +312,16 @@ export default function KelolaAdmin() {
       }
 
       const nextNips = { ...currentState.nips, [targetUser.id]: nip || null };
+      const nextVerifiedNips = {
+        ...currentState.verifiedNips,
+        [targetUser.id]: Boolean(nip && verified),
+      };
       const isKepalaUnit = currentState.kepalaUnit?.userId === targetUser.id;
       const nextKepalaUnit = isKepalaUnit
-        ? getUpdatedKepalaUnit(currentState.kepalaUnit, nextNips)
+        ? getUpdatedKepalaUnit(currentState.kepalaUnit, nextNips, nextVerifiedNips)
         : currentState.kepalaUnit;
-      const settings = [{ key: getUserNipSettingKey(targetUser.id), value: nip || '' }];
+      const nextNipValue = createUserNipSettingValue(nip, verified);
+      const settings = [{ key: getUserNipSettingKey(targetUser.id), value: nextNipValue }];
 
       if (isKepalaUnit) {
         settings.push({ key: KEPALA_UNIT_SETTING_KEY, value: nextKepalaUnit });
@@ -270,9 +335,10 @@ export default function KelolaAdmin() {
 
       localStorage.setItem(
         `insan_j_setting_${getUserNipSettingKey(targetUser.id)}`,
-        JSON.stringify(nip || null)
+        JSON.stringify(nextNipValue)
       );
       setUserNips(nextNips);
+      setVerifiedNips(nextVerifiedNips);
 
       if (isKepalaUnit) {
         localStorage.setItem(
@@ -287,7 +353,7 @@ export default function KelolaAdmin() {
 
       MySwal.fire({
         icon: 'success',
-        title: nip ? 'NIP Berhasil Disimpan!' : 'NIP Berhasil Dihapus!',
+        title: nip ? 'NIP Berhasil Diverifikasi!' : 'NIP Berhasil Dihapus!',
         text: nip
           ? `NIP ${targetUser.nama} telah diperbarui.`
           : `NIP ${targetUser.nama} telah dikosongkan.`,
@@ -305,6 +371,24 @@ export default function KelolaAdmin() {
     } finally {
       setSavingNipId(null);
     }
+  };
+
+  const handleVerifyNip = async (targetUser) => {
+    const nip = userNips[targetUser.id];
+    if (!nip || verifiedNips[targetUser.id]) return;
+
+    const { isConfirmed } = await MySwal.fire({
+      title: 'Verifikasi NIP Petugas?',
+      text: `Pastikan NIP ${nip} benar-benar milik ${targetUser.nama}.`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Ya, NIP Sudah Benar',
+      cancelButtonText: 'Periksa Lagi',
+      confirmButtonColor: '#16a34a',
+    });
+
+    if (!isConfirmed) return;
+    await persistUserNip(targetUser, nip, true);
   };
 
   const handleEditNip = async (targetUser) => {
@@ -386,12 +470,18 @@ export default function KelolaAdmin() {
   };
 
   const handleResetPassword = async (targetUser) => {
+    if (targetUser.id === user?.id) {
+      MySwal.fire({
+        icon: 'info',
+        title: 'Gunakan Menu Akun',
+        text: 'Untuk mengubah password Anda sendiri, gunakan fitur Ganti Password pada menu Akun.',
+      });
+      return;
+    }
+
     const { isConfirmed } = await MySwal.fire({
       title: 'Reset Password?',
-      html: `Password akun <strong>${targetUser.nama}</strong> akan direset ke password bawaan.<br/><br/>
-             <div class="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-               <i class="fas fa-key mr-2"></i>Password baru: <strong class="font-mono text-base">${DEFAULT_PASSWORD}</strong>
-             </div>`,
+      text: `Password ${targetUser.nama} akan diganti dengan password sementara yang unik dan aman.`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#f59e0b',
@@ -410,9 +500,10 @@ export default function KelolaAdmin() {
     });
 
     try {
+      const temporaryPassword = generateSecureTemporaryPassword();
       const { error: rpcError } = await supabase.rpc('admin_reset_user_password', {
         target_user_id: targetUser.id,
-        new_password: DEFAULT_PASSWORD,
+        new_password: temporaryPassword,
       });
 
       if (rpcError) throw new Error(rpcError.message);
@@ -420,8 +511,9 @@ export default function KelolaAdmin() {
       await MySwal.fire({
         icon: 'success',
         title: 'Password Berhasil Direset!',
-        html: `Password <strong>${targetUser.nama}</strong> telah direset ke:<br/>
-               <span class="font-mono text-xl font-bold text-emerald-600 mt-2 block">${DEFAULT_PASSWORD}</span>`,
+        html: `Password sementara untuk <strong>${escapeAdminHTML(targetUser.nama)}</strong>:<br/>
+               <span class="font-mono text-xl font-bold text-emerald-600 mt-2 block">${escapeAdminHTML(temporaryPassword)}</span>
+               <p class="mt-3 text-xs text-gray-500">Sampaikan secara aman dan minta petugas menggantinya melalui menu Akun.</p>`,
         confirmButtonColor: '#10b981',
       });
     } catch (err) {
@@ -561,10 +653,12 @@ export default function KelolaAdmin() {
             savingKepalaUnit={savingKepalaUnit}
             handleSetKepalaUnit={handleSetKepalaUnit}
             userNips={userNips}
+            verifiedNips={verifiedNips}
             savingNipId={savingNipId}
             settingsReady={settingsReady}
             handleEditNip={handleEditNip}
             handleDeleteNip={handleDeleteNip}
+            handleVerifyNip={handleVerifyNip}
           />
         )}
 
