@@ -4,8 +4,15 @@ import { getCurrentUser } from '../lib/api';
 export default function Sidebar({ isOpen, onClose }) {
   const user = getCurrentUser();
   const isAdmin = user?.role?.toLowerCase() === 'admin';
+  const isMahasiswa = user?.role?.toLowerCase() === 'mahasiswa';
 
-  const navItems = [
+  const mahasiswaItems = [
+    { to: '/dashboard', label: 'Dashboard', icon: 'fas fa-th-large' },
+    { to: '/limbah-dihasilkan', label: 'Input Data Limbah', icon: 'fas fa-recycle' },
+    { to: '/akun', label: 'Setting Akun', icon: 'fas fa-cog' },
+  ];
+
+  const defaultItems = [
     { to: '/dashboard', label: 'Dashboard', icon: 'fas fa-th-large' },
     ...(!isAdmin ? [
       { to: '/limbah-dihasilkan', label: 'Limbah Dihasilkan', icon: 'fas fa-biohazard' },
@@ -19,6 +26,8 @@ export default function Sidebar({ isOpen, onClose }) {
     ...(isAdmin ? [{ to: '/kelola-admin', label: 'Kelola Pengguna', icon: 'fas fa-users-cog', adminOnly: true }] : []),
     { to: '/akun', label: 'Setting Akun', icon: 'fas fa-cog' },
   ];
+
+  const navItems = isMahasiswa ? mahasiswaItems : defaultItems;
 
   return (
     <>
@@ -101,7 +110,7 @@ export default function Sidebar({ isOpen, onClose }) {
                     : 'text-cyan-400'
                   }`}
               >
-                {user?.role || 'Petugas'}
+                {isMahasiswa ? 'Mahasiswa Praktik' : (user?.role || 'Petugas')}
               </p>
             </div>
           </div>

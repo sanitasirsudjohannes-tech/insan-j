@@ -6,6 +6,7 @@ import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { useNavigate } from 'react-router-dom';
 import PenggunaTab from '../components/kelola-admin/PenggunaTab';
+import TambahPenggunaTab from '../components/kelola-admin/TambahPenggunaTab';
 import RuanganTab from '../components/kelola-admin/RuanganTab';
 import PengaturanTab from '../components/kelola-admin/PengaturanTab';
 import {
@@ -34,7 +35,7 @@ export default function KelolaAdmin() {
   const [adminVerified, setAdminVerified] = useState(null);
   const isAdmin = claimsAdmin && adminVerified === true;
 
-  const [activeTab, setActiveTab] = useState('pengguna'); // 'pengguna' | 'ruangan' | 'pengaturan'
+  const [activeTab, setActiveTab] = useState('pengguna'); // 'pengguna' | 'tambah-pengguna' | 'ruangan' | 'pengaturan'
 
   // User Management State
   const [users, setUsers] = useState([]);
@@ -48,6 +49,7 @@ export default function KelolaAdmin() {
   const [verifiedNips, setVerifiedNips] = useState({});
   const [savingNipId, setSavingNipId] = useState(null);
   const [settingsReady, setSettingsReady] = useState(false);
+  const [creatingUser, setCreatingUser] = useState(false);
 
   // Ruangan Management State
   const [ruanganList, setRuanganList] = useState([]);
@@ -528,6 +530,64 @@ export default function KelolaAdmin() {
     }
   };
 
+  const handleCreateUser = async (form) => {
+    const username = form.username.trim().toLowerCase();
+    const nama = form.nama.trim();
+    const password = form.password;
+    const role = form.role?.toLowerCase();
+
+    if (!/^[a-z0-9._-]{3,32}$/.test(username)) {
+      MySwal.fire('Data Belum Valid', 'Username harus terdiri dari 3–32 karakter: huruf kecil, angka, titik, garis bawah, atau tanda hubung.', 'warning');
+      return false;
+    }
+
+    if (!['petugas', 'mahasiswa'].includes(role)) {
+      MySwal.fire('Data Belum Valid', 'Role pengguna tidak dikenali.', 'warning');
+      return false;
+    }
+
+    if (
+      password.length < 12
+      || !/[A-Z]/.test(password)
+      || !/[a-z]/.test(password)
+      || !/[0-9]/.test(password)
+      || !/[^a-zA-Z0-9]/.test(password)
+    ) {
+      MySwal.fire('Password Belum Aman', 'Gunakan minimal 12 karakter yang berisi huruf besar, huruf kecil, angka, dan simbol.', 'warning');
+      return false;
+    }
+
+    setCreatingUser(true);
+    try {
+      const { data, error: functionError } = await supabase.functions.invoke('admin-create-user', {
+        body: { nama, username, password, role },
+      });
+
+      if (functionError) throw functionError;
+      if (!data?.success) throw new Error(data?.error || 'Akun tidak berhasil dibuat.');
+
+      await fetchUsers();
+      await MySwal.fire({
+        icon: 'success',
+        title: 'Akun Berhasil Dibuat',
+        html: `Akun <strong>${escapeAdminHTML(nama)}</strong> dibuat sebagai <strong>${role === 'mahasiswa' ? 'Mahasiswa Praktik' : 'Petugas'}</strong>.<br/><span class="mt-2 block text-sm text-gray-500">Sampaikan password sementara secara langsung kepada pengguna.</span>`,
+        confirmButtonColor: '#4f46e5',
+      });
+      setActiveTab('pengguna');
+      return true;
+    } catch (err) {
+      MySwal.fire({
+        icon: 'error',
+        title: 'Gagal Membuat Akun',
+        text: err.message || 'Terjadi kesalahan saat membuat akun.',
+        confirmButtonColor: '#dc2626',
+      });
+      return false;
+    } finally {
+      setCreatingUser(false);
+    }
+  };
+
   const handleAddRuangan = async (e) => {
     e.preventDefault();
     if (!newRuanganName.trim()) return;
@@ -621,6 +681,12 @@ export default function KelolaAdmin() {
                 <i className="fas fa-users"></i> Pengguna ({users.length})
               </button>
               <button
+                onClick={() => setActiveTab('tambah-pengguna')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${activeTab === 'tambah-pengguna' ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-100 hover:text-white'}`}
+              >
+                <i className="fas fa-user-plus"></i> Tambah Pengguna
+              </button>
+              <button
                 onClick={() => setActiveTab('ruangan')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${activeTab === 'ruangan' ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-100 hover:text-white'}`}
               >
@@ -662,7 +728,15 @@ export default function KelolaAdmin() {
           />
         )}
 
-        {/* TAB 2: MASTER RUANGAN */}
+        {/* TAB 2: TAMBAH PENGGUNA */}
+        {activeTab === 'tambah-pengguna' && (
+          <TambahPenggunaTab
+            onSubmit={handleCreateUser}
+            submitting={creatingUser}
+          />
+        )}
+
+        {/* TAB 3: MASTER RUANGAN */}
         {activeTab === 'ruangan' && (
           <RuanganTab
             filteredRuangan={filteredRuangan}
@@ -678,7 +752,7 @@ export default function KelolaAdmin() {
           />
         )}
 
-        {/* TAB 3: PENGATURAN */}
+        {/* TAB 4: PENGATURAN */}
         {activeTab === 'pengaturan' && (
           <PengaturanTab
             formLimbahPadatEnabled={formLimbahPadatEnabled}

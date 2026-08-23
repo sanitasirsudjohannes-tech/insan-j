@@ -29,6 +29,13 @@ export default function PenggunaTab({
         </span>
       );
     }
+    if (r === 'mahasiswa') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-cyan-100 text-cyan-700 border border-cyan-200">
+          <i className="fas fa-user-graduate text-[10px]"></i> Mahasiswa Praktik
+        </span>
+      );
+    }
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700 border border-blue-200">
         <i className="fas fa-user text-[10px]"></i> Petugas

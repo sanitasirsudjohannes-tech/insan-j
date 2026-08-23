@@ -4,7 +4,7 @@ import Swal from 'sweetalert2';
 import { useEffect } from 'react';
 
 // eslint-disable-next-react/prop-types
-export default function ProtectedRoute({ children, requiredRole }) {
+export default function ProtectedRoute({ children, requiredRole, allowedRoles, deniedRoles }) {
   const user = getCurrentUser();
   const location = useLocation();
 
@@ -12,7 +12,15 @@ export default function ProtectedRoute({ children, requiredRole }) {
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
-  if (requiredRole && (!user.role || user.role.toLowerCase() !== requiredRole)) {
+  const normalizedRole = user.role?.trim().toLowerCase();
+  const normalizedAllowedRoles = allowedRoles?.map((role) => role.toLowerCase());
+  const normalizedDeniedRoles = deniedRoles?.map((role) => role.toLowerCase());
+  const roleDenied = requiredRole
+    ? normalizedRole !== requiredRole.toLowerCase()
+    : (normalizedAllowedRoles && !normalizedAllowedRoles.includes(normalizedRole))
+      || normalizedDeniedRoles?.includes(normalizedRole);
+
+  if (roleDenied) {
     // We cannot use hooks conditionally, so return a redirect component
     return <RoleCheckRedirect />;
   }
@@ -25,7 +33,7 @@ function RoleCheckRedirect() {
     Swal.fire({
       icon: 'error',
       title: 'Akses Ditolak',
-      text: 'Halaman ini hanya untuk admin.',
+      text: 'Akun Anda tidak memiliki izin untuk membuka halaman ini.',
       confirmButtonColor: '#3b82f6'
     });
   }, []);

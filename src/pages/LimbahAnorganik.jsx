@@ -43,6 +43,7 @@ const compareAnorganikRows = (a, b) => {
 
 export default function LimbahAnorganik({ embedded = false }) {
   const user = getCurrentUser();
+  const isMahasiswa = user?.role?.toLowerCase() === 'mahasiswa';
   const [data, setData] = useState([]);
   const [ruanganList, setRuanganList] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -124,7 +125,7 @@ export default function LimbahAnorganik({ embedded = false }) {
 
         let queryData = supabase
           .from('limbah_anorganik')
-          .select('id, tanggal, ruangan, infus, jerigen, kertas, kardus, botol_mineral, bayclin_dll, keterangan, petugas, waktu_input')
+          .select('id, tanggal, ruangan, infus, jerigen, kertas, kardus, botol_mineral, bayclin_dll, keterangan, petugas, waktu_input, created_by')
           .order('tanggal', { ascending: false })
           .order('waktu_input', { ascending: false })
           .range(from, to);
@@ -212,11 +213,12 @@ export default function LimbahAnorganik({ embedded = false }) {
       keterangan: formData.keterangan || '',
       waktu_input: new Date().toISOString(),
     };
+    const insertPayload = { ...payload, created_by: user?.id };
 
     try {
       if (!navigator.onLine) {
         saveToOfflineQueue('limbah_anorganik', formData.id ? 'update' : 'insert',
-          formData.id ? { ...payload, id: formData.id } : payload,
+          formData.id ? { ...payload, id: formData.id } : insertPayload,
           `Input Limbah Anorganik ${formData.ruangan}`);
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Data telah disimpan di HP (Draft). Akan otomatis dikirim saat terhubung internet.', confirmButtonColor: '#0891b2' });
       } else {
@@ -225,7 +227,7 @@ export default function LimbahAnorganik({ embedded = false }) {
           if (error) throw error;
           MySwal.fire('Berhasil', 'Data limbah anorganik berhasil diubah', 'success');
         } else {
-          const { error } = await supabase.from('limbah_anorganik').insert([payload]);
+          const { error } = await supabase.from('limbah_anorganik').insert([insertPayload]);
           if (error) throw error;
           MySwal.fire('Berhasil', 'Data limbah anorganik berhasil ditambahkan', 'success');
         }
@@ -235,7 +237,7 @@ export default function LimbahAnorganik({ embedded = false }) {
     } catch (error) {
       if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
         saveToOfflineQueue('limbah_anorganik', formData.id ? 'update' : 'insert',
-          formData.id ? { ...payload, id: formData.id } : payload,
+          formData.id ? { ...payload, id: formData.id } : insertPayload,
           `Input Limbah Anorganik ${formData.ruangan}`);
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Jaringan terputus. Data telah disimpan di HP (Draft) dan akan dikirim otomatis.', confirmButtonColor: '#0891b2' });
         setFormData(emptyForm);
@@ -420,7 +422,7 @@ export default function LimbahAnorganik({ embedded = false }) {
             setPage={setPage}
             onEdit={handleEdit}
             onDelete={handleDelete}
-            onPrint={handlePrint}
+            onPrint={isMahasiswa ? undefined : handlePrint}
           />
           <Pagination
             page={page}

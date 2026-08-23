@@ -1,5 +1,6 @@
 import { useState, Suspense, lazy } from 'react';
 import AppLayout from '../components/AppLayout';
+import { getCurrentUser } from '../lib/api';
 
 const LimbahPadat = lazy(() => import('./LimbahPadat'));
 const LimbahRuangan = lazy(() => import('./LimbahRuangan'));
@@ -37,7 +38,10 @@ const COLOR = {
 };
 
 export default function LimbahDihasilkan() {
+  const user = getCurrentUser();
+  const isMahasiswa = user?.role?.toLowerCase() === 'mahasiswa';
   const [activeTab, setActiveTab] = useState('ruangan');
+  const visibleTabs = isMahasiswa ? TABS.filter((tab) => tab.id !== 'padat') : TABS;
 
   return (
     <AppLayout title="Limbah Dihasilkan">
@@ -47,7 +51,7 @@ export default function LimbahDihasilkan() {
             <i className="fas fa-biohazard text-amber-400 text-[10px]" />
           </div>
           <div className="flex gap-1.5 overflow-x-auto">
-            {TABS.map(tab => {
+            {visibleTabs.map(tab => {
               const isActive = activeTab === tab.id;
               const c = COLOR[tab.color];
               return (
@@ -69,11 +73,13 @@ export default function LimbahDihasilkan() {
         </div>
       </div>
 
-      <div className={activeTab === 'padat' ? 'block' : 'hidden'}>
-        <Suspense fallback={<LoadingTab />}>
-          <LimbahPadat embedded />
-        </Suspense>
-      </div>
+      {!isMahasiswa && (
+        <div className={activeTab === 'padat' ? 'block' : 'hidden'}>
+          <Suspense fallback={<LoadingTab />}>
+            <LimbahPadat embedded />
+          </Suspense>
+        </div>
+      )}
       <div className={activeTab === 'ruangan' ? 'block' : 'hidden'}>
         <Suspense fallback={<LoadingTab />}>
           <LimbahRuangan embedded />

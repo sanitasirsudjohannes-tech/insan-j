@@ -44,6 +44,7 @@ const EMPTY_FORM = {
 
 export default function LimbahRuangan({ embedded = false }) {
   const user = getCurrentUser();
+  const isMahasiswa = user?.role?.toLowerCase() === 'mahasiswa';
   const [data, setData] = useState([]);
   const [ruanganList, setRuanganList] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -107,7 +108,7 @@ export default function LimbahRuangan({ embedded = false }) {
         const to = Math.max(requiredRows + safetyRows - 1, ITEMS_PER_PAGE - 1);
 
         let qData = supabase.from('limbah_ruangan')
-          .select('id, tanggal, ruangan, infeksius, jarum_suntik, botol_obat, sitotoksik, petugas, keterangan, waktu_input')
+          .select('id, tanggal, ruangan, infeksius, jarum_suntik, botol_obat, sitotoksik, petugas, keterangan, waktu_input, created_by')
           .order('tanggal', { ascending: false })
           .order('waktu_input', { ascending: false })
           .range(0, to);
@@ -221,13 +222,14 @@ export default function LimbahRuangan({ embedded = false }) {
       keterangan: formData.keterangan || '',
       waktu_input: new Date().toISOString()
     }));
+    const insertPayloads = payloads.map((payload) => ({ ...payload, created_by: user?.id }));
 
     try {
       if (!navigator.onLine) {
         if (formData.id) {
           saveToOfflineQueue('limbah_ruangan', 'update', { ...payloads[0], id: formData.id }, `Update Limbah Ruangan ${formData.ruangan}`);
         } else {
-          payloads.forEach(p => saveToOfflineQueue('limbah_ruangan', 'insert', p, `Input Limbah Ruangan ${formData.ruangan}`));
+          insertPayloads.forEach(p => saveToOfflineQueue('limbah_ruangan', 'insert', p, `Input Limbah Ruangan ${formData.ruangan}`));
         }
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Data tersimpan di HP dan akan dikirim otomatis saat online.', confirmButtonColor: '#059669' });
       } else if (formData.id) {
@@ -235,7 +237,7 @@ export default function LimbahRuangan({ embedded = false }) {
         if (error) throw error;
         MySwal.fire('Berhasil', 'Data limbah ruangan berhasil diubah', 'success');
       } else {
-        const { error } = await supabase.from('limbah_ruangan').insert(payloads);
+        const { error } = await supabase.from('limbah_ruangan').insert(insertPayloads);
         if (error) throw error;
         MySwal.fire('Berhasil', `Data berhasil disimpan untuk ${totalHari} hari (dibagi rata)`, `success`);
       }
@@ -253,7 +255,7 @@ export default function LimbahRuangan({ embedded = false }) {
         if (formData.id) {
           saveToOfflineQueue('limbah_ruangan', 'update', { ...payloads[0], id: formData.id }, `Update Limbah Ruangan ${formData.ruangan}`);
         } else {
-          payloads.forEach(p => saveToOfflineQueue('limbah_ruangan', 'insert', p, `Input Limbah Ruangan ${formData.ruangan}`));
+          insertPayloads.forEach(p => saveToOfflineQueue('limbah_ruangan', 'insert', p, `Input Limbah Ruangan ${formData.ruangan}`));
         }
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Jaringan terputus. Data tersimpan di HP.', confirmButtonColor: '#059669' });
 
@@ -436,13 +438,15 @@ export default function LimbahRuangan({ embedded = false }) {
         />
 
         {/* Toolbar */}
-        <RuanganImportExportToolbar
-          importing={importing}
-          importInputRef={importInputRef}
-          onDownloadTemplate={handleDownloadTemplate}
-          onImportFile={handleImportFile}
-          onExportExcel={handleExportExcel}
-        />
+        {!isMahasiswa && (
+          <RuanganImportExportToolbar
+            importing={importing}
+            importInputRef={importInputRef}
+            onDownloadTemplate={handleDownloadTemplate}
+            onImportFile={handleImportFile}
+            onExportExcel={handleExportExcel}
+          />
+        )}
 
         {/* Tabel */}
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
@@ -463,7 +467,7 @@ export default function LimbahRuangan({ embedded = false }) {
             setPage={setPage}
             onEdit={handleEdit}
             onDelete={handleDelete}
-            onPrint={handlePrint}
+            onPrint={isMahasiswa ? undefined : handlePrint}
           />
           <Pagination page={page} totalPages={totalPages} onPageChange={setPage} accentColor="emerald" />
         </div>

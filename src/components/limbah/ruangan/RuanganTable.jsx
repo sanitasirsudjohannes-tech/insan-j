@@ -143,12 +143,14 @@ export default function RuanganTable({
           </button>
 
           {/* Print button */}
-          <button
-            onClick={onPrint}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl transition text-xs font-semibold flex items-center gap-1.5 shadow-sm"
-          >
-            <i className="fas fa-print" /> Cetak
-          </button>
+          {onPrint && (
+            <button
+              onClick={onPrint}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl transition text-xs font-semibold flex items-center gap-1.5 shadow-sm"
+            >
+              <i className="fas fa-print" /> Cetak
+            </button>
+          )}
         </div>
       </div>
 
