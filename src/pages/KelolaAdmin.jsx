@@ -8,6 +8,12 @@ import { useNavigate } from 'react-router-dom';
 import PenggunaTab from '../components/kelola-admin/PenggunaTab';
 import RuanganTab from '../components/kelola-admin/RuanganTab';
 import PengaturanTab from '../components/kelola-admin/PengaturanTab';
+import {
+  createInitialUserNipMap,
+  getUpdatedKepalaUnit,
+  KEPALA_UNIT_SETTING_KEY,
+  USER_NIP_SETTING_KEY,
+} from '../lib/userNipSettings';
 
 const MySwal = withReactContent(Swal);
 const DEFAULT_PASSWORD = '12345678';
@@ -27,6 +33,8 @@ export default function KelolaAdmin() {
   const [resettingId, setResettingId] = useState(null);
   const [kepalaUnit, setKepalaUnit] = useState(null);
   const [savingKepalaUnit, setSavingKepalaUnit] = useState(false);
+  const [userNips, setUserNips] = useState({});
+  const [savingNipId, setSavingNipId] = useState(null);
 
   // Ruangan Management State
   const [ruanganList, setRuanganList] = useState([]);
@@ -56,7 +64,47 @@ export default function KelolaAdmin() {
         .order('nama', { ascending: true });
 
       if (err) throw new Error(err.message);
-      setUsers(data || []);
+
+      const profiles = data || [];
+      setUsers(profiles);
+
+      const [storedNips, storedKepalaUnit] = await Promise.all([
+        getSetting(USER_NIP_SETTING_KEY, {}),
+        getSetting(KEPALA_UNIT_SETTING_KEY, null),
+      ]);
+      const { nips, hasNewNips } = createInitialUserNipMap(profiles, storedNips);
+      const updatedKepalaUnit = getUpdatedKepalaUnit(storedKepalaUnit, nips);
+      const kepalaNipChanged = Boolean(storedKepalaUnit)
+        && updatedKepalaUnit.nip !== (storedKepalaUnit.nip || '');
+
+      if (hasNewNips || kepalaNipChanged) {
+        const settings = [];
+
+        if (hasNewNips) {
+          settings.push({ key: USER_NIP_SETTING_KEY, value: nips });
+        }
+
+        if (kepalaNipChanged) {
+          settings.push({ key: KEPALA_UNIT_SETTING_KEY, value: updatedKepalaUnit });
+        }
+
+        const { error: settingError } = await supabase
+          .from('app_settings')
+          .upsert(settings, { onConflict: 'key' });
+
+        if (settingError) throw settingError;
+      }
+
+      localStorage.setItem(`insan_j_setting_${USER_NIP_SETTING_KEY}`, JSON.stringify(nips));
+      setUserNips(nips);
+      setKepalaUnit(updatedKepalaUnit);
+
+      if (kepalaNipChanged) {
+        localStorage.setItem(
+          `insan_j_setting_${KEPALA_UNIT_SETTING_KEY}`,
+          JSON.stringify(updatedKepalaUnit)
+        );
+      }
     } catch (err) {
       setError('Gagal memuat data pengguna: ' + err.message);
     } finally {
@@ -88,7 +136,6 @@ export default function KelolaAdmin() {
       fetchRuangan();
       // Baca setting form limbah padat
       getSetting('form_limbah_padat_enabled', true).then(val => setFormLimbahPadatEnabled(val));
-      getSetting('kepala_unit_sanitasi', null).then(setKepalaUnit);
     }
   }, [isAdmin, fetchUsers, fetchRuangan]);
 
@@ -98,7 +145,7 @@ export default function KelolaAdmin() {
       ? {
           userId: selectedUser.id,
           nama: selectedUser.nama,
-          nip: selectedUser.nip || '',
+          nip: userNips[selectedUser.id] || '',
         }
       : null;
 
@@ -107,15 +154,15 @@ export default function KelolaAdmin() {
     try {
       const { error: settingError } = await supabase
         .from('app_settings')
-        .upsert({ key: 'kepala_unit_sanitasi', value: nextKepalaUnit }, { onConflict: 'key' });
+        .upsert({ key: KEPALA_UNIT_SETTING_KEY, value: nextKepalaUnit }, { onConflict: 'key' });
 
       if (settingError) throw settingError;
 
-      localStorage.setItem('insan_j_setting_kepala_unit_sanitasi', JSON.stringify(nextKepalaUnit));
+      localStorage.setItem(`insan_j_setting_${KEPALA_UNIT_SETTING_KEY}`, JSON.stringify(nextKepalaUnit));
       setKepalaUnit(nextKepalaUnit);
 
       window.dispatchEvent(new CustomEvent('app-setting-changed', {
-        detail: { key: 'kepala_unit_sanitasi', value: nextKepalaUnit },
+        detail: { key: KEPALA_UNIT_SETTING_KEY, value: nextKepalaUnit },
       }));
 
       MySwal.fire({
@@ -138,6 +185,108 @@ export default function KelolaAdmin() {
     } finally {
       setSavingKepalaUnit(false);
     }
+  };
+
+  const persistUserNip = async (targetUser, nip) => {
+    setSavingNipId(targetUser.id);
+
+    try {
+      const nextNips = { ...userNips, [targetUser.id]: nip || null };
+      const isKepalaUnit = kepalaUnit?.userId === targetUser.id;
+      const nextKepalaUnit = isKepalaUnit
+        ? getUpdatedKepalaUnit(kepalaUnit, nextNips)
+        : kepalaUnit;
+      const settings = [{ key: USER_NIP_SETTING_KEY, value: nextNips }];
+
+      if (isKepalaUnit) {
+        settings.push({ key: KEPALA_UNIT_SETTING_KEY, value: nextKepalaUnit });
+      }
+
+      const { error: settingError } = await supabase
+        .from('app_settings')
+        .upsert(settings, { onConflict: 'key' });
+
+      if (settingError) throw settingError;
+
+      localStorage.setItem(`insan_j_setting_${USER_NIP_SETTING_KEY}`, JSON.stringify(nextNips));
+      setUserNips(nextNips);
+
+      if (isKepalaUnit) {
+        localStorage.setItem(
+          `insan_j_setting_${KEPALA_UNIT_SETTING_KEY}`,
+          JSON.stringify(nextKepalaUnit)
+        );
+        setKepalaUnit(nextKepalaUnit);
+        window.dispatchEvent(new CustomEvent('app-setting-changed', {
+          detail: { key: KEPALA_UNIT_SETTING_KEY, value: nextKepalaUnit },
+        }));
+      }
+
+      MySwal.fire({
+        icon: 'success',
+        title: nip ? 'NIP Berhasil Disimpan!' : 'NIP Berhasil Dihapus!',
+        text: nip
+          ? `NIP ${targetUser.nama} telah diperbarui.`
+          : `NIP ${targetUser.nama} telah dikosongkan.`,
+        timer: 1800,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end',
+      });
+    } catch (err) {
+      MySwal.fire({
+        icon: 'error',
+        title: 'Gagal Menyimpan NIP',
+        text: err.message || 'NIP belum berhasil disimpan ke pengaturan aplikasi.',
+      });
+    } finally {
+      setSavingNipId(null);
+    }
+  };
+
+  const handleEditNip = async (targetUser) => {
+    const currentNip = userNips[targetUser.id] || '';
+    const { isConfirmed, value } = await MySwal.fire({
+      title: currentNip ? 'Ubah NIP Petugas' : 'Tambah NIP Petugas',
+      text: targetUser.nama,
+      input: 'text',
+      inputValue: currentNip,
+      inputPlaceholder: 'Masukkan NIP 18 digit',
+      inputAttributes: {
+        maxlength: '18',
+        inputmode: 'numeric',
+        autocomplete: 'off',
+      },
+      showCancelButton: true,
+      confirmButtonText: '<i class="fas fa-save mr-2"></i>Simpan NIP',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#4f46e5',
+      inputValidator: (input) => {
+        if (!/^\d{18}$/.test(String(input || '').trim())) {
+          return 'NIP harus terdiri dari tepat 18 angka.';
+        }
+
+        return undefined;
+      },
+    });
+
+    if (!isConfirmed) return;
+    await persistUserNip(targetUser, String(value).trim());
+  };
+
+  const handleDeleteNip = async (targetUser) => {
+    const { isConfirmed } = await MySwal.fire({
+      title: 'Hapus NIP Petugas?',
+      text: `NIP ${targetUser.nama} akan dikosongkan dan dapat ditambahkan kembali.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Ya, Hapus NIP',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#dc2626',
+    });
+
+    if (!isConfirmed) return;
+    await persistUserNip(targetUser, null);
   };
 
   const handleToggleFormLimbahPadat = async (enabled) => {
@@ -272,7 +421,8 @@ export default function KelolaAdmin() {
     return (
       u.nama?.toLowerCase().includes(q) ||
       u.username?.toLowerCase().includes(q) ||
-      u.role?.toLowerCase().includes(q)
+      u.role?.toLowerCase().includes(q) ||
+      userNips[u.id]?.includes(q)
     );
   });
 
@@ -338,6 +488,10 @@ export default function KelolaAdmin() {
             kepalaUnit={kepalaUnit}
             savingKepalaUnit={savingKepalaUnit}
             handleSetKepalaUnit={handleSetKepalaUnit}
+            userNips={userNips}
+            savingNipId={savingNipId}
+            handleEditNip={handleEditNip}
+            handleDeleteNip={handleDeleteNip}
           />
         )}
 

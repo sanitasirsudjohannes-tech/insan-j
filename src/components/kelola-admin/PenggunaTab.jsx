@@ -11,7 +11,11 @@ export default function PenggunaTab({
   handleResetPassword,
   kepalaUnit,
   savingKepalaUnit,
-  handleSetKepalaUnit
+  handleSetKepalaUnit,
+  userNips,
+  savingNipId,
+  handleEditNip,
+  handleDeleteNip
 }) {
   const getRoleBadge = (role) => {
     const r = role?.toLowerCase();
@@ -39,7 +43,7 @@ export default function PenggunaTab({
           <div className="min-w-0">
             <h2 className="text-sm font-bold text-gray-900">Kepala Unit Sanitasi</h2>
             <p className="mt-0.5 text-xs leading-relaxed text-gray-600">
-              Nama pengguna terpilih akan otomatis dicantumkan pada bagian tanda tangan laporan.
+              Nama dan NIP pengguna terpilih otomatis dicantumkan pada bagian tanda tangan laporan.
             </p>
           </div>
         </div>
@@ -65,7 +69,7 @@ export default function PenggunaTab({
         </div>
 
         <p className="mt-2 text-[11px] text-gray-500">
-          NIP akan ditampilkan otomatis setelah tersedia pada data pengguna.
+          NIP sementara dapat diubah atau dihapus melalui daftar pengguna di bawah.
         </p>
       </div>
 
@@ -75,7 +79,7 @@ export default function PenggunaTab({
           <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
           <input
             type="text"
-            placeholder="Cari nama, username, atau role..."
+            placeholder="Cari nama, username, NIP, atau role..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition text-sm"
@@ -131,6 +135,7 @@ export default function PenggunaTab({
                   <th className="text-left px-6 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">#</th>
                   <th className="text-left px-6 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Nama</th>
                   <th className="text-left px-6 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Username</th>
+                  <th className="text-left px-6 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">NIP</th>
                   <th className="text-left px-6 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Role</th>
                   <th className="text-center px-6 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Aksi</th>
                 </tr>
@@ -161,6 +166,39 @@ export default function PenggunaTab({
                       <span className="font-mono text-gray-600 text-xs bg-gray-100 px-2.5 py-1 rounded-lg">
                         {u.username}
                       </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        {userNips[u.id] ? (
+                          <span className="whitespace-nowrap rounded-lg bg-indigo-50 px-2.5 py-1 font-mono text-xs font-semibold text-indigo-700">
+                            {userNips[u.id]}
+                          </span>
+                        ) : (
+                          <span className="whitespace-nowrap text-xs italic text-gray-400">
+                            Belum ada NIP
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleEditNip(u)}
+                          disabled={savingNipId === u.id}
+                          title={userNips[u.id] ? 'Ubah NIP' : 'Tambah NIP'}
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700 transition hover:bg-indigo-200 disabled:opacity-50"
+                        >
+                          <i className={`fas ${savingNipId === u.id ? 'fa-spinner fa-spin' : userNips[u.id] ? 'fa-pen' : 'fa-plus'} text-xs`}></i>
+                        </button>
+                        {userNips[u.id] && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteNip(u)}
+                            disabled={savingNipId === u.id}
+                            title="Hapus NIP"
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                          >
+                            <i className="fas fa-trash-alt text-xs"></i>
+                          </button>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4">{getRoleBadge(u.role)}</td>
                     <td className="px-6 py-4 text-center">
@@ -208,6 +246,44 @@ export default function PenggunaTab({
                   </div>
                   {getRoleBadge(u.role)}
                 </div>
+
+                <div className="mb-3 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">NIP Petugas</p>
+                      {userNips[u.id] ? (
+                        <p className="mt-1 break-all font-mono text-sm font-semibold text-indigo-700">
+                          {userNips[u.id]}
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-xs italic text-gray-400">Belum ada NIP</p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleEditNip(u)}
+                        disabled={savingNipId === u.id}
+                        aria-label={userNips[u.id] ? 'Ubah NIP' : 'Tambah NIP'}
+                        className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-indigo-700 shadow-sm transition hover:bg-indigo-100 disabled:opacity-50"
+                      >
+                        <i className={`fas ${savingNipId === u.id ? 'fa-spinner fa-spin' : userNips[u.id] ? 'fa-pen' : 'fa-plus'} text-sm`}></i>
+                      </button>
+                      {userNips[u.id] && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteNip(u)}
+                          disabled={savingNipId === u.id}
+                          aria-label="Hapus NIP"
+                          className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-red-600 shadow-sm transition hover:bg-red-50 disabled:opacity-50"
+                        >
+                          <i className="fas fa-trash-alt text-sm"></i>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 <button
                   onClick={() => handleResetPassword(u)}
                   disabled={resettingId === u.id}
