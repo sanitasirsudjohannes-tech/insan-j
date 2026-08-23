@@ -67,7 +67,7 @@ Deno.serve(async (request) => {
       return jsonResponse({ success: false, error: 'Username tidak valid.' }, 400);
     }
 
-    if (!['petugas', 'mahasiswa'].includes(role)) {
+    if (!['user', 'mahasiswa'].includes(role)) {
       return jsonResponse({ success: false, error: 'Role hanya boleh Petugas atau Mahasiswa Praktik.' }, 400);
     }
 

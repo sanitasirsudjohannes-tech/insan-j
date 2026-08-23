@@ -4,7 +4,7 @@ const INITIAL_FORM = {
   nama: '',
   username: '',
   password: '',
-  role: 'petugas',
+  role: 'user',
 };
 
 export default function TambahPenggunaTab({ onSubmit, submitting }) {
@@ -85,7 +85,7 @@ export default function TambahPenggunaTab({ onSubmit, submitting }) {
               onChange={handleChange}
               className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-sm font-semibold outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
             >
-              <option value="petugas">Petugas</option>
+              <option value="user">Petugas</option>
               <option value="mahasiswa">Mahasiswa Praktik</option>
             </select>
           </div>

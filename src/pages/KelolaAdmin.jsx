@@ -541,7 +541,7 @@ export default function KelolaAdmin() {
       return false;
     }
 
-    if (!['petugas', 'mahasiswa'].includes(role)) {
+    if (!['user', 'mahasiswa'].includes(role)) {
       MySwal.fire('Data Belum Valid', 'Role pengguna tidak dikenali.', 'warning');
       return false;
     }
