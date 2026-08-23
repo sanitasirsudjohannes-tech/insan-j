@@ -7,6 +7,24 @@
  * @param {React.MutableRefObject} frameRef - useRef() dari komponen pemanggil (untuk cleanup).
  * @returns {Promise<boolean>} true jika print berhasil dipanggil.
  */
+export function buildKepalaUnitSignatureHTML(kepalaUnit) {
+  const escapeHTML = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+
+  const nama = kepalaUnit?.nama
+    ? escapeHTML(kepalaUnit.nama)
+    : '__________________________';
+  const nip = kepalaUnit?.nip
+    ? `<div class="nip">NIP. ${escapeHTML(kepalaUnit.nip)}</div>`
+    : '';
+
+  return `<div>Mengetahui,</div><div>Kepala Unit Sanitasi</div><div class="signature-space space"></div><div class="name"><strong>${nama}</strong></div>${nip}`;
+}
+
 export function printViaHiddenIframe(htmlContent, frameRef) {
   return new Promise((resolve) => {
     // Bersihkan iframe cetak sebelumnya jika masih ada.

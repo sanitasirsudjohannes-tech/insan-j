@@ -3,7 +3,7 @@ import AppLayout from '../components/AppLayout';
 import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
-import { getCurrentUser, fetchDaftarRuangan } from '../lib/api';
+import { getCurrentUser, fetchDaftarRuangan, getSetting } from '../lib/api';
 import { saveToOfflineQueue, getUnsyncedItemsForTable, removeLocalRecordQueue, getOfflineDeletedIds, getOfflineDeletedItems } from '../lib/offlineStorage';
 import * as XLSX from 'xlsx';
 
@@ -386,7 +386,8 @@ export default function LimbahRuangan({ embedded = false }) {
       const periodeText = `${monthNames[+m - 1]} ${y}`;
       const ruanganText = selR ? `Ruangan: ${selR}` : 'Semua Ruangan';
       const printedDate = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
-      const html = buildRuanganPrintHTML(printData, periodeText, ruanganText, printedDate);
+      const kepalaUnit = await getSetting('kepala_unit_sanitasi', null);
+      const html = buildRuanganPrintHTML(printData, periodeText, ruanganText, printedDate, kepalaUnit);
       MySwal.close();
       const iframe = document.createElement('iframe');
       iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';

@@ -295,7 +295,8 @@ export default function LimbahPadat({ embedded = false }) {
       const printData = await getAccumulatedData(formValues);
       printData.sort((a,b)=>a.tanggal.localeCompare(b.tanggal));
       if(!printData.length){ MySwal.fire({ icon:'info', title:'Tidak Ada Data', text:'Tidak ada data limbah untuk bulan yang dipilih.', confirmButtonColor:'#2563eb' }); return; }
-      const html = buildPadatPrintHTML(printData, formValues);
+      const kepalaUnit = await getSetting('kepala_unit_sanitasi', null);
+      const html = buildPadatPrintHTML(printData, formValues, kepalaUnit);
       MySwal.close();
       const success = await printViaHiddenIframe(html, printFrameRef);
       if(!success) MySwal.fire({ icon:'error', title:'Gagal Membuka Cetakan', text:'Browser tidak mendukung cetak langsung. Coba Chrome/Safari terbaru.', confirmButtonColor:'#2563eb' });

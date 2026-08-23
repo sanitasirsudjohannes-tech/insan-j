@@ -3,7 +3,7 @@ import AppLayout from '../components/AppLayout';
 import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
-import { getCurrentUser, fetchDaftarRuangan } from '../lib/api';
+import { getCurrentUser, fetchDaftarRuangan, getSetting } from '../lib/api';
 import {
   saveToOfflineQueue,
   getUnsyncedItemsForTable,
@@ -345,7 +345,8 @@ export default function LimbahAnorganik({ embedded = false }) {
         MySwal.fire({ icon: 'info', title: 'Tidak Ada Data', text: 'Tidak ada data limbah anorganik untuk periode dan ruangan yang dipilih.', confirmButtonColor: '#2563eb' });
         return;
       }
-      const html = buildAnorganikPrintHTML(printData, periodeText, ruanganText, printedDate);
+      const kepalaUnit = await getSetting('kepala_unit_sanitasi', null);
+      const html = buildAnorganikPrintHTML(printData, periodeText, ruanganText, printedDate, kepalaUnit);
       MySwal.close();
       const iframe = document.createElement('iframe');
       iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';

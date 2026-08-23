@@ -3,6 +3,7 @@ import AppLayout from '../components/AppLayout';
 import { fetchAllRekapData, calculateRekapitulasi } from '../lib/rekapQueries';
 import { buildRekapPrintHTML } from '../components/limbah/rekap/rekapPrintTemplate';
 import { printViaHiddenIframe } from '../lib/printHelpers';
+import { getSetting } from '../lib/api';
 import RekapSummaryCards from '../components/limbah/rekap/RekapSummaryCards';
 import RekapFilter from '../components/limbah/rekap/RekapFilter';
 import RekapTable from '../components/limbah/rekap/RekapTable';
@@ -59,7 +60,8 @@ export default function RekapLimbah() {
   const handlePrint = async () => {
     setIsPrinting(true);
     try {
-      const htmlContent = buildRekapPrintHTML(tableRows, summary, selectedYear, selectedMonth);
+      const kepalaUnit = await getSetting('kepala_unit_sanitasi', null);
+      const htmlContent = buildRekapPrintHTML(tableRows, summary, selectedYear, selectedMonth, kepalaUnit);
       await printViaHiddenIframe(htmlContent, frameRef);
     } catch (err) {
       console.error('Gagal mencetak rekap:', err);

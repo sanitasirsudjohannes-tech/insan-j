@@ -1,3 +1,5 @@
+import { buildKepalaUnitSignatureHTML } from '../../../lib/printHelpers';
+
 /**
  * ruanganPrintTemplate.js
  * Menghasilkan string HTML lengkap untuk laporan cetak Limbah Per Ruangan.
@@ -8,7 +10,7 @@
  * @param {string} printedDate     - Tanggal cetak, sudah diformat lokal.
  * @returns {string} HTML string siap cetak.
  */
-export function buildRuanganPrintHTML(printData, periodeText, ruanganText, printedDate) {
+export function buildRuanganPrintHTML(printData, periodeText, ruanganText, printedDate, kepalaUnit = null) {
   const escapeHTML = (v) => String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
   const fmt = (v) => (Number.isFinite(parseFloat(v)) ? parseFloat(v) : 0).toFixed(2);
 
@@ -96,7 +98,7 @@ th{text-align:center;font-weight:700;background:#e5e7eb}
     </tfoot>
   </table>
   <div class="signature-wrapper">
-    <div class="signature"><div>Mengetahui,</div><div class="space"></div><div class="name">__________________________</div><div>Petugas Sanitasi</div></div>
+    <div class="signature">${buildKepalaUnitSignatureHTML(kepalaUnit)}</div>
   </div>
 </div>
 </body></html>`;

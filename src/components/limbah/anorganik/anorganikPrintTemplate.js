@@ -1,3 +1,5 @@
+import { buildKepalaUnitSignatureHTML } from '../../../lib/printHelpers';
+
 /**
  * anorganikPrintTemplate.js
  * Menghasilkan string HTML lengkap untuk laporan cetak Limbah Anorganik.
@@ -8,7 +10,7 @@
  * @param {string} printedDate – Tanggal cetak, sudah diformat lokal.
  * @returns {string} HTML string siap cetak.
  */
-export function buildAnorganikPrintHTML(printData, periodeText, ruanganText, printedDate) {
+export function buildAnorganikPrintHTML(printData, periodeText, ruanganText, printedDate, kepalaUnit = null) {
   const escapeHTML = (v) =>
     String(v ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
 
@@ -124,7 +126,7 @@ th{text-align:center;font-weight:700;background:#e5e7eb}
     </tfoot>
   </table>
   <div class="signature-wrapper">
-    <div class="signature"><div>Mengetahui,</div><div class="space"></div><div class="name">__________________________</div><div>Petugas Sanitasi</div></div>
+    <div class="signature">${buildKepalaUnitSignatureHTML(kepalaUnit)}</div>
   </div>
 </div>
 </body></html>`;

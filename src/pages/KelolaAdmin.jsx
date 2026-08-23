@@ -25,6 +25,8 @@ export default function KelolaAdmin() {
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [resettingId, setResettingId] = useState(null);
+  const [kepalaUnit, setKepalaUnit] = useState(null);
+  const [savingKepalaUnit, setSavingKepalaUnit] = useState(false);
 
   // Ruangan Management State
   const [ruanganList, setRuanganList] = useState([]);
@@ -86,8 +88,57 @@ export default function KelolaAdmin() {
       fetchRuangan();
       // Baca setting form limbah padat
       getSetting('form_limbah_padat_enabled', true).then(val => setFormLimbahPadatEnabled(val));
+      getSetting('kepala_unit_sanitasi', null).then(setKepalaUnit);
     }
   }, [isAdmin, fetchUsers, fetchRuangan]);
+
+  const handleSetKepalaUnit = async (userId) => {
+    const selectedUser = users.find((item) => item.id === userId);
+    const nextKepalaUnit = selectedUser
+      ? {
+          userId: selectedUser.id,
+          nama: selectedUser.nama,
+          nip: selectedUser.nip || '',
+        }
+      : null;
+
+    setSavingKepalaUnit(true);
+
+    try {
+      const { error: settingError } = await supabase
+        .from('app_settings')
+        .upsert({ key: 'kepala_unit_sanitasi', value: nextKepalaUnit }, { onConflict: 'key' });
+
+      if (settingError) throw settingError;
+
+      localStorage.setItem('insan_j_setting_kepala_unit_sanitasi', JSON.stringify(nextKepalaUnit));
+      setKepalaUnit(nextKepalaUnit);
+
+      window.dispatchEvent(new CustomEvent('app-setting-changed', {
+        detail: { key: 'kepala_unit_sanitasi', value: nextKepalaUnit },
+      }));
+
+      MySwal.fire({
+        icon: 'success',
+        title: nextKepalaUnit ? 'Kepala Unit Diperbarui!' : 'Kepala Unit Dikosongkan!',
+        text: nextKepalaUnit
+          ? `${nextKepalaUnit.nama} akan tercantum pada tanda tangan seluruh laporan.`
+          : 'Nama penandatangan tidak akan ditampilkan sampai Kepala Unit dipilih kembali.',
+        timer: 2200,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end',
+      });
+    } catch (err) {
+      MySwal.fire({
+        icon: 'error',
+        title: 'Gagal Menyimpan Kepala Unit',
+        text: err.message || 'Pengaturan Kepala Unit belum berhasil disimpan ke database.',
+      });
+    } finally {
+      setSavingKepalaUnit(false);
+    }
+  };
 
   const handleToggleFormLimbahPadat = async (enabled) => {
     setSavingSettings(true);
@@ -284,6 +335,9 @@ export default function KelolaAdmin() {
             user={user}
             fetchUsers={fetchUsers}
             handleResetPassword={handleResetPassword}
+            kepalaUnit={kepalaUnit}
+            savingKepalaUnit={savingKepalaUnit}
+            handleSetKepalaUnit={handleSetKepalaUnit}
           />
         )}
 

@@ -1,3 +1,5 @@
+import { buildKepalaUnitSignatureHTML } from '../../../lib/printHelpers';
+
 /**
  * padatPrintTemplate.js
  * Menghasilkan string HTML lengkap untuk laporan cetak Limbah Padat (akumulasi harian).
@@ -6,7 +8,7 @@
  * @param {string} yearMonth  - Format "YYYY-MM".
  * @returns {string} HTML string siap cetak.
  */
-export function buildPadatPrintHTML(printData, yearMonth) {
+export function buildPadatPrintHTML(printData, yearMonth, kepalaUnit = null) {
   const [year, month] = yearMonth.split('-');
   const monthNames = [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -44,6 +46,6 @@ table{page-break-inside:auto}tr{page-break-inside:avoid}thead{display:table-head
 <tbody>${rowsHTML}</tbody>
 <tfoot><tr class="totals"><td colspan="2" class="center">TOTAL DALAM SEBULAN</td><td class="number">${totalInfeksius.toFixed(2)}</td><td class="number">${totalJarum.toFixed(2)}</td><td class="number">${totalBotol.toFixed(2)}</td><td class="number">${totalSitotoksik.toFixed(2)}</td><td class="number">${grandTotal.toFixed(2)}</td></tr></tfoot>
 </table>
-<div class="signature"><div class="signature-box"><p>Mengetahui,</p><div class="signature-space"></div><p><strong>_____________________</strong></p><p>Petugas Sanitasi</p></div></div>
+<div class="signature"><div class="signature-box">${buildKepalaUnitSignatureHTML(kepalaUnit)}</div></div>
 </body></html>`;
 }

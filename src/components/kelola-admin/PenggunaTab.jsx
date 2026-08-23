@@ -8,7 +8,10 @@ export default function PenggunaTab({
   resettingId,
   user,
   fetchUsers,
-  handleResetPassword
+  handleResetPassword,
+  kepalaUnit,
+  savingKepalaUnit,
+  handleSetKepalaUnit
 }) {
   const getRoleBadge = (role) => {
     const r = role?.toLowerCase();
@@ -28,6 +31,44 @@ export default function PenggunaTab({
 
   return (
     <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+      <div className="border-b border-indigo-100 bg-indigo-50/70 p-4 sm:p-5">
+        <div className="mb-3 flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
+            <i className="fas fa-user-tie"></i>
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-sm font-bold text-gray-900">Kepala Unit Sanitasi</h2>
+            <p className="mt-0.5 text-xs leading-relaxed text-gray-600">
+              Nama pengguna terpilih akan otomatis dicantumkan pada bagian tanda tangan laporan.
+            </p>
+          </div>
+        </div>
+
+        <div className="relative">
+          <select
+            aria-label="Pilih Kepala Unit Sanitasi"
+            value={kepalaUnit?.userId || ''}
+            onChange={(event) => handleSetKepalaUnit(event.target.value)}
+            disabled={loading || savingKepalaUnit}
+            className="w-full appearance-none rounded-xl border border-indigo-200 bg-white px-4 py-3 pr-10 text-sm font-semibold text-gray-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <option value="">-- Pilih Kepala Unit Sanitasi --</option>
+            {users.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.nama} ({item.username})
+              </option>
+            ))}
+          </select>
+          <i
+            className={`fas ${savingKepalaUnit ? 'fa-spinner fa-spin' : 'fa-chevron-down'} pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-indigo-500`}
+          ></i>
+        </div>
+
+        <p className="mt-2 text-[11px] text-gray-500">
+          NIP akan ditampilkan otomatis setelah tersedia pada data pengguna.
+        </p>
+      </div>
+
       {/* Search Bar */}
       <div className="p-5 border-b border-gray-100">
         <div className="relative">
@@ -104,6 +145,11 @@ export default function PenggunaTab({
                           {(u.nama || 'U').charAt(0).toUpperCase()}
                         </div>
                         <span className="font-semibold text-gray-800">{u.nama}</span>
+                        {u.id === kepalaUnit?.userId && (
+                          <span className="rounded-full border border-indigo-200 bg-indigo-100 px-2 py-0.5 text-[10px] font-bold text-indigo-700">
+                            Kepala Unit
+                          </span>
+                        )}
                         {u.id === user?.id && (
                           <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold border border-emerald-200">
                             Anda
@@ -147,6 +193,11 @@ export default function PenggunaTab({
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-semibold text-gray-800 truncate">{u.nama}</p>
+                      {u.id === kepalaUnit?.userId && (
+                        <span className="rounded-full border border-indigo-200 bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-700">
+                          Kepala Unit
+                        </span>
+                      )}
                       {u.id === user?.id && (
                         <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-bold border border-emerald-200">
                           Anda

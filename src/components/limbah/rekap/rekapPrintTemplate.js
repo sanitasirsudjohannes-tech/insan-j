@@ -1,9 +1,10 @@
 import { formatKg } from '../../../lib/rekapQueries';
+import { buildKepalaUnitSignatureHTML } from '../../../lib/printHelpers';
 
 /**
  * Builds printable HTML string for Rekap Limbah report.
  */
-export function buildRekapPrintHTML(tableRows, summary, selectedYear, selectedMonth) {
+export function buildRekapPrintHTML(tableRows, summary, selectedYear, selectedMonth, kepalaUnit = null) {
   let periodLabel = `Tahun ${selectedYear}`;
   if (selectedMonth && selectedMonth !== 'semua') {
     const monthNames = [
@@ -137,10 +138,7 @@ export function buildRekapPrintHTML(tableRows, summary, selectedYear, selectedMo
   <div class="signature">
     <div class="signature-box">
       <p>Kupang, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-      <p>Mengetahui,</p>
-      <div class="signature-space"></div>
-      <p><strong>_____________________</strong></p>
-      <p>Petugas Sanitasi</p>
+      ${buildKepalaUnitSignatureHTML(kepalaUnit)}
     </div>
   </div>
 </body>
