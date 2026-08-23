@@ -103,12 +103,17 @@ Deno.serve(async (request) => {
       return jsonResponse({ success: false, error: createAuthError?.message || 'Akun Auth gagal dibuat.' }, 400);
     }
 
-    const { error: profileError } = await adminClient.from('profiles').insert({
-      id: createdAuth.user.id,
-      nama,
-      username,
-      role,
-    });
+    // Proyek lama dapat memiliki trigger auth.users yang otomatis membuat
+    // profiles. Upsert menangani kedua kondisi: profil sudah dibuat trigger
+    // atau belum ada sama sekali.
+    const { error: profileError } = await adminClient
+      .from('profiles')
+      .upsert({
+        id: createdAuth.user.id,
+        nama,
+        username,
+        role,
+      }, { onConflict: 'id' });
 
     if (profileError) {
       await adminClient.auth.admin.deleteUser(createdAuth.user.id);
