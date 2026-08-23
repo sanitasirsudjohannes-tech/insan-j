@@ -43,6 +43,7 @@ export default function KelolaAdmin() {
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [resettingId, setResettingId] = useState(null);
+  const [deletingUserId, setDeletingUserId] = useState(null);
   const [kepalaUnit, setKepalaUnit] = useState(null);
   const [savingKepalaUnit, setSavingKepalaUnit] = useState(false);
   const [userNips, setUserNips] = useState({});
@@ -530,6 +531,50 @@ export default function KelolaAdmin() {
     }
   };
 
+  const handleDeleteUser = async (targetUser) => {
+    if (targetUser.id === user?.id || targetUser.role?.toLowerCase() === 'admin') {
+      MySwal.fire('Akun Dilindungi', 'Akun administrator tidak dapat dihapus melalui fitur ini.', 'info');
+      return;
+    }
+
+    const { isConfirmed } = await MySwal.fire({
+      icon: 'warning',
+      title: 'Hapus Pengguna?',
+      html: `Akun <strong>${escapeAdminHTML(targetUser.nama)}</strong> akan dihapus permanen dan tidak dapat login lagi.<br/><span class="mt-2 block text-sm text-gray-500">Data limbah yang pernah dibuat tetap dipertahankan.</span>`,
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: '<i class="fas fa-trash-alt mr-2"></i>Ya, Hapus Akun',
+      cancelButtonText: 'Batal',
+    });
+    if (!isConfirmed) return;
+
+    setDeletingUserId(targetUser.id);
+    try {
+      const { data, error: functionError } = await supabase.functions.invoke('admin-delete-user', {
+        body: { userId: targetUser.id },
+      });
+      if (functionError) throw functionError;
+      if (!data?.success) throw new Error(data?.error || 'Akun tidak berhasil dihapus.');
+
+      await fetchUsers();
+      MySwal.fire('Akun Dihapus', `Akun ${targetUser.nama} berhasil dihapus.`, 'success');
+    } catch (err) {
+      let errorMessage = err.message || 'Terjadi kesalahan saat menghapus akun.';
+      if (err.context instanceof Response) {
+        try {
+          const responseBody = await err.context.clone().json();
+          errorMessage = responseBody?.error || errorMessage;
+        } catch {
+          // Pertahankan pesan bawaan jika respons bukan JSON.
+        }
+      }
+      MySwal.fire('Gagal Menghapus Akun', errorMessage, 'error');
+    } finally {
+      setDeletingUserId(null);
+    }
+  };
+
   const handleCreateUser = async (form) => {
     const username = form.username.trim().toLowerCase();
     const nama = form.nama.trim();
@@ -723,9 +768,11 @@ export default function KelolaAdmin() {
             loading={loading}
             error={error}
             resettingId={resettingId}
+            deletingUserId={deletingUserId}
             user={user}
             fetchUsers={fetchUsers}
             handleResetPassword={handleResetPassword}
+            handleDeleteUser={handleDeleteUser}
             kepalaUnit={kepalaUnit}
             savingKepalaUnit={savingKepalaUnit}
             handleSetKepalaUnit={handleSetKepalaUnit}

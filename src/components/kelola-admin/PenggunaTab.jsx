@@ -6,9 +6,11 @@ export default function PenggunaTab({
   loading,
   error,
   resettingId,
+  deletingUserId,
   user,
   fetchUsers,
   handleResetPassword,
+  handleDeleteUser,
   kepalaUnit,
   savingKepalaUnit,
   handleSetKepalaUnit,
@@ -228,18 +230,26 @@ export default function PenggunaTab({
                     </td>
                     <td className="px-6 py-4">{getRoleBadge(u.role)}</td>
                     <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => handleResetPassword(u)}
-                        disabled={resettingId === u.id || u.id === user?.id}
-                        title={u.id === user?.id ? 'Ubah password sendiri melalui menu Akun' : 'Buat password sementara yang aman'}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-all shadow-sm active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        {resettingId === u.id ? (
-                          <><i className="fas fa-spinner fa-spin"></i>Mereset...</>
-                        ) : (
-                          <><i className="fas fa-key"></i>Reset Password</>
-                        )}
-                      </button>
+                      <div className="inline-flex items-center gap-2">
+                        <button
+                          onClick={() => handleResetPassword(u)}
+                          disabled={resettingId === u.id || deletingUserId === u.id || u.id === user?.id}
+                          title={u.id === user?.id ? 'Ubah password sendiri melalui menu Akun' : 'Buat password sementara yang aman'}
+                          className="inline-flex items-center gap-2 px-3 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-all shadow-sm active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          {resettingId === u.id ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-key"></i>}
+                          Reset
+                        </button>
+                        <button
+                          onClick={() => handleDeleteUser(u)}
+                          disabled={deletingUserId === u.id || u.id === user?.id || u.role?.toLowerCase() === 'admin'}
+                          title={u.role?.toLowerCase() === 'admin' ? 'Akun admin dilindungi' : 'Hapus akun pengguna'}
+                          className="inline-flex items-center gap-2 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg transition-all shadow-sm active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <i className={`fas ${deletingUserId === u.id ? 'fa-spinner fa-spin' : 'fa-trash-alt'}`}></i>
+                          Hapus
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -326,17 +336,24 @@ export default function PenggunaTab({
                   </div>
                 </div>
 
-                <button
-                  onClick={() => handleResetPassword(u)}
-                  disabled={resettingId === u.id || u.id === user?.id}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
-                >
-                  {resettingId === u.id ? (
-                    <><i className="fas fa-spinner fa-spin"></i>Mereset Password...</>
-                  ) : (
-                    <><i className="fas fa-key"></i>{u.id === user?.id ? 'Ubah Password di Menu Akun' : 'Buat Password Sementara'}</>
-                  )}
-                </button>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <button
+                    onClick={() => handleResetPassword(u)}
+                    disabled={resettingId === u.id || deletingUserId === u.id || u.id === user?.id}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <i className={`fas ${resettingId === u.id ? 'fa-spinner fa-spin' : 'fa-key'}`}></i>
+                    {u.id === user?.id ? 'Ubah di Menu Akun' : 'Reset Password'}
+                  </button>
+                  <button
+                    onClick={() => handleDeleteUser(u)}
+                    disabled={deletingUserId === u.id || u.id === user?.id || u.role?.toLowerCase() === 'admin'}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <i className={`fas ${deletingUserId === u.id ? 'fa-spinner fa-spin' : 'fa-trash-alt'}`}></i>
+                    Hapus Akun
+                  </button>
+                </div>
               </div>
             ))}
           </div>
