@@ -3,7 +3,6 @@ import { getCurrentUser } from '../lib/api';
 import Swal from 'sweetalert2';
 import { useEffect } from 'react';
 
-// eslint-disable-next-react/prop-types
 export default function ProtectedRoute({ children, requiredRole, allowedRoles, deniedRoles }) {
   const user = getCurrentUser();
   const location = useLocation();

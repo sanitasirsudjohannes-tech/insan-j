@@ -9,6 +9,7 @@ import PenggunaTab from '../components/kelola-admin/PenggunaTab';
 import TambahPenggunaTab from '../components/kelola-admin/TambahPenggunaTab';
 import RuanganTab from '../components/kelola-admin/RuanganTab';
 import PengaturanTab from '../components/kelola-admin/PengaturanTab';
+import AdminHeader from '../components/kelola-admin/AdminHeader';
 import {
   escapeAdminHTML,
   generateSecureTemporaryPassword,
@@ -715,48 +716,12 @@ export default function KelolaAdmin() {
   return (
     <AppLayout title="Kelola Admin & Master Ruangan" showBackButton={false}>
       <div className="container mx-auto px-4 py-8 max-w-4xl">
-        {/* Header Card */}
-        <div className="bg-linear-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 mb-6 shadow-lg text-white">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-extrabold tracking-tight flex items-center gap-3">
-                <span className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                  <i className="fas fa-sliders-h text-lg"></i>
-                </span>
-                Kelola Admin & Master Data
-              </h1>
-              <p className="text-indigo-200 text-sm mt-1">
-                Kelola akun pengguna dan master data ruangan rumah sakit.
-              </p>
-            </div>
-            <div className="flex gap-2 bg-white/10 rounded-xl p-1.5 border border-white/20 flex-wrap">
-              <button
-                onClick={() => setActiveTab('pengguna')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${activeTab === 'pengguna' ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-100 hover:text-white'}`}
-              >
-                <i className="fas fa-users"></i> Pengguna ({users.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('tambah-pengguna')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${activeTab === 'tambah-pengguna' ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-100 hover:text-white'}`}
-              >
-                <i className="fas fa-user-plus"></i> Tambah Pengguna
-              </button>
-              <button
-                onClick={() => setActiveTab('ruangan')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${activeTab === 'ruangan' ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-100 hover:text-white'}`}
-              >
-                <i className="fas fa-door-open"></i> Ruangan ({ruanganList.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('pengaturan')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${activeTab === 'pengaturan' ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-100 hover:text-white'}`}
-              >
-                <i className="fas fa-sliders-h"></i> Pengaturan
-              </button>
-            </div>
-          </div>
-        </div>
+        <AdminHeader
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          userCount={users.length}
+          roomCount={ruanganList.length}
+        />
 
         {/* TAB 1: KELOLA PENGGUNA */}
         {activeTab === 'pengguna' && (

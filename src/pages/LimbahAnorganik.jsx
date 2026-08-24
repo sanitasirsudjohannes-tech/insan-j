@@ -17,6 +17,7 @@ import AnorganikTable from '../components/limbah/anorganik/AnorganikTable';
 import OfflineBanner from '../components/limbah/OfflineBanner';
 import Pagination from '../components/limbah/Pagination';
 import { buildAnorganikPrintHTML } from '../components/limbah/anorganik/anorganikPrintTemplate';
+import { printViaHiddenIframe } from '../lib/printHelpers';
 
 const MySwal = withReactContent(Swal);
 
@@ -354,18 +355,10 @@ export default function LimbahAnorganik({ embedded = false }) {
       const kepalaUnit = await getSetting('kepala_unit_sanitasi', null);
       const html = buildAnorganikPrintHTML(printData, periodeText, ruanganText, printedDate, kepalaUnit);
       MySwal.close();
-      const iframe = document.createElement('iframe');
-      iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;';
-      document.body.appendChild(iframe);
-      const doc = iframe.contentWindow.document;
-      doc.open(); doc.write(html); doc.close();
-      iframe.onload = () => {
-        setTimeout(() => {
-          try { iframe.contentWindow.focus(); iframe.contentWindow.print(); }
-          catch (printError) { console.error('Print error:', printError); MySwal.fire('Gagal', 'Browser tidak dapat membuka dialog cetak.', 'error'); }
-          setTimeout(() => { if (iframe.parentNode) iframe.parentNode.removeChild(iframe); }, 1500);
-        }, 500);
-      };
+      const printed = await printViaHiddenIframe(html);
+      if (!printed) {
+        MySwal.fire('Gagal', 'Browser tidak dapat membuka dialog cetak.', 'error');
+      }
     } catch (error) {
       MySwal.fire({ icon: 'error', title: 'Gagal Mencetak', text: 'Terjadi kesalahan: ' + error.message, confirmButtonColor: '#dc2626' });
     }
