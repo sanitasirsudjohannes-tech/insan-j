@@ -113,14 +113,22 @@ export default function LimbahRuangan({ embedded = false }) {
       // Overlay offline dibaca lebih dulu karena baris ini harus ikut serta
       // dalam penghitungan halaman (bukan ditempel begitu saja di setiap
       // halaman hasil query DB).
-      let unsynced = getUnsyncedItemsForTable('limbah_ruangan');
+      const allUnsynced = getUnsyncedItemsForTable('limbah_ruangan');
+      let unsynced = allUnsynced;
       if (filterDate) unsynced = unsynced.filter(i => i.tanggal === filterDate);
       else if (filterMonth) unsynced = unsynced.filter(i => i.tanggal?.startsWith(filterMonth));
       if (filterRuangan) unsynced = unsynced.filter(i => i.ruangan === filterRuangan);
 
-      const unsyncedIds = new Set(unsynced.map(u => String(u.id)));
       const delIds = new Set(getOfflineDeletedIds('limbah_ruangan'));
-      const insertCount = unsynced.filter(i => i.offlineAction === 'insert').length;
+      // Semua versi server yang sudah diedit offline harus disembunyikan,
+      // termasuk ketika versi barunya tidak lagi cocok dengan filter aktif.
+      const hiddenServerIds = new Set([
+        ...allUnsynced.filter(item => item.offlineAction === 'update').map(item => String(item.id)),
+        ...delIds,
+      ]);
+      const excludedIds = hiddenServerIds.size > 0
+        ? `(${Array.from(hiddenServerIds).join(',')})`
+        : null;
 
       // Filter offline deleted items agar ukurannya sesuai dengan filter yang aktif
       let offlineDeletedItems = getOfflineDeletedItems('limbah_ruangan');
@@ -136,6 +144,7 @@ export default function LimbahRuangan({ embedded = false }) {
         if (filterDate) { qCount = qCount.eq('tanggal', filterDate); }
         else if (filterMonth) { const [y, m] = filterMonth.split('-'); const s = `${y}-${m}-01`, en = `${y}-${m}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`; qCount = qCount.gte('tanggal', s).lte('tanggal', en); }
         if (filterRuangan) qCount = qCount.eq('ruangan', filterRuangan);
+        if (excludedIds) qCount = qCount.not('id', 'in', excludedIds);
         const { count: c, error: errCount } = await qCount;
         if (errCount) throw errCount;
         count = c || 0;
@@ -157,6 +166,7 @@ export default function LimbahRuangan({ embedded = false }) {
         if (filterDate) { qData = qData.eq('tanggal', filterDate); }
         else if (filterMonth) { const [y, m] = filterMonth.split('-'); const s = `${y}-${m}-01`, en = `${y}-${m}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`; qData = qData.gte('tanggal', s).lte('tanggal', en); }
         if (filterRuangan) qData = qData.eq('ruangan', filterRuangan);
+        if (excludedIds) qData = qData.not('id', 'in', excludedIds);
 
         const { data: result, error } = await qData;
         if (error) throw error;
@@ -175,17 +185,16 @@ export default function LimbahRuangan({ embedded = false }) {
       // Gabungkan baris DB dengan overlay offline, buang yang sudah dihapus
       // secara offline, urutkan ulang secara global, baru ambil slice sesuai
       // halaman aktif.
-      const filteredDb = dbData.filter(d => !unsyncedIds.has(String(d.id)) && !delIds.has(String(d.id)));
+      const filteredDb = dbData.filter(d => !hiddenServerIds.has(String(d.id)));
       const mergedData = [...unsynced, ...filteredDb].sort(compareRuanganRows);
       const fromIndex = (page - 1) * ITEMS_PER_PAGE;
       setData(mergedData.slice(fromIndex, fromIndex + ITEMS_PER_PAGE));
 
-      // Jumlah dari DB sudah termasuk baris yang sedang menunggu update
-      // offline, jadi update tidak boleh menambah total. Insert offline
-      // menambah baris baru, dan hapus offline mengurangi baris yang
-      // sebelumnya sudah ada di DB (dengan syarat memenuhi filter yang sama).
+      // Query server sudah mengecualikan seluruh versi lama yang diedit atau
+      // dihapus. Tambahkan semua overlay yang sesuai filter: insert maupun
+      // update yang berpindah tanggal/ruangan.
       const adjustedTotal = dbFetchSucceeded
-        ? Math.max(0, (count || 0) + insertCount - filteredDelCount)
+        ? Math.max(0, (count || 0) + unsynced.length)
         : unsynced.length;
       setTotalData(adjustedTotal);
     } catch (error) {
@@ -475,9 +484,11 @@ export default function LimbahRuangan({ embedded = false }) {
         const { isConfirmed } = await MySwal.fire({ title: 'Konfirmasi Import', html: `<p>Ditemukan <strong>${payloads.length} data limbah ruangan</strong>. Lanjutkan import?</p>`, icon: 'question', showCancelButton: true, confirmButtonColor: '#059669', confirmButtonText: 'Ya, Import!' });
         if (!isConfirmed) return;
         setImporting(true); MySwal.fire({ title: 'Mengimport Data...', allowOutsideClick: false, didOpen: () => MySwal.showLoading() });
-        let inserted = 0;
-        for (let i = 0; i < payloads.length; i += 50) { const batch = payloads.slice(i, i + 50); const { error } = await supabase.from('limbah_ruangan').insert(batch); if (error) throw error; inserted += batch.length; }
-        fetchData(); MySwal.fire({ icon: 'success', title: 'Import Berhasil!', text: `${inserted} data berhasil diimport.`, timer: 2500, showConfirmButton: false });
+        // Satu request INSERT dijalankan dalam satu transaksi oleh PostgREST:
+        // seluruh baris masuk bersama, atau tidak ada yang tersimpan.
+        const { error } = await supabase.from('limbah_ruangan').insert(payloads);
+        if (error) throw error;
+        fetchData(); MySwal.fire({ icon: 'success', title: 'Import Berhasil!', text: `${payloads.length} data berhasil diimport.`, timer: 2500, showConfirmButton: false });
       } catch (err) { MySwal.fire('Gagal Import', err.message || 'Terjadi kesalahan saat membaca file.', 'error'); }
       finally { setImporting(false); }
     };

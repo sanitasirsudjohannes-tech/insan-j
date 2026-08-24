@@ -256,13 +256,14 @@ const performOfflineSync = async (showNotification = true) => {
   let failedCount = 0;
   const total = initialQueue.length;
 
-  // Selalu membaca queue terbaru agar serverId hasil INSERT langsung
-  // tersedia untuk UPDATE/DELETE berikutnya.
-  while (true) {
-    const queue = getOfflineQueue();
-    if (queue.length === 0) break;
-
-    const item = queue[0];
+  // Setiap item dicoba satu kali per putaran. Item yang gagal tetap berada
+  // dalam queue, tetapi tidak boleh menghalangi item valid berikutnya.
+  for (const initialItem of initialQueue) {
+    const item = getOfflineQueue().find(candidate =>
+      candidate.id === initialItem.id ||
+      (Boolean(initialItem.localId) && candidate.localId === initialItem.localId)
+    );
+    if (!item) continue;
 
     try {
       let error = null;
@@ -313,7 +314,7 @@ const performOfflineSync = async (showNotification = true) => {
       if (error) {
         console.error(`Gagal sync item ${item.id}:`, error);
         failedCount++;
-        break;
+        continue;
       }
 
       removeOfflineQueueItem(item.id);
@@ -321,14 +322,16 @@ const performOfflineSync = async (showNotification = true) => {
     } catch (err) {
       console.error(`Exception sync item ${item.id}:`, err);
       failedCount++;
-      break;
+      continue;
     }
   }
 
-  if (showNotification && successCount > 0) {
+  if (showNotification && (successCount > 0 || failedCount > 0)) {
     Swal.fire({
-      icon: failedCount > 0 ? 'warning' : 'success',
-      title: failedCount > 0 ? 'Sinkronisasi Sebagian Berhasil' : 'Sinkronisasi Berhasil!',
+      icon: failedCount > 0 ? (successCount > 0 ? 'warning' : 'error') : 'success',
+      title: failedCount > 0
+        ? (successCount > 0 ? 'Sinkronisasi Sebagian Berhasil' : 'Sinkronisasi Gagal')
+        : 'Sinkronisasi Berhasil!',
       text: failedCount > 0
         ? `${successCount} berhasil, ${failedCount} gagal. Data gagal tetap berada di antrean.`
         : `${successCount} data offline telah dikirim ke database.`,
