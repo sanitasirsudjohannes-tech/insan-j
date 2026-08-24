@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import SearchableBottomSheet from '../../SearchableBottomSheet';
 
 /**
@@ -15,6 +16,11 @@ export default function RuanganForm({
   showRuanganSheet,
   setShowRuanganSheet,
 }) {
+  const [distributionDateError, setDistributionDateError] = useState('');
+  const uniqueDistributionDates = new Set(
+    (formData.distribusiDates || []).filter(date => date && date !== formData.tanggal)
+  );
+
   return (
     <>
       <div className="bg-white rounded-2xl shadow-xl border border-gray-100 mb-6 overflow-hidden">
@@ -43,6 +49,7 @@ export default function RuanganForm({
                         checked={formData.isDistribusi || false}
                         onChange={(e) => {
                           const checked = e.target.checked;
+                          setDistributionDateError('');
                           setFormData(prev => ({
                             ...prev,
                             isDistribusi: checked,
@@ -109,8 +116,19 @@ export default function RuanganForm({
                         type="date"
                         value={tgl}
                         onChange={(e) => {
+                          const selectedDate = e.target.value;
+                          if (selectedDate === formData.tanggal) {
+                            setDistributionDateError('Tanggal tambahan tidak boleh sama dengan tanggal utama.');
+                            return;
+                          }
+                          if (selectedDate && (formData.distribusiDates || []).some((date, dateIndex) => dateIndex !== idx && date === selectedDate)) {
+                            setDistributionDateError('Tanggal tambahan sudah dipilih. Gunakan tanggal yang berbeda.');
+                            return;
+                          }
+
+                          setDistributionDateError('');
                           const newDates = [...formData.distribusiDates];
-                          newDates[idx] = e.target.value;
+                          newDates[idx] = selectedDate;
                           setFormData(prev => ({ ...prev, distribusiDates: newDates }));
                         }}
                         required
@@ -119,6 +137,7 @@ export default function RuanganForm({
                       <button
                         type="button"
                         onClick={() => {
+                          setDistributionDateError('');
                           const newDates = formData.distribusiDates.filter((_, i) => i !== idx);
                           setFormData(prev => ({ ...prev, distribusiDates: newDates }));
                         }}
@@ -133,9 +152,14 @@ export default function RuanganForm({
                     <span className="text-xs text-emerald-600 italic py-2">Silakan tambah tanggal untuk distribusi.</span>
                   )}
                 </div>
+                {distributionDateError && (
+                  <p className="mt-2 text-xs font-semibold text-red-600" role="alert">
+                    <i className="fas fa-exclamation-circle mr-1" />{distributionDateError}
+                  </p>
+                )}
                 <div className="mt-3 text-xs text-emerald-700 bg-emerald-100/50 p-2 rounded-lg border border-emerald-100">
                   <i className="fas fa-info-circle mr-1"></i>
-                  Total jumlah limbah akan <strong>dibagi rata</strong> ke <strong>{1 + (formData.distribusiDates?.filter(d => d && d !== formData.tanggal).length || 0)} hari</strong> (termasuk tanggal utama).
+                  Total jumlah limbah akan <strong>dibagi rata</strong> ke <strong>{1 + uniqueDistributionDates.size} hari</strong> (termasuk tanggal utama).
                 </div>
               </div>
             )}

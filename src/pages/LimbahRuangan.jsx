@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser, fetchDaftarRuangan, getSetting } from '../lib/api';
-import { saveToOfflineQueue, getUnsyncedItemsForTable, removeLocalRecordQueue, getOfflineDeletedIds, getOfflineDeletedItems, getSyncedServerId, syncOfflineQueue } from '../lib/offlineStorage';
+import { saveToOfflineQueue, getOfflineQueue, getUnsyncedItemsForTable, removeLocalRecordQueue, getOfflineDeletedIds, getOfflineDeletedItems, getSyncedServerId, syncOfflineQueue } from '../lib/offlineStorage';
 import { loadExcelLibrary } from '../lib/excelLoader';
 
 import RuanganForm from '../components/limbah/ruangan/RuanganForm';
@@ -93,6 +93,7 @@ export default function LimbahRuangan({ embedded = false }) {
   const [importing, setImporting] = useState(false);
   const [page, setPage] = useState(1);
   const [totalData, setTotalData] = useState(0);
+  const [offlineQueueCount, setOfflineQueueCount] = useState(0);
   const [filterMonth, setFilterMonth] = useState('');
   const [filterRuangan, setFilterRuangan] = useState('');
   const [formData, setFormData] = useState(EMPTY_FORM);
@@ -113,6 +114,8 @@ export default function LimbahRuangan({ embedded = false }) {
       // Overlay offline dibaca lebih dulu karena baris ini harus ikut serta
       // dalam penghitungan halaman (bukan ditempel begitu saja di setiap
       // halaman hasil query DB).
+      const tableQueue = getOfflineQueue().filter(item => item.table === 'limbah_ruangan');
+      setOfflineQueueCount(tableQueue.length);
       const allUnsynced = getUnsyncedItemsForTable('limbah_ruangan');
       let unsynced = allUnsynced;
       if (filterDate) unsynced = unsynced.filter(i => i.tanggal === filterDate);
@@ -244,6 +247,15 @@ export default function LimbahRuangan({ embedded = false }) {
     if (!formData.ruangan) { MySwal.fire('Peringatan', 'Silakan pilih ruangan terlebih dahulu!', 'warning'); return; }
     if (formData.isDistribusi && (!formData.distribusiDates || formData.distribusiDates.length === 0)) {
       MySwal.fire('Peringatan', 'Silakan tambah minimal 1 tanggal distribusi!', 'warning'); return;
+    }
+    if (formData.isDistribusi && !formData.id) {
+      const extraDates = (formData.distribusiDates || []).filter(Boolean);
+      if (extraDates.some(date => date === formData.tanggal)) {
+        MySwal.fire('Peringatan', 'Tanggal distribusi tidak boleh sama dengan tanggal utama.', 'warning'); return;
+      }
+      if (new Set(extraDates).size !== extraDates.length) {
+        MySwal.fire('Peringatan', 'Tanggal distribusi tidak boleh dipilih lebih dari satu kali.', 'warning'); return;
+      }
     }
     setSubmitting(true);
 
@@ -596,7 +608,10 @@ export default function LimbahRuangan({ embedded = false }) {
 
         {/* Tabel */}
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-          <OfflineBanner data={data} />
+          <OfflineBanner
+            data={data}
+            totalOfflineCount={offlineQueueCount}
+          />
           <RuanganTable
             data={data}
             loading={loading}
