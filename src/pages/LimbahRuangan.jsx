@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser, fetchDaftarRuangan, getSetting } from '../lib/api';
-import { saveToOfflineQueue, getOfflineQueue, getUnsyncedItemsForTable, removeLocalRecordQueue, getOfflineDeletedIds, getOfflineDeletedItems, getSyncedServerId, syncOfflineQueue } from '../lib/offlineStorage';
+import { saveToOfflineQueue, getOfflineQueue, getUnsyncedItemsForTable, removeLocalRecordQueue, getOfflineDeletedIds, getSyncedServerId, syncOfflineQueue } from '../lib/offlineStorage';
 import { loadExcelLibrary } from '../lib/excelLoader';
 
 import RuanganForm from '../components/limbah/ruangan/RuanganForm';
@@ -23,6 +23,34 @@ function EmbeddedWrapper({ children }) { return <div className="bg-gray-100 min-
 function FullWrapper({ children }) { return <AppLayout title="Limbah Per Ruangan">{children}</AppLayout>; }
 
 const ITEMS_PER_PAGE = 10;
+const FETCH_BATCH_SIZE = 500;
+
+const fetchRuanganReportRows = async ({ startDate, endDate, ruangan }) => {
+  const rows = [];
+  let from = 0;
+
+  while (true) {
+    let query = supabase.from('limbah_ruangan')
+      .select('tanggal,ruangan,infeksius,jarum_suntik,botol_obat,sitotoksik,petugas,keterangan')
+      .gte('tanggal', startDate)
+      .lte('tanggal', endDate)
+      .order('tanggal', { ascending: true })
+      .order('ruangan', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, from + FETCH_BATCH_SIZE - 1);
+
+    if (ruangan) query = query.eq('ruangan', ruangan);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const batch = data || [];
+    rows.push(...batch);
+    if (batch.length < FETCH_BATCH_SIZE) return rows;
+
+    from += batch.length;
+  }
+};
 
 const parseImportNumber = (rawValue) => {
   if (rawValue === null || rawValue === undefined || String(rawValue).trim() === '') {
@@ -133,15 +161,8 @@ export default function LimbahRuangan({ embedded = false }) {
         ? `(${Array.from(hiddenServerIds).join(',')})`
         : null;
 
-      // Filter offline deleted items agar ukurannya sesuai dengan filter yang aktif
-      let offlineDeletedItems = getOfflineDeletedItems('limbah_ruangan');
-      if (filterDate) offlineDeletedItems = offlineDeletedItems.filter(i => i.tanggal === filterDate);
-      else if (filterMonth) offlineDeletedItems = offlineDeletedItems.filter(i => i.tanggal?.startsWith(filterMonth));
-      if (filterRuangan) offlineDeletedItems = offlineDeletedItems.filter(i => i.ruangan === filterRuangan);
-
-      const filteredDelCount = offlineDeletedItems.length;
-
       let dbFetchSucceeded = false;
+      let dbStartIndex = 0;
       try {
         let qCount = supabase.from('limbah_ruangan').select('id', { count: 'exact', head: true });
         if (filterDate) { qCount = qCount.eq('tanggal', filterDate); }
@@ -152,28 +173,32 @@ export default function LimbahRuangan({ embedded = false }) {
         if (errCount) throw errCount;
         count = c || 0;
 
-        // Tidak bisa langsung mengambil slice DB sesuai halaman karena baris
-        // offline bisa berada di posisi mana pun pada daftar gabungan yang
-        // sudah diurutkan. Ambil baris DB dari awal secukupnya agar setelah
-        // digabung dengan overlay offline & dikurangi hapus lokal, halaman
-        // yang diminta tetap terisi penuh.
-        const requiredRows = page * ITEMS_PER_PAGE;
-        const safetyRows = unsynced.length + filteredDelCount;
-        const to = Math.max(requiredRows + safetyRows - 1, ITEMS_PER_PAGE - 1);
+        // Ambil hanya jendela baris DB yang mungkin masuk ke halaman aktif.
+        // Maksimal seluruh draft offline dapat menggeser posisi awal halaman;
+        // baris DB sebelumnya tidak perlu diunduh ulang dari indeks nol.
+        const pageStartIndex = (page - 1) * ITEMS_PER_PAGE;
+        dbStartIndex = Math.max(0, pageStartIndex - unsynced.length);
+        const dbEndIndex = pageStartIndex + ITEMS_PER_PAGE - 1;
 
-        let qData = supabase.from('limbah_ruangan')
-          .select('id, tanggal, ruangan, infeksius, jarum_suntik, botol_obat, sitotoksik, petugas, keterangan, waktu_input, created_by')
-          .order('tanggal', { ascending: false })
-          .order('waktu_input', { ascending: false })
-          .range(0, to);
-        if (filterDate) { qData = qData.eq('tanggal', filterDate); }
-        else if (filterMonth) { const [y, m] = filterMonth.split('-'); const s = `${y}-${m}-01`, en = `${y}-${m}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`; qData = qData.gte('tanggal', s).lte('tanggal', en); }
-        if (filterRuangan) qData = qData.eq('ruangan', filterRuangan);
-        if (excludedIds) qData = qData.not('id', 'in', excludedIds);
+        for (let from = dbStartIndex; from <= dbEndIndex; from += FETCH_BATCH_SIZE) {
+          const to = Math.min(from + FETCH_BATCH_SIZE - 1, dbEndIndex);
+          let qData = supabase.from('limbah_ruangan')
+            .select('id, tanggal, ruangan, infeksius, jarum_suntik, botol_obat, sitotoksik, petugas, keterangan, waktu_input, created_by')
+            .order('tanggal', { ascending: false })
+            .order('waktu_input', { ascending: false })
+            .range(from, to);
+          if (filterDate) { qData = qData.eq('tanggal', filterDate); }
+          else if (filterMonth) { const [y, m] = filterMonth.split('-'); const s = `${y}-${m}-01`, en = `${y}-${m}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`; qData = qData.gte('tanggal', s).lte('tanggal', en); }
+          if (filterRuangan) qData = qData.eq('ruangan', filterRuangan);
+          if (excludedIds) qData = qData.not('id', 'in', excludedIds);
 
-        const { data: result, error } = await qData;
-        if (error) throw error;
-        dbData = result || [];
+          const { data: result, error } = await qData;
+          if (error) throw error;
+          const batch = result || [];
+          dbData.push(...batch);
+          if (batch.length < to - from + 1) break;
+        }
+
         dbFetchSucceeded = true;
       } catch (e) {
         console.warn('Handling offline/network error during DB fetch:', e);
@@ -208,7 +233,8 @@ export default function LimbahRuangan({ embedded = false }) {
       }
 
       const fromIndex = (page - 1) * ITEMS_PER_PAGE;
-      setData(mergedData.slice(fromIndex, fromIndex + ITEMS_PER_PAGE));
+      const localStartIndex = dbFetchSucceeded ? fromIndex - dbStartIndex : fromIndex;
+      setData(mergedData.slice(localStartIndex, localStartIndex + ITEMS_PER_PAGE));
     } catch (error) {
       console.error('Error fetching limbah ruangan data:', error);
     } finally {
@@ -413,9 +439,7 @@ export default function LimbahRuangan({ embedded = false }) {
     const [y, m] = sel.split('-'); const s = `${y}-${m}-01`, en = `${y}-${m}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
     MySwal.fire({ title: 'Mengambil Data...', allowOutsideClick: false, didOpen: () => MySwal.showLoading() });
     try {
-      let q = supabase.from('limbah_ruangan').select('tanggal,ruangan,infeksius,jarum_suntik,botol_obat,sitotoksik,petugas,keterangan').gte('tanggal', s).lte('tanggal', en).order('tanggal', { ascending: true });
-      if (selR) q = q.eq('ruangan', selR);
-      const { data: exportData, error } = await q; if (error) throw error;
+      const exportData = await fetchRuanganReportRows({ startDate: s, endDate: en, ruangan: selR });
       if (!exportData?.length) { MySwal.fire('Informasi', 'Tidak ada data untuk filter yang dipilih.', 'info'); return; }
       const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
       const mLabel = `${monthNames[parseInt(m) - 1]} ${y}`;
@@ -539,9 +563,7 @@ export default function LimbahRuangan({ embedded = false }) {
     const [y, m] = sel.split('-'); const s = `${y}-${m}-01`, en = `${y}-${m}-${String(new Date(+y, +m, 0).getDate()).padStart(2, '0')}`;
     try {
       MySwal.fire({ title: 'Menyiapkan Laporan...', html: 'Mohon tunggu, data sedang diproses.', allowOutsideClick: false, allowEscapeKey: false, didOpen: () => MySwal.showLoading() });
-      let q = supabase.from('limbah_ruangan').select('tanggal,ruangan,infeksius,jarum_suntik,botol_obat,sitotoksik,petugas,keterangan').gte('tanggal', s).lte('tanggal', en).order('tanggal', { ascending: true }).order('ruangan', { ascending: true });
-      if (selR) q = q.eq('ruangan', selR);
-      const { data: printData, error } = await q; if (error) throw error;
+      const printData = await fetchRuanganReportRows({ startDate: s, endDate: en, ruangan: selR });
       if (!printData?.length) { MySwal.fire({ icon: 'info', title: 'Tidak Ada Data', text: 'Tidak ada data limbah untuk periode dan ruangan yang dipilih.', confirmButtonColor: '#2563eb' }); return; }
       const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
       const periodeText = `${monthNames[+m - 1]} ${y}`;
