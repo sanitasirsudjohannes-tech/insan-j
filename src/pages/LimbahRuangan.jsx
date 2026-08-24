@@ -271,15 +271,16 @@ export default function LimbahRuangan({ embedded = false }) {
       waktu_input: new Date().toISOString()
     }));
     const insertPayloads = payloads.map((payload) => ({ ...payload, created_by: user?.id }));
+    const isLocalDraft = Boolean(formData.id) && String(formData.id).startsWith('off_');
 
     try {
-      if (!navigator.onLine) {
+      if (!navigator.onLine || isLocalDraft) {
         if (formData.id) {
           saveToOfflineQueue('limbah_ruangan', 'update', { ...payloads[0], id: formData.id }, `Update Limbah Ruangan ${formData.ruangan}`);
         } else {
           insertPayloads.forEach(p => saveToOfflineQueue('limbah_ruangan', 'insert', p, `Input Limbah Ruangan ${formData.ruangan}`));
         }
-        MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Data tersimpan di HP dan akan dikirim otomatis saat online.', confirmButtonColor: '#059669' });
+        MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: isLocalDraft && navigator.onLine ? 'Perubahan draft tersimpan dan menunggu sinkronisasi.' : 'Data tersimpan di HP dan akan dikirim otomatis saat online.', confirmButtonColor: '#059669' });
       } else if (formData.id) {
         const { error } = await supabase.from('limbah_ruangan').update(payloads[0]).eq('id', formData.id);
         if (error) throw error;
@@ -340,7 +341,6 @@ export default function LimbahRuangan({ embedded = false }) {
     if (!isConfirmed) return;
     try {
       if (item.isOffline && item.offlineAction === 'insert') { removeLocalRecordQueue(item); MySwal.fire('Terhapus', 'Draft offline berhasil dihapus', 'success'); fetchData(); return; }
-      removeLocalRecordQueue(item);
       if (!navigator.onLine) {
         saveToOfflineQueue('limbah_ruangan', 'delete', item, `Hapus Limbah Ruangan ${item.ruangan || ''}`);
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Perintah hapus akan diproses otomatis saat online.', confirmButtonColor: '#059669' });
@@ -348,6 +348,9 @@ export default function LimbahRuangan({ embedded = false }) {
       }
       const { error } = await supabase.from('limbah_ruangan').delete().eq('id', item.id);
       if (error) throw error;
+      // Antrean edit hanya boleh dibuang setelah penghapusan benar-benar
+      // dikonfirmasi berhasil oleh server.
+      removeLocalRecordQueue(item);
       MySwal.fire('Terhapus', 'Data berhasil dihapus', 'success'); fetchData();
     } catch (error) {
       if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
