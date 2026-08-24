@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -103,7 +103,7 @@ export default function TabJenisLimbah() {
     fetchLimbah();
   }, []);
 
-  const types = React.useMemo(() => [
+  const types = useMemo(() => [
     { key: 'infeksius', label: 'Infeksius', color: '#ef4444', icon: 'fa-viruses' },
     { key: 'jarum_suntik', label: 'Jarum Suntik', color: '#f59e0b', icon: 'fa-syringe' },
     { key: 'botol_obat', label: 'Botol Obat', color: '#3b82f6', icon: 'fa-pills' },
