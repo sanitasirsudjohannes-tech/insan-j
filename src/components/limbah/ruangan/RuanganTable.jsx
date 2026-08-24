@@ -3,6 +3,7 @@
  */
 import { useState, useEffect } from 'react';
 import { getLocalDateString } from '../../../lib/localDate';
+import SearchableBottomSheet from '../../SearchableBottomSheet';
 
 export default function RuanganTable({
   data,
@@ -23,6 +24,7 @@ export default function RuanganTable({
   onPrint,
 }) {
   const [showFilter, setShowFilter] = useState(false);
+  const [showRuanganFilterSheet, setShowRuanganFilterSheet] = useState(false);
 
   // Lock body scroll when filter panel open on mobile
   useEffect(() => {
@@ -51,14 +53,16 @@ export default function RuanganTable({
         <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
           <i className="fas fa-door-open mr-1.5 text-emerald-500" />Ruangan
         </label>
-        <select
-          value={filterRuangan}
-          onChange={(e) => { setFilterRuangan(e.target.value); setPage(1); }}
-          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50"
+        <button
+          type="button"
+          onClick={() => setShowRuanganFilterSheet(true)}
+          className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-500 bg-gray-50 flex items-center justify-between gap-2 text-left"
         >
-          <option value="">Semua Ruangan</option>
-          {ruanganList.map(r => <option key={r} value={r}>{r}</option>)}
-        </select>
+          <span className={filterRuangan ? 'text-gray-800' : 'text-gray-500'}>
+            {filterRuangan || 'Semua Ruangan'}
+          </span>
+          <i className="fas fa-chevron-down text-xs text-gray-400" />
+        </button>
       </div>
 
       {/* Periode toggle */}
@@ -214,6 +218,20 @@ export default function RuanganTable({
           </div>
         </div>
       )}
+
+      <SearchableBottomSheet
+        isOpen={showRuanganFilterSheet}
+        onClose={() => setShowRuanganFilterSheet(false)}
+        options={['Semua Ruangan', ...ruanganList]}
+        value={filterRuangan || 'Semua Ruangan'}
+        onChange={(room) => {
+          setFilterRuangan(room === 'Semua Ruangan' ? '' : room);
+          setPage(1);
+        }}
+        placeholder="Cari ruangan atau unit..."
+        label="Filter Ruangan / Unit"
+        accentColor="emerald"
+      />
 
       {/* Desktop table */}
       <div className="hidden md:block overflow-x-auto">
