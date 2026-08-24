@@ -323,7 +323,7 @@ export default function SearchableBottomSheet({
           className={`bg-linear-to-r ${colors.header} px-5 py-4 flex items-center justify-between mx-3 rounded-2xl mb-3 shrink-0`}
         >
           <div className="flex items-center gap-2 text-white">
-            <i className={\`${iconClass} text-lg\`} />
+            <i className={`${iconClass} text-lg`} />
 
             <span className="font-bold text-base">
               {label}
