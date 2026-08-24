@@ -1,5 +1,3 @@
-import * as XLSX from 'xlsx';
-
 /**
  * excelDateHelpers.js
  * Mengurai nilai tanggal dari baris Excel ke format YYYY-MM-DD.
@@ -9,13 +7,14 @@ import * as XLSX from 'xlsx';
  *  - String YYYY-MM-DD atau YYYY/MM/DD
  *
  * @param {number|string} val - Nilai sel dari sheet_to_json header:1
+ * @param {object} excelLibrary - Modul XLSX yang sudah dimuat secara lazy
  * @returns {string} Format "YYYY-MM-DD" atau "" jika tidak dikenali
  */
-export function formatDateFromExcel(val) {
+export function formatDateFromExcel(val, excelLibrary) {
   if (!val) return '';
 
   if (typeof val === 'number') {
-    const date = XLSX.SSF.parse_date_code(val);
+    const date = excelLibrary?.SSF?.parse_date_code(val);
     if (date) {
       return `${date.y}-${String(date.m).padStart(2, '0')}-${String(date.d).padStart(2, '0')}`;
     }

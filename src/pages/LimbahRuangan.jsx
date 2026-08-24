@@ -5,7 +5,7 @@ import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser, fetchDaftarRuangan, getSetting } from '../lib/api';
 import { saveToOfflineQueue, getUnsyncedItemsForTable, removeLocalRecordQueue, getOfflineDeletedIds, getOfflineDeletedItems } from '../lib/offlineStorage';
-import * as XLSX from 'xlsx';
+import { loadExcelLibrary } from '../lib/excelLoader';
 
 import RuanganForm from '../components/limbah/ruangan/RuanganForm';
 import RuanganImportExportToolbar from '../components/limbah/ruangan/RuanganImportExportToolbar';
@@ -329,6 +329,7 @@ export default function LimbahRuangan({ embedded = false }) {
       let tI = 0, tJ = 0, tB = 0, tS = 0;
       exportData.forEach((item, idx) => { const inf = parseFloat(item.infeksius) || 0, jar = parseFloat(item.jarum_suntik) || 0, bot = parseFloat(item.botol_obat) || 0, sit = parseFloat(item.sitotoksik) || 0, tot = inf + jar + bot + sit; tI += inf; tJ += jar; tB += bot; tS += sit; wsData.push([idx + 1, new Date(item.tanggal).toLocaleDateString('id-ID'), item.ruangan, inf, jar, bot, sit, tot, item.petugas || '', item.keterangan || '']); });
       wsData.push(['', 'TOTAL', '', tI, tJ, tB, tS, tI + tJ + tB + tS, '', '']);
+      const XLSX = await loadExcelLibrary();
       const ws = XLSX.utils.aoa_to_sheet(wsData); ws['!cols'] = [{ wch: 5 }, { wch: 14 }, { wch: 24 }, { wch: 16 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 18 }, { wch: 24 }];
       const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, `Limbah Ruangan ${mLabel}`);
       XLSX.writeFile(wb, `Laporan_Limbah_Ruangan_${selR ? selR + '_' : ''}${mLabel.replace(' ', '_')}.xlsx`);
@@ -337,7 +338,8 @@ export default function LimbahRuangan({ embedded = false }) {
   };
 
   // ── Download Template ─────────────────────────────────────────────────────────
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
+    const XLSX = await loadExcelLibrary();
     const r1 = ruanganList[0] || 'Poli Jantung', r2 = ruanganList[1] || 'Cempaka';
     const ws = XLSX.utils.aoa_to_sheet([['No.', 'Tanggal', 'Ruangan', 'Limbah Infeksius (Kg)', 'Jarum Suntik (Kg)', 'Botol Obat (Kg)', 'Sitotoksik (Kg)', 'Keterangan'], ['', 'Format: YYYY-MM-DD', 'Pilih dari daftar ruangan yang valid', '', '', '', '', ''], [1, '2025-01-15', r1, 1.5, 0.5, 0.2, 0, 'Rutin'], [2, '2025-01-15', r2, 2.0, 0.8, 0.4, 0.1, 'Rutin']]);
     ws['!cols'] = [{ wch: 5 }, { wch: 16 }, { wch: 24 }, { wch: 22 }, { wch: 18 }, { wch: 16 }, { wch: 16 }, { wch: 20 }];
@@ -350,6 +352,7 @@ export default function LimbahRuangan({ embedded = false }) {
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
+        const XLSX = await loadExcelLibrary();
         const wb = XLSX.read(evt.target.result, { type: 'binary', cellDates: false });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
@@ -358,7 +361,7 @@ export default function LimbahRuangan({ embedded = false }) {
         if (headerIdx === -1) { MySwal.fire('Format Salah', 'Header Tanggal dan Ruangan tidak ditemukan. Gunakan template yang disediakan.', 'error'); return; }
         const dataRows = rows.slice(headerIdx + 1).filter(r => { const t = r[1], rn = r[2]; return t && String(t).trim() !== '' && rn && String(rn).trim() !== '' && !String(t).toLowerCase().includes('format') && !String(t).toLowerCase().includes('total'); });
         if (!dataRows.length) { MySwal.fire('Tidak Ada Data', 'Tidak ditemukan baris data yang valid.', 'warning'); return; }
-        const payloads = dataRows.map(r => ({ tanggal: formatDateFromExcel(r[1]), ruangan: String(r[2]).trim(), infeksius: parseFloat(r[3]) || 0, jarum_suntik: parseFloat(r[4]) || 0, botol_obat: parseFloat(r[5]) || 0, sitotoksik: parseFloat(r[6]) || 0, keterangan: r[7] ? String(r[7]).trim() : '', petugas: user?.nama || 'Petugas', waktu_input: new Date().toISOString() })).filter(p => p.tanggal && p.ruangan);
+        const payloads = dataRows.map(r => ({ tanggal: formatDateFromExcel(r[1], XLSX), ruangan: String(r[2]).trim(), infeksius: parseFloat(r[3]) || 0, jarum_suntik: parseFloat(r[4]) || 0, botol_obat: parseFloat(r[5]) || 0, sitotoksik: parseFloat(r[6]) || 0, keterangan: r[7] ? String(r[7]).trim() : '', petugas: user?.nama || 'Petugas', waktu_input: new Date().toISOString() })).filter(p => p.tanggal && p.ruangan);
         if (!payloads.length) { MySwal.fire('Gagal', 'Tidak ada baris dengan tanggal dan ruangan yang valid.', 'error'); return; }
         const { isConfirmed } = await MySwal.fire({ title: 'Konfirmasi Import', html: `<p>Ditemukan <strong>${payloads.length} data limbah ruangan</strong>. Lanjutkan import?</p>`, icon: 'question', showCancelButton: true, confirmButtonColor: '#059669', confirmButtonText: 'Ya, Import!' });
         if (!isConfirmed) return;

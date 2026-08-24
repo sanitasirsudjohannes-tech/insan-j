@@ -5,7 +5,7 @@ import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser, getSetting, getSettingCached } from '../lib/api';
 import { saveToOfflineQueue, getUnsyncedItemsForTable, removeLocalRecordQueue, getOfflineDeletedIds } from '../lib/offlineStorage';
-import * as XLSX from 'xlsx';
+import { loadExcelLibrary } from '../lib/excelLoader';
 
 import PadatForm, { EMPTY_FORM } from '../components/limbah/padat/PadatForm';
 import PadatImportExportToolbar from '../components/limbah/padat/PadatImportExportToolbar';
@@ -241,6 +241,7 @@ export default function LimbahPadat({ embedded = false }) {
       let tI=0,tJ=0,tB=0,tS=0;
       exportData.forEach((item,idx)=>{ const inf=parseFloat(item.infeksius)||0,jar=parseFloat(item.jarum_suntik)||0,bot=parseFloat(item.botol_obat)||0,sit=parseFloat(item.sitotoksik)||0,tot=inf+jar+bot+sit; tI+=inf;tJ+=jar;tB+=bot;tS+=sit; const src=[]; if(item.ruanganCount>0) src.push(`Akumulasi ${item.ruanganCount} ruangan`); if(item.isManual) src.push('Input Manual'); wsData.push([idx+1,new Date(item.tanggal).toLocaleDateString('id-ID'),inf,jar,bot,sit,tot,src.join(' & ')]); });
       wsData.push([],['TOTAL BULANAN','',tI,tJ,tB,tS,tI+tJ+tB+tS]);
+      const XLSX = await loadExcelLibrary();
       const ws = XLSX.utils.aoa_to_sheet(wsData);
       ws['!cols']=[{wch:5},{wch:14},{wch:22},{wch:18},{wch:16},{wch:14},{wch:18}];
       ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:6}},{s:{r:1,c:0},e:{r:1,c:6}},{s:{r:2,c:0},e:{r:2,c:6}}];
@@ -252,7 +253,8 @@ export default function LimbahPadat({ embedded = false }) {
   };
 
   // ── Download Template ─────────────────────────────────────────────────────────
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
+    const XLSX = await loadExcelLibrary();
     const ws = XLSX.utils.aoa_to_sheet([['No.','Tanggal','Limbah Infeksius (Kg)','Jarum Suntik (Kg)','Botol Obat (Kg)','Sitotoksik (Kg)'],['','Petunjuk: Isi tanggal format DD-MM-YYYY, misal: 15-01-2025','','','',''],[1,'01-01-2025',0.5,0.2,0.1,0.05],[2,'02-01-2025',0.8,0.3,0.15,0.1]]);
     ws['!cols']=[{wch:5},{wch:20},{wch:22},{wch:18},{wch:16},{wch:14}];
     const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Template'); XLSX.writeFile(wb,'Template_Import_Limbah_Padat.xlsx');
@@ -264,6 +266,7 @@ export default function LimbahPadat({ embedded = false }) {
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
+        const XLSX = await loadExcelLibrary();
         const wb = XLSX.read(evt.target.result, { type:'binary', cellDates:false });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
@@ -275,7 +278,7 @@ export default function LimbahPadat({ embedded = false }) {
         const { isConfirmed } = await MySwal.fire({ title:'Konfirmasi Import', html:`<p>Ditemukan <strong>${dataRows.length} baris data</strong>. Lanjutkan import?</p>`, icon:'question', showCancelButton:true, confirmButtonColor:'#16a34a', confirmButtonText:'Ya, Import!' });
         if(!isConfirmed) return;
         setImporting(true); MySwal.fire({ title:'Mengimport Data...', allowOutsideClick:false, didOpen:()=>MySwal.showLoading() });
-        const payloads = dataRows.map(r=>({ tanggal:formatDateFromExcel(r[1]), petugas:user?.nama||'Petugas', infeksius:parseFloat(r[2])||0, jarum_suntik:parseFloat(r[3])||0, botol_obat:parseFloat(r[4])||0, sitotoksik:parseFloat(r[5])||0, waktu_input:new Date().toISOString() })).filter(p=>p.tanggal);
+        const payloads = dataRows.map(r=>({ tanggal:formatDateFromExcel(r[1], XLSX), petugas:user?.nama||'Petugas', infeksius:parseFloat(r[2])||0, jarum_suntik:parseFloat(r[3])||0, botol_obat:parseFloat(r[4])||0, sitotoksik:parseFloat(r[5])||0, waktu_input:new Date().toISOString() })).filter(p=>p.tanggal);
         if(!payloads.length){ MySwal.fire('Gagal','Tidak ada baris dengan tanggal yang valid.','error'); setImporting(false); return; }
         let inserted=0;
         for(let i=0;i<payloads.length;i+=50){ const batch=payloads.slice(i,i+50); const {error}=await supabase.from('limbah_padat').insert(batch); if(error) throw error; inserted+=batch.length; }

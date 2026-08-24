@@ -5,7 +5,7 @@ import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser } from '../lib/api';
 import { saveToOfflineQueue, getUnsyncedItemsForTable, syncOfflineQueue, getOfflineDeletedIds, removeLocalRecordQueue } from '../lib/offlineStorage';
-import * as XLSX from 'xlsx';
+import { loadExcelLibrary } from '../lib/excelLoader';
 import PengangkutanForm from '../components/limbah/pengangkutan/PengangkutanForm';
 import PengangkutanImportExportToolbar from '../components/limbah/pengangkutan/PengangkutanImportExportToolbar';
 import PengangkutanTable from '../components/limbah/pengangkutan/PengangkutanTable';
@@ -249,6 +249,7 @@ export default function PengangkutanLimbah() {
             ['', 'TOTAL', total, '', '']
         ];
 
+        const XLSX = await loadExcelLibrary();
         const ws = XLSX.utils.aoa_to_sheet(wsData);
         ws['!cols'] = [{ wch: 5 }, { wch: 14 }, { wch: 22 }, { wch: 30 }, { wch: 18 }];
         ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } }];
@@ -267,6 +268,7 @@ export default function PengangkutanLimbah() {
         const reader = new FileReader();
         reader.onload = async (evt) => {
             try {
+                const XLSX = await loadExcelLibrary();
                 const wb = XLSX.read(evt.target.result, { type: 'binary', cellDates: false });
                 const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
 
@@ -327,7 +329,8 @@ export default function PengangkutanLimbah() {
         reader.readAsBinaryString(file);
     };
 
-    const handleDownloadTemplate = () => {
+    const handleDownloadTemplate = async () => {
+        const XLSX = await loadExcelLibrary();
         const ws = XLSX.utils.aoa_to_sheet([
             ['No.', 'Tanggal', 'Jumlah Diangkut (Kg)', 'Keterangan'],
             ['', 'Format: YYYY-MM-DD, contoh: 2025-01-15', '', ''],
