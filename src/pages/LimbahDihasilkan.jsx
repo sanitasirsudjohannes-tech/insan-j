@@ -41,7 +41,19 @@ export default function LimbahDihasilkan() {
   const user = getCurrentUser();
   const isMahasiswa = user?.role?.toLowerCase() === 'mahasiswa';
   const [activeTab, setActiveTab] = useState('ruangan');
+  const [visitedTabs, setVisitedTabs] = useState(() => new Set(['ruangan']));
   const visibleTabs = isMahasiswa ? TABS.filter((tab) => tab.id !== 'padat') : TABS;
+
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    setVisitedTabs((previousTabs) => {
+      if (previousTabs.has(tabId)) return previousTabs;
+
+      const nextTabs = new Set(previousTabs);
+      nextTabs.add(tabId);
+      return nextTabs;
+    });
+  };
 
   return (
     <AppLayout title="Limbah Dihasilkan">
@@ -57,7 +69,7 @@ export default function LimbahDihasilkan() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => handleTabChange(tab.id)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold
                     transition-all duration-150 whitespace-nowrap
                     ${isActive ? c.active : c.inactive}`}
@@ -73,23 +85,27 @@ export default function LimbahDihasilkan() {
         </div>
       </div>
 
-      {!isMahasiswa && (
+      {!isMahasiswa && visitedTabs.has('padat') && (
         <div className={activeTab === 'padat' ? 'block' : 'hidden'}>
           <Suspense fallback={<LoadingTab />}>
             <LimbahPadat embedded />
           </Suspense>
         </div>
       )}
-      <div className={activeTab === 'ruangan' ? 'block' : 'hidden'}>
-        <Suspense fallback={<LoadingTab />}>
-          <LimbahRuangan embedded />
-        </Suspense>
-      </div>
-      <div className={activeTab === 'anorganik' ? 'block' : 'hidden'}>
-        <Suspense fallback={<LoadingTab />}>
-          <LimbahAnorganik embedded />
-        </Suspense>
-      </div>
+      {visitedTabs.has('ruangan') && (
+        <div className={activeTab === 'ruangan' ? 'block' : 'hidden'}>
+          <Suspense fallback={<LoadingTab />}>
+            <LimbahRuangan embedded />
+          </Suspense>
+        </div>
+      )}
+      {visitedTabs.has('anorganik') && (
+        <div className={activeTab === 'anorganik' ? 'block' : 'hidden'}>
+          <Suspense fallback={<LoadingTab />}>
+            <LimbahAnorganik embedded />
+          </Suspense>
+        </div>
+      )}
     </AppLayout>
   );
 }
