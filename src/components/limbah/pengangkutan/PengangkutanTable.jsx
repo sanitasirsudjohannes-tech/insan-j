@@ -1,5 +1,4 @@
-import { useMemo, useState } from 'react';
-import SearchableBottomSheet from '../../SearchableBottomSheet';
+import { useEffect, useState } from 'react';
 
 const MONTH_NAMES = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -30,37 +29,16 @@ export default function PengangkutanTable({
   const offlineCount = data.filter(item => item.isOffline).length;
   const activeFilterCount = filterMonth ? 1 : 0;
 
-  const monthOptions = useMemo(() => {
-    const currentYear = new Date().getFullYear();
-    const options = ['Semua Bulan'];
-
-    for (let year = currentYear + 1; year >= 2015; year -= 1) {
-      for (let month = 12; month >= 1; month -= 1) {
-        options.push(MONTH_NAMES[month - 1] + ' ' + year);
-      }
-    }
-
-    return options;
-  }, []);
-
   const selectedMonthLabel = monthValueToLabel(filterMonth);
 
-  const handleMonthSelect = (label) => {
-    if (label === 'Semua Bulan') {
-      setFilterMonth('');
-      setPage(1);
-      return;
-    }
-
-    const parts = label.split(' ');
-    const year = parts.pop();
-    const month = MONTH_NAMES.indexOf(parts.join(' ')) + 1;
-
-    if (month > 0) {
-      setFilterMonth(year + '-' + String(month).padStart(2, '0'));
-      setPage(1);
-    }
-  };
+  useEffect(() => {
+    if (!showFilter) return undefined;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [showFilter]);
 
   const formatDate = (value) => new Date(value).toLocaleDateString('id-ID', {
     day: 'numeric',
@@ -133,18 +111,69 @@ export default function PengangkutanTable({
         </div>
       )}
 
-      <SearchableBottomSheet
-        isOpen={showFilter}
-        onClose={() => setShowFilter(false)}
-        options={monthOptions}
-        value={selectedMonthLabel}
-        onChange={handleMonthSelect}
-        placeholder="Cari bulan atau tahun..."
-        label="Pilih Periode"
-        accentColor="blue"
-        optionNoun="periode"
-        iconClass="fas fa-calendar-alt"
-      />
+      {showFilter && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={() => setShowFilter(false)}>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div
+            className="relative bg-white w-full sm:max-w-sm sm:mx-4 rounded-t-3xl sm:rounded-2xl shadow-2xl z-10"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex justify-center pt-3 pb-1 sm:hidden">
+              <div className="w-10 h-1.5 bg-gray-300 rounded-full" />
+            </div>
+
+            <div className="flex justify-between items-center px-5 pt-4 pb-3 border-b border-gray-100">
+              <span className="text-base font-bold text-gray-800">
+                <i className="fas fa-filter mr-2 text-orange-500" />Filter Data
+              </span>
+              <div className="flex items-center gap-2">
+                {activeFilterCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => { setFilterMonth(''); setPage(1); }}
+                    className="text-xs text-red-500 hover:text-red-700 font-semibold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition flex items-center gap-1"
+                  >
+                    <i className="fas fa-times" /> Reset
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowFilter(false)}
+                  className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 flex items-center justify-center transition"
+                  aria-label="Tutup filter"
+                >
+                  <i className="fas fa-times text-xs" />
+                </button>
+              </div>
+            </div>
+
+            <div className="px-5 py-4">
+              <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
+                <i className="fas fa-calendar mr-1.5 text-orange-500" />Bulan dan Tahun
+              </label>
+              <input
+                type="month"
+                value={filterMonth}
+                onChange={(event) => {
+                  setFilterMonth(event.target.value);
+                  setPage(1);
+                }}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-orange-500 bg-gray-50"
+              />
+            </div>
+
+            <div className="px-5 pb-6 sm:pb-4">
+              <button
+                type="button"
+                onClick={() => setShowFilter(false)}
+                className="w-full bg-orange-600 hover:bg-orange-700 text-white py-3 rounded-xl font-bold text-sm transition shadow-sm"
+              >
+                Terapkan Filter
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-left border-collapse">
