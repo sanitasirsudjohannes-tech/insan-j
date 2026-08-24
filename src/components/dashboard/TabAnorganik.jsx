@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -30,6 +30,9 @@ export default function TabAnorganik() {
   const [dailyData, setDailyData] = useState([]);
   const [monthlyData, setMonthlyData] = useState([]);
   const [chartReady, setChartReady] = useState(false);
+  const [fetchError, setFetchError] = useState('');
+  const [reloadCount, setReloadCount] = useState(0);
+  const fetchIdRef = useRef(0);
 
   useEffect(() => {
     if (!loading) {
@@ -41,28 +44,38 @@ export default function TabAnorganik() {
   }, [loading]);
 
   useEffect(() => {
+    const currentFetchId = ++fetchIdRef.current;
+
     const fetchAnorganik = async () => {
       setLoading(true);
+      setFetchError('');
       try {
+        if (!selectedMonth) throw new Error('Silakan pilih bulan terlebih dahulu.');
+
         // Build date range for the selected month
         const [y, m] = selectedMonth.split('-');
         const start = `${y}-${m}-01`;
         const end   = `${y}-${m}-${String(new Date(+y, +m, 0).getDate()).padStart(2, '0')}`;
 
-        // Fetch filtered rows (for summary cards + daily chart)
-        const { data: filteredRows, error: errF } = await supabase
-          .from('limbah_anorganik')
-          .select('tanggal, infus, jerigen, kertas, kardus, botol_mineral, bayclin_dll')
-          .gte('tanggal', start)
-          .lte('tanggal', end)
-          .order('tanggal', { ascending: true });
+        const [filteredResult, allResult] = await Promise.all([
+          supabase
+            .from('limbah_anorganik')
+            .select('tanggal, infus, jerigen, kertas, kardus, botol_mineral, bayclin_dll')
+            .gte('tanggal', start)
+            .lte('tanggal', end)
+            .order('tanggal', { ascending: true }),
+          supabase
+            .from('limbah_anorganik')
+            .select('tanggal, infus, jerigen, kertas, kardus, botol_mineral, bayclin_dll')
+            .order('tanggal', { ascending: true }),
+        ]);
+
+        if (currentFetchId !== fetchIdRef.current) return;
+
+        const { data: filteredRows, error: errF } = filteredResult;
         if (errF) throw errF;
 
-        // Fetch all rows (for the monthly trend area chart)
-        const { data: allRows, error: errA } = await supabase
-          .from('limbah_anorganik')
-          .select('tanggal, infus, jerigen, kertas, kardus, botol_mineral, bayclin_dll')
-          .order('tanggal', { ascending: true });
+        const { data: allRows, error: errA } = allResult;
         if (errA) throw errA;
 
         // ── Process filtered rows ──────────────────────────────────────
@@ -94,8 +107,6 @@ export default function TabAnorganik() {
         });
 
         const sortedDaily = Object.values(dailyMap).sort((a, b) => a.rawDate.localeCompare(b.rawDate));
-        setDailyData(sortedDaily);
-        setSummary(totals);
 
         // ── Process all rows for monthly trend ────────────────────────
         const monthlyMap = {};
@@ -116,17 +127,31 @@ export default function TabAnorganik() {
         });
 
         const sortedMonthly = Object.values(monthlyMap).sort((a, b) => a.key.localeCompare(b.key));
+        if (currentFetchId !== fetchIdRef.current) return;
+
+        setDailyData(sortedDaily);
+        setSummary(totals);
         setMonthlyData(sortedMonthly.slice(-12));
 
       } catch (err) {
+        if (currentFetchId !== fetchIdRef.current) return;
+
         console.error('Error fetching limbah anorganik dashboard:', err);
+        setSummary({});
+        setDailyData([]);
+        setMonthlyData([]);
+        setFetchError(err.message || 'Data dashboard tidak dapat dimuat.');
       } finally {
-        setLoading(false);
+        if (currentFetchId === fetchIdRef.current) setLoading(false);
       }
     };
 
     fetchAnorganik();
-  }, [selectedMonth]);
+
+    return () => {
+      fetchIdRef.current += 1;
+    };
+  }, [selectedMonth, reloadCount]);
 
   return (
     <div className="animate-fade-in">
@@ -156,6 +181,19 @@ export default function TabAnorganik() {
       {loading ? (
         <div className="flex justify-center py-16">
           <i className="fas fa-spinner fa-spin text-cyan-500 text-4xl" />
+        </div>
+      ) : fetchError ? (
+        <div className="bg-rose-50 border border-rose-200 rounded-2xl px-5 py-8 text-center">
+          <i className="fas fa-exclamation-triangle text-rose-500 text-3xl mb-3" />
+          <p className="font-bold text-rose-800">Data dashboard tidak dapat dimuat</p>
+          <p className="text-sm text-rose-600 mt-1">{fetchError}</p>
+          <button
+            type="button"
+            onClick={() => setReloadCount(value => value + 1)}
+            className="mt-4 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition"
+          >
+            <i className="fas fa-redo-alt mr-2" />Coba Lagi
+          </button>
         </div>
       ) : (
         <>

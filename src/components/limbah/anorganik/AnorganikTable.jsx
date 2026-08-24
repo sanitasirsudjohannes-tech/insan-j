@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import SearchableBottomSheet from '../../SearchableBottomSheet';
 import { JENIS_FIELDS } from './AnorganikForm';
 
 /**
@@ -28,6 +29,7 @@ export default function AnorganikTable({
   onPrint,
 }) {
   const [showFilter, setShowFilter] = useState(false);
+  const [showRuanganFilterSheet, setShowRuanganFilterSheet] = useState(false);
   const activeFilterCount = [filterMonth, filterRuangan].filter(Boolean).length;
 
   useEffect(() => {
@@ -126,19 +128,16 @@ export default function AnorganikTable({
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
                   <i className="fas fa-door-open mr-1.5 text-cyan-500" />Ruangan
                 </label>
-                <select
-                  value={filterRuangan}
-                  onChange={(event) => {
-                    setFilterRuangan(event.target.value);
-                    setPage(1);
-                  }}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-cyan-500 bg-gray-50"
+                <button
+                  type="button"
+                  onClick={() => setShowRuanganFilterSheet(true)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-cyan-500 bg-gray-50 flex items-center justify-between gap-2 text-left"
                 >
-                  <option value="">Semua Ruangan</option>
-                  {ruanganList.map((room) => (
-                    <option key={room} value={room}>{room}</option>
-                  ))}
-                </select>
+                  <span className={filterRuangan ? 'text-gray-800' : 'text-gray-500'}>
+                    {filterRuangan || 'Semua Ruangan'}
+                  </span>
+                  <i className="fas fa-chevron-down text-xs text-gray-400" />
+                </button>
               </div>
 
               <div>
@@ -187,6 +186,20 @@ export default function AnorganikTable({
           </div>
         </div>
       )}
+
+      <SearchableBottomSheet
+        isOpen={showRuanganFilterSheet}
+        onClose={() => setShowRuanganFilterSheet(false)}
+        options={['Semua Ruangan', ...ruanganList]}
+        value={filterRuangan || 'Semua Ruangan'}
+        onChange={(room) => {
+          setFilterRuangan(room === 'Semua Ruangan' ? '' : room);
+          setPage(1);
+        }}
+        placeholder="Cari ruangan atau unit..."
+        label="Filter Ruangan / Unit"
+        accentColor="blue"
+      />
 
       {/* Desktop table */}
       <div className="hidden md:block overflow-x-auto">

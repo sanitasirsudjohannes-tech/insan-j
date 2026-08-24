@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import AppLayout from '../components/AppLayout';
 import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
@@ -6,13 +6,15 @@ import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser, fetchDaftarRuangan, getSetting } from '../lib/api';
 import {
   saveToOfflineQueue,
+  getOfflineQueue,
   getUnsyncedItemsForTable,
   removeLocalRecordQueue,
   getOfflineDeletedIds,
-  getOfflineDeletedItems,
+  getSyncedServerId,
+  syncOfflineQueue,
 } from '../lib/offlineStorage';
 
-import AnorganikForm, { JENIS_FIELDS } from '../components/limbah/anorganik/AnorganikForm';
+import AnorganikForm from '../components/limbah/anorganik/AnorganikForm';
 import AnorganikTable from '../components/limbah/anorganik/AnorganikTable';
 import OfflineBanner from '../components/limbah/OfflineBanner';
 import Pagination from '../components/limbah/Pagination';
@@ -29,6 +31,7 @@ function FullWrapper({ children }) {
 }
 
 const ITEMS_PER_PAGE = 10;
+const FETCH_BATCH_SIZE = 500;
 
 // Keep the same ordering as the Supabase query so offline drafts/updates are
 // merged into the correct global position before slicing the current page.
@@ -54,6 +57,7 @@ export default function LimbahAnorganik({ embedded = false }) {
   const [filterMonth, setFilterMonth] = useState('');
   const [filterRuangan, setFilterRuangan] = useState('');
   const [showRuanganSheet, setShowRuanganSheet] = useState(false);
+  const fetchIdRef = useRef(0);
 
   const emptyForm = {
     id: null,
@@ -73,31 +77,31 @@ export default function LimbahAnorganik({ embedded = false }) {
     fetchDaftarRuangan().then(setRuanganList);
   }, []);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    const currentFetchId = ++fetchIdRef.current;
     setLoading(true);
     try {
       let dbData = [];
       let count = 0;
 
-      // Read the offline overlay first. It must participate in pagination as
-      // virtual rows, rather than being appended to an already paginated DB
-      // page. Otherwise page 1 can contain >10 rows and later pages can skip
-      // or duplicate records.
-      let unsynced = getUnsyncedItemsForTable('limbah_anorganik');
+      // Hide every stale server version, even when its offline replacement
+      // moved to a different room or month and no longer matches this filter.
+      const allUnsynced = getUnsyncedItemsForTable('limbah_anorganik');
+      let unsynced = allUnsynced;
       if (filterMonth) unsynced = unsynced.filter(i => i.tanggal?.startsWith(filterMonth));
       if (filterRuangan) unsynced = unsynced.filter(i => i.ruangan === filterRuangan);
 
-      const unsyncedIds = new Set(unsynced.map(u => String(u.id)));
       const delIds = new Set(getOfflineDeletedIds('limbah_anorganik'));
-      const insertCount = unsynced.filter(i => i.offlineAction === 'insert').length;
-      const updateCount = unsynced.filter(i => i.offlineAction === 'update').length;
+      const hiddenServerIds = new Set([
+        ...allUnsynced.filter(item => item.offlineAction === 'update').map(item => String(item.id)),
+        ...delIds,
+      ]);
+      const excludedIds = hiddenServerIds.size > 0
+        ? `(${Array.from(hiddenServerIds).join(',')})`
+        : null;
 
-      // Filter offline deleted items agar ukurannya sesuai dengan filter yang aktif
-      let offlineDeletedItems = getOfflineDeletedItems('limbah_anorganik');
-      if (filterMonth) offlineDeletedItems = offlineDeletedItems.filter(i => i.tanggal?.startsWith(filterMonth));
-      if (filterRuangan) offlineDeletedItems = offlineDeletedItems.filter(i => i.ruangan === filterRuangan);
-      
-      const filteredDelCount = offlineDeletedItems.length;
+      let dbFetchSucceeded = false;
+      let dbStartIndex = 0;
 
       try {
         let queryCount = supabase
@@ -111,63 +115,73 @@ export default function LimbahAnorganik({ embedded = false }) {
           queryCount = queryCount.gte('tanggal', start).lte('tanggal', end);
         }
         if (filterRuangan) queryCount = queryCount.eq('ruangan', filterRuangan);
+        if (excludedIds) queryCount = queryCount.not('id', 'in', excludedIds);
 
-        const { count: c } = await queryCount;
+        const { count: c, error: countError } = await queryCount;
+        if (countError) throw countError;
         count = c || 0;
 
-        // We cannot fetch only the DB slice for the current page because
-        // offline rows may belong anywhere in the global sorted list. Fetch
-        // enough leading DB rows to fill the requested page after the offline
-        // overlay and local deletes are applied.
-        const from = 0;
-        const requiredRows = page * ITEMS_PER_PAGE;
-        const safetyRows = unsynced.length + delIds.size;
-        const to = Math.max(requiredRows + safetyRows - 1, ITEMS_PER_PAGE - 1);
+        const pageStartIndex = (page - 1) * ITEMS_PER_PAGE;
+        dbStartIndex = Math.max(0, pageStartIndex - unsynced.length);
+        const dbEndIndex = pageStartIndex + ITEMS_PER_PAGE - 1;
 
-        let queryData = supabase
-          .from('limbah_anorganik')
-          .select('id, tanggal, ruangan, infus, jerigen, kertas, kardus, botol_mineral, bayclin_dll, keterangan, petugas, waktu_input, created_by')
-          .order('tanggal', { ascending: false })
-          .order('waktu_input', { ascending: false })
-          .range(from, to);
+        for (let from = dbStartIndex; from <= dbEndIndex; from += FETCH_BATCH_SIZE) {
+          const to = Math.min(from + FETCH_BATCH_SIZE - 1, dbEndIndex);
+          let queryData = supabase
+            .from('limbah_anorganik')
+            .select('id, tanggal, ruangan, infus, jerigen, kertas, kardus, botol_mineral, bayclin_dll, keterangan, petugas, waktu_input, created_by')
+            .order('tanggal', { ascending: false })
+            .order('waktu_input', { ascending: false })
+            .range(from, to);
 
-        if (filterMonth) {
-          const [year, month] = filterMonth.split('-');
-          const start = `${year}-${month}-01`;
-          const end = `${year}-${month}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`;
-          queryData = queryData.gte('tanggal', start).lte('tanggal', end);
+          if (filterMonth) {
+            const [year, month] = filterMonth.split('-');
+            const start = `${year}-${month}-01`;
+            const end = `${year}-${month}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`;
+            queryData = queryData.gte('tanggal', start).lte('tanggal', end);
+          }
+          if (filterRuangan) queryData = queryData.eq('ruangan', filterRuangan);
+          if (excludedIds) queryData = queryData.not('id', 'in', excludedIds);
+
+          const { data: result, error } = await queryData;
+          if (error) throw error;
+
+          const batch = result || [];
+          dbData.push(...batch);
+          if (batch.length < to - from + 1) break;
         }
-        if (filterRuangan) queryData = queryData.eq('ruangan', filterRuangan);
 
-        const { data: result, error } = await queryData;
-        if (!error) dbData = result || [];
+        dbFetchSucceeded = true;
       } catch (e) {
         console.warn('Handling offline/network error fetching limbah anorganik:', e);
+        dbData = [];
+        count = 0;
       }
 
-      // Merge DB rows with the offline overlay, replace pending updates,
-      // remove pending deletes, sort globally, then paginate the final list.
-      const filteredDb = dbData.filter(d => !unsyncedIds.has(String(d.id)) && !delIds.has(String(d.id)));
+      if (currentFetchId !== fetchIdRef.current) return;
+
+      const filteredDb = dbData.filter(item => !hiddenServerIds.has(String(item.id)));
       const mergedData = [...unsynced, ...filteredDb].sort(compareAnorganikRows);
-      const fromIndex = (page - 1) * ITEMS_PER_PAGE;
-      const pageData = mergedData.slice(fromIndex, fromIndex + ITEMS_PER_PAGE);
-
-      setData(pageData);
-
-      // DB count already includes records that are pending local update, so
-      // updates must not increase the total. Offline inserts are new rows and
-      // pending deletes remove existing DB rows from the visible total.
-      const adjustedTotal = Math.max(0, (count || 0) + insertCount - filteredDelCount);
-      // updateCount is intentionally not added to the total; keep it explicit
-      // to document the distinction between virtual replacement and insertion.
-      void updateCount;
+      const adjustedTotal = dbFetchSucceeded
+        ? Math.max(0, count + unsynced.length)
+        : unsynced.length;
       setTotalData(adjustedTotal);
+
+      const lastAvailablePage = Math.max(1, Math.ceil(adjustedTotal / ITEMS_PER_PAGE));
+      if (page > lastAvailablePage) {
+        setPage(lastAvailablePage);
+        return;
+      }
+
+      const fromIndex = (page - 1) * ITEMS_PER_PAGE;
+      const localStartIndex = dbFetchSucceeded ? fromIndex - dbStartIndex : fromIndex;
+      setData(mergedData.slice(localStartIndex, localStartIndex + ITEMS_PER_PAGE));
     } catch (error) {
       console.error('Error fetching limbah anorganik:', error);
     } finally {
-      setLoading(false);
+      if (currentFetchId === fetchIdRef.current) setLoading(false);
     }
-  };
+  }, [filterMonth, filterRuangan, page]);
 
   useEffect(() => {
     fetchData();
@@ -180,7 +194,7 @@ export default function LimbahAnorganik({ embedded = false }) {
       window.removeEventListener('online', handleQueueChange);
       window.removeEventListener('offline', handleQueueChange);
     };
-  }, [page, filterMonth, filterRuangan]);
+  }, [fetchData]);
 
   // Reset to the first page whenever a filter changes so a previously selected
   // page cannot become empty after the result set shrinks.
@@ -219,17 +233,52 @@ export default function LimbahAnorganik({ embedded = false }) {
       waktu_input: new Date().toISOString(),
     };
     const insertPayload = { ...payload, created_by: user?.id };
+    let recordId = formData.id;
+    let isLocalDraft = Boolean(recordId) && String(recordId).startsWith('off_');
 
     try {
-      if (!navigator.onLine) {
+      if (isLocalDraft) {
+        recordId = getSyncedServerId(formData.id) || formData.id;
+
+        if (navigator.onLine && String(recordId).startsWith('off_')) {
+          await syncOfflineQueue(false);
+          recordId = getSyncedServerId(formData.id) || formData.id;
+        }
+
+        isLocalDraft = String(recordId).startsWith('off_');
+      }
+
+      if (!navigator.onLine || isLocalDraft) {
         saveToOfflineQueue('limbah_anorganik', formData.id ? 'update' : 'insert',
-          formData.id ? { ...payload, id: formData.id } : insertPayload,
+          formData.id ? { ...payload, id: recordId } : insertPayload,
           `Input Limbah Anorganik ${formData.ruangan}`);
-        MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Data telah disimpan di HP (Draft). Akan otomatis dikirim saat terhubung internet.', confirmButtonColor: '#0891b2' });
+        MySwal.fire({
+          icon: 'info',
+          title: 'Tersimpan Offline',
+          text: isLocalDraft && navigator.onLine
+            ? 'Perubahan draft tersimpan dan menunggu sinkronisasi.'
+            : 'Data telah disimpan di HP (Draft). Akan otomatis dikirim saat terhubung internet.',
+          confirmButtonColor: '#0891b2',
+        });
       } else {
         if (formData.id) {
-          const { error } = await supabase.from('limbah_anorganik').update(payload).eq('id', formData.id);
+          const pendingRecordUpdate = getOfflineQueue().some(item => {
+            if (item.table !== 'limbah_anorganik') return false;
+            const references = [item.serverId, item.payload?.id, item.payload?.serverId];
+            return references.some(reference => reference != null && String(reference) === String(recordId));
+          });
+
+          if (pendingRecordUpdate) await syncOfflineQueue(false);
+
+          const { data: updatedRow, error } = await supabase
+            .from('limbah_anorganik')
+            .update(payload)
+            .eq('id', recordId)
+            .select('id')
+            .maybeSingle();
           if (error) throw error;
+          if (!updatedRow?.id) throw new Error('Data tidak ditemukan atau Anda tidak memiliki izin untuk mengubahnya.');
+          if (pendingRecordUpdate) removeLocalRecordQueue({ id: recordId });
           MySwal.fire('Berhasil', 'Data limbah anorganik berhasil diubah', 'success');
         } else {
           const { error } = await supabase.from('limbah_anorganik').insert([insertPayload]);
@@ -242,7 +291,7 @@ export default function LimbahAnorganik({ embedded = false }) {
     } catch (error) {
       if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
         saveToOfflineQueue('limbah_anorganik', formData.id ? 'update' : 'insert',
-          formData.id ? { ...payload, id: formData.id } : insertPayload,
+          formData.id ? { ...payload, id: recordId } : insertPayload,
           `Input Limbah Anorganik ${formData.ruangan}`);
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Jaringan terputus. Data telah disimpan di HP (Draft) dan akan dikirim otomatis.', confirmButtonColor: '#0891b2' });
         setFormData(emptyForm);
@@ -284,12 +333,16 @@ export default function LimbahAnorganik({ embedded = false }) {
 
     try {
       if (item.isOffline && item.offlineAction === 'insert') {
-        removeLocalRecordQueue(item);
-        MySwal.fire('Terhapus', 'Draft offline berhasil dihapus', 'success');
-        fetchData();
-        return;
+        const syncedServerId = getSyncedServerId(item.id);
+        if (syncedServerId) {
+          item = { ...item, id: syncedServerId };
+        } else {
+          removeLocalRecordQueue(item);
+          MySwal.fire('Terhapus', 'Draft offline berhasil dihapus', 'success');
+          fetchData();
+          return;
+        }
       }
-      removeLocalRecordQueue(item);
 
       if (!navigator.onLine) {
         saveToOfflineQueue('limbah_anorganik', 'delete', item, `Hapus Limbah Anorganik ${item.ruangan || ''}`);
@@ -298,8 +351,16 @@ export default function LimbahAnorganik({ embedded = false }) {
         return;
       }
 
-      const { error } = await supabase.from('limbah_anorganik').delete().eq('id', item.id);
+      const { data: deletedRow, error } = await supabase
+        .from('limbah_anorganik')
+        .delete()
+        .eq('id', item.id)
+        .select('id')
+        .maybeSingle();
       if (error) throw error;
+      if (!deletedRow?.id) throw new Error('Data tidak ditemukan atau Anda tidak memiliki izin untuk menghapusnya.');
+
+      removeLocalRecordQueue(item);
       MySwal.fire('Terhapus', 'Data berhasil dihapus', 'success');
       fetchData();
     } catch (error) {
