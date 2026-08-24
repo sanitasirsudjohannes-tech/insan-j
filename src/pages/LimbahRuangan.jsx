@@ -24,6 +24,45 @@ function FullWrapper({ children }) { return <AppLayout title="Limbah Per Ruangan
 
 const ITEMS_PER_PAGE = 10;
 
+const parseImportNumber = (rawValue) => {
+  if (rawValue === null || rawValue === undefined || String(rawValue).trim() === '') {
+    return { value: 0, error: null };
+  }
+
+  if (typeof rawValue === 'number') {
+    return Number.isFinite(rawValue) && rawValue >= 0
+      ? { value: rawValue, error: null }
+      : { value: null, error: 'harus berupa angka nol atau lebih' };
+  }
+
+  let normalized = String(rawValue).trim().replace(/\s+/g, '');
+  if (!/^-?[\d.,]+$/.test(normalized)) {
+    return { value: null, error: 'bukan angka yang valid' };
+  }
+
+  const lastComma = normalized.lastIndexOf(',');
+  const lastDot = normalized.lastIndexOf('.');
+  if (lastComma !== -1 && lastDot !== -1) {
+    normalized = lastComma > lastDot
+      ? normalized.replace(/\./g, '').replace(',', '.')
+      : normalized.replace(/,/g, '');
+  } else if (lastComma !== -1) {
+    normalized = normalized.replace(',', '.');
+  }
+
+  const value = Number(normalized);
+  if (!Number.isFinite(value)) return { value: null, error: 'bukan angka yang valid' };
+  if (value < 0) return { value: null, error: 'tidak boleh negatif' };
+  return { value, error: null };
+};
+
+const escapeHTML = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#039;');
+
 // Urutan harus konsisten dengan query Supabase agar draft/update offline
 // tergabung ke posisi global yang benar sebelum di-slice per halaman.
 const compareRuanganRows = (a, b) => {
@@ -367,10 +406,69 @@ export default function LimbahRuangan({ embedded = false }) {
         let headerIdx = -1;
         for (let i = 0; i < rows.length; i++) { const s = rows[i].join('').toLowerCase(); if (s.includes('tanggal') && s.includes('ruangan')) { headerIdx = i; break; } }
         if (headerIdx === -1) { MySwal.fire('Format Salah', 'Header Tanggal dan Ruangan tidak ditemukan. Gunakan template yang disediakan.', 'error'); return; }
-        const dataRows = rows.slice(headerIdx + 1).filter(r => { const t = r[1], rn = r[2]; return t && String(t).trim() !== '' && rn && String(rn).trim() !== '' && !String(t).toLowerCase().includes('format') && !String(t).toLowerCase().includes('total'); });
+        const dataRows = rows.slice(headerIdx + 1)
+          .map((row, index) => ({ row, rowNumber: headerIdx + index + 2 }))
+          .filter(({ row: r }) => {
+            const dateText = String(r[1] ?? '').trim().toLowerCase();
+            const hasAnyData = r.slice(1, 8).some(value => String(value ?? '').trim() !== '');
+            return hasAnyData && !dateText.includes('format') && !dateText.includes('total');
+          });
         if (!dataRows.length) { MySwal.fire('Tidak Ada Data', 'Tidak ditemukan baris data yang valid.', 'warning'); return; }
-        const payloads = dataRows.map(r => ({ tanggal: formatDateFromExcel(r[1], XLSX), ruangan: String(r[2]).trim(), infeksius: parseFloat(r[3]) || 0, jarum_suntik: parseFloat(r[4]) || 0, botol_obat: parseFloat(r[5]) || 0, sitotoksik: parseFloat(r[6]) || 0, keterangan: r[7] ? String(r[7]).trim() : '', petugas: user?.nama || 'Petugas', waktu_input: new Date().toISOString() })).filter(p => p.tanggal && p.ruangan);
-        if (!payloads.length) { MySwal.fire('Gagal', 'Tidak ada baris dengan tanggal dan ruangan yang valid.', 'error'); return; }
+        const officialRooms = new Map(ruanganList.map(room => [room.trim().toLocaleLowerCase('id-ID'), room]));
+        const payloads = [];
+        const validationErrors = [];
+
+        dataRows.forEach(({ row: r, rowNumber }) => {
+          const tanggal = formatDateFromExcel(r[1], XLSX);
+          const rawRuangan = String(r[2] ?? '').trim();
+          const ruangan = officialRooms.get(rawRuangan.toLocaleLowerCase('id-ID'));
+          const numberFields = [
+            ['Infeksius', r[3], 'infeksius'],
+            ['Jarum Suntik', r[4], 'jarum_suntik'],
+            ['Botol Obat', r[5], 'botol_obat'],
+            ['Sitotoksik', r[6], 'sitotoksik'],
+          ];
+          const parsedNumbers = {};
+          const rowErrors = [];
+
+          if (!tanggal) rowErrors.push(`tanggal "${String(r[1] ?? '').trim()}" tidak valid`);
+          if (!ruangan) rowErrors.push(`ruangan "${rawRuangan}" tidak terdaftar`);
+
+          numberFields.forEach(([label, rawValue, key]) => {
+            const parsed = parseImportNumber(rawValue);
+            if (parsed.error) rowErrors.push(`${label} ${parsed.error}`);
+            else parsedNumbers[key] = parsed.value;
+          });
+
+          if (rowErrors.length > 0) {
+            validationErrors.push(`Baris ${rowNumber}: ${rowErrors.join('; ')}`);
+            return;
+          }
+
+          payloads.push({
+            tanggal,
+            ruangan,
+            ...parsedNumbers,
+            keterangan: r[7] ? String(r[7]).trim() : '',
+            petugas: user?.nama || 'Petugas',
+            waktu_input: new Date().toISOString(),
+            created_by: user?.id,
+          });
+        });
+
+        if (validationErrors.length > 0) {
+          const shownErrors = validationErrors.slice(0, 10);
+          const remaining = validationErrors.length - shownErrors.length;
+          MySwal.fire({
+            icon: 'error',
+            title: 'Data Excel Belum Valid',
+            html: `<div class="text-left text-sm"><p class="mb-3">Perbaiki data berikut, lalu impor kembali. Tidak ada data yang disimpan.</p><ul class="list-disc pl-5 space-y-1 max-h-64 overflow-y-auto">${shownErrors.map(error => `<li>${escapeHTML(error)}</li>`).join('')}</ul>${remaining > 0 ? `<p class="mt-3 font-semibold">Dan ${remaining} kesalahan lainnya.</p>` : ''}</div>`,
+            confirmButtonColor: '#dc2626',
+          });
+          return;
+        }
+
+        if (!payloads.length) { MySwal.fire('Gagal', 'Tidak ada baris data yang dapat diimpor.', 'error'); return; }
         const { isConfirmed } = await MySwal.fire({ title: 'Konfirmasi Import', html: `<p>Ditemukan <strong>${payloads.length} data limbah ruangan</strong>. Lanjutkan import?</p>`, icon: 'question', showCancelButton: true, confirmButtonColor: '#059669', confirmButtonText: 'Ya, Import!' });
         if (!isConfirmed) return;
         setImporting(true); MySwal.fire({ title: 'Mengimport Data...', allowOutsideClick: false, didOpen: () => MySwal.showLoading() });
