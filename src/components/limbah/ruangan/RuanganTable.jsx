@@ -69,14 +69,14 @@ export default function RuanganTable({
         <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-2.5">
           <button
             type="button"
-            onClick={() => { setFilterDate(''); }}
+            onClick={() => { setFilterDate(''); setPage(1); }}
             className={`flex-1 text-xs py-2 rounded-lg font-semibold transition ${!filterDate ? 'bg-white shadow-sm text-blue-700' : 'text-gray-400 hover:text-gray-600'}`}
           >
             <i className="fas fa-calendar-alt mr-1" />Per Bulan
           </button>
           <button
             type="button"
-            onClick={() => { setFilterMonth(''); if (!filterDate) setFilterDate(getLocalDateString()); }}
+            onClick={() => { setFilterMonth(''); if (!filterDate) setFilterDate(getLocalDateString()); setPage(1); }}
             className={`flex-1 text-xs py-2 rounded-lg font-semibold transition ${filterDate ? 'bg-white shadow-sm text-blue-700' : 'text-gray-400 hover:text-gray-600'}`}
           >
             <i className="fas fa-calendar-day mr-1" />Per Tanggal

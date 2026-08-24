@@ -187,8 +187,6 @@ export default function LimbahRuangan({ embedded = false }) {
       // halaman aktif.
       const filteredDb = dbData.filter(d => !hiddenServerIds.has(String(d.id)));
       const mergedData = [...unsynced, ...filteredDb].sort(compareRuanganRows);
-      const fromIndex = (page - 1) * ITEMS_PER_PAGE;
-      setData(mergedData.slice(fromIndex, fromIndex + ITEMS_PER_PAGE));
 
       // Query server sudah mengecualikan seluruh versi lama yang diedit atau
       // dihapus. Tambahkan semua overlay yang sesuai filter: insert maupun
@@ -197,6 +195,17 @@ export default function LimbahRuangan({ embedded = false }) {
         ? Math.max(0, (count || 0) + unsynced.length)
         : unsynced.length;
       setTotalData(adjustedTotal);
+
+      // Jika halaman terakhir hilang setelah hapus data, perubahan filter,
+      // atau perpindahan offline, kembali ke halaman yang masih tersedia.
+      const lastAvailablePage = Math.max(1, Math.ceil(adjustedTotal / ITEMS_PER_PAGE));
+      if (page > lastAvailablePage) {
+        setPage(lastAvailablePage);
+        return;
+      }
+
+      const fromIndex = (page - 1) * ITEMS_PER_PAGE;
+      setData(mergedData.slice(fromIndex, fromIndex + ITEMS_PER_PAGE));
     } catch (error) {
       console.error('Error fetching limbah ruangan data:', error);
     } finally {
