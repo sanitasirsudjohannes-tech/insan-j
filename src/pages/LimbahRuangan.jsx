@@ -15,6 +15,7 @@ import Pagination from '../components/limbah/Pagination';
 import { buildRuanganPrintHTML } from '../components/limbah/ruangan/ruanganPrintTemplate';
 import { formatDateFromExcel } from '../lib/excelDateHelpers';
 import { printViaHiddenIframe } from '../lib/printHelpers';
+import { getLocalDateString, getLocalMonthString } from '../lib/localDate';
 
 const MySwal = withReactContent(Swal);
 
@@ -37,7 +38,7 @@ const compareRuanganRows = (a, b) => {
 
 const EMPTY_FORM = {
   id: null,
-  tanggal: new Date().toISOString().split('T')[0],
+  tanggal: getLocalDateString(),
   ruangan: '', infeksius: '', jarum_suntik: '', botol_obat: '', sitotoksik: '', keterangan: '',
   isDistribusi: false,
   distribusiDates: []
@@ -320,7 +321,7 @@ export default function LimbahRuangan({ embedded = false }) {
 
   // ── Export Excel ──────────────────────────────────────────────────────────────
   const handleExportExcel = async () => {
-    const { value: fv } = await MySwal.fire({ title: 'Export Data Limbah', html: `<div class="text-left mt-4 space-y-4"><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Bulan & Tahun</label><input id="swal-export-month" type="month" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-gray-50" value="${new Date().toISOString().slice(0, 7)}"/></div><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Filter Ruangan (Opsional)</label><select id="swal-export-ruangan" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-gray-50 appearance-none"><option value="">-- Semua Ruangan --</option>${ruanganList.map(r => `<option value="${r}">${r}</option>`).join('')}</select></div></div>`, focusConfirm: false, showCancelButton: true, confirmButtonText: '<i class="fas fa-file-excel mr-2"></i>Export Excel', cancelButtonText: 'Batal', confirmButtonColor: '#059669', preConfirm: () => ({ month: document.getElementById('swal-export-month').value, ruangan: document.getElementById('swal-export-ruangan').value }) });
+    const { value: fv } = await MySwal.fire({ title: 'Export Data Limbah', html: `<div class="text-left mt-4 space-y-4"><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Bulan & Tahun</label><input id="swal-export-month" type="month" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-gray-50" value="${getLocalMonthString()}"/></div><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Filter Ruangan (Opsional)</label><select id="swal-export-ruangan" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-gray-50 appearance-none"><option value="">-- Semua Ruangan --</option>${ruanganList.map(r => `<option value="${r}">${r}</option>`).join('')}</select></div></div>`, focusConfirm: false, showCancelButton: true, confirmButtonText: '<i class="fas fa-file-excel mr-2"></i>Export Excel', cancelButtonText: 'Batal', confirmButtonColor: '#059669', preConfirm: () => ({ month: document.getElementById('swal-export-month').value, ruangan: document.getElementById('swal-export-ruangan').value }) });
     if (!fv || !fv.month) return;
     const { month: sel, ruangan: selR } = fv;
     const [y, m] = sel.split('-'); const s = `${y}-${m}-01`, en = `${y}-${m}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
@@ -384,7 +385,7 @@ export default function LimbahRuangan({ embedded = false }) {
 
   // ── Print ─────────────────────────────────────────────────────────────────────
   const handlePrint = async () => {
-    const currentMonth = filterMonth || new Date().toISOString().slice(0, 7);
+    const currentMonth = filterMonth || getLocalMonthString();
     const { value: fv } = await MySwal.fire({ title: 'Cetak Laporan Limbah', html: `<div class="text-left mt-4 space-y-4"><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Bulan & Tahun</label><input id="swal-print-month" type="month" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-gray-50" value="${currentMonth}"/></div><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Ruangan (Opsional)</label><select id="swal-print-ruangan" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-gray-50 appearance-none"><option value="">-- Semua Ruangan --</option>${ruanganList.map(r => `<option value="${r}">${r}</option>`).join('')}</select></div></div>`, focusConfirm: false, showCancelButton: true, confirmButtonText: '<i class="fas fa-print mr-2"></i>Cetak', cancelButtonText: 'Batal', confirmButtonColor: '#2563eb', preConfirm: () => { const mi = document.getElementById('swal-print-month'); if (!mi?.value) { Swal.showValidationMessage('Silakan pilih bulan terlebih dahulu.'); return false; } return { month: mi.value, ruangan: document.getElementById('swal-print-ruangan')?.value || '' }; } });
     if (!fv) return;
     const { month: sel, ruangan: selR } = fv;

@@ -8,7 +8,16 @@ const QUEUE_KEY = 'insan_j_offline_queue';
 // queue concurrently and sending duplicate INSERT/UPDATE/DELETE requests.
 let syncPromise = null;
 
-export const getOfflineQueue = () => {
+const getCurrentQueueOwnerId = () => {
+  try {
+    const raw = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser');
+    return raw ? JSON.parse(raw)?.id || null : null;
+  } catch {
+    return null;
+  }
+};
+
+const readStoredQueue = () => {
   try {
     const raw = localStorage.getItem(QUEUE_KEY);
     return raw ? JSON.parse(raw) : [];
@@ -16,6 +25,41 @@ export const getOfflineQueue = () => {
     console.error('Error reading offline queue:', err);
     return [];
   }
+};
+
+// Queue versi lama belum memiliki ownerId. created_by diprioritaskan agar
+// draft insert lama tetap kembali ke pembuatnya; sisanya diklaim sekali oleh
+// akun yang sedang aktif saat migrasi.
+const migrateLegacyQueueOwners = (queue, currentOwnerId) => {
+  let changed = false;
+  const migrated = queue.map(item => {
+    if (item.ownerId) return item;
+    const ownerId = item.payload?.created_by || currentOwnerId;
+    if (!ownerId) return item;
+    changed = true;
+    return { ...item, ownerId };
+  });
+
+  if (changed) localStorage.setItem(QUEUE_KEY, JSON.stringify(migrated));
+  return migrated;
+};
+
+const writeCurrentOwnerQueue = (ownerQueue) => {
+  const ownerId = getCurrentQueueOwnerId();
+  if (!ownerId) return false;
+
+  const allQueue = migrateLegacyQueueOwners(readStoredQueue(), ownerId);
+  const otherOwnersQueue = allQueue.filter(item => item.ownerId !== ownerId);
+  localStorage.setItem(QUEUE_KEY, JSON.stringify([...otherOwnersQueue, ...ownerQueue]));
+  window.dispatchEvent(new CustomEvent('offline-queue-changed', { detail: ownerQueue }));
+  return true;
+};
+
+export const getOfflineQueue = () => {
+  const ownerId = getCurrentQueueOwnerId();
+  if (!ownerId) return [];
+  return migrateLegacyQueueOwners(readStoredQueue(), ownerId)
+    .filter(item => item.ownerId === ownerId);
 };
 
 export const getUnsyncedItemsForTable = (tableName) => {
@@ -61,6 +105,8 @@ export const getOfflineDeletedItems = (tableName) => {
  */
 
 export const saveToOfflineQueue = (table, action, payload, description = '') => {
+  const ownerId = getCurrentQueueOwnerId();
+  if (!ownerId) throw new Error('Pengguna tidak teridentifikasi. Silakan masuk kembali.');
   const queue = getOfflineQueue();
   const payloadCopy = { ...(payload || {}) };
 
@@ -74,7 +120,7 @@ export const saveToOfflineQueue = (table, action, payload, description = '') => 
       const refs = [item.id, item.localId, item.serverId, item.payload?.id, item.payload?.serverId]
         .filter(v => v !== null && v !== undefined && v !== '')
         .map(String);
-      return refs.includes(String(targetId));
+      return item.table === table && refs.includes(String(targetId));
     });
 
     if (existingIndex !== -1) {
@@ -113,8 +159,7 @@ export const saveToOfflineQueue = (table, action, payload, description = '') => 
         };
       }
 
-      localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
-      window.dispatchEvent(new CustomEvent('offline-queue-changed', { detail: queue }));
+      writeCurrentOwnerQueue(queue);
       return queue[existingIndex] || null;
     }
   }
@@ -130,19 +175,18 @@ export const saveToOfflineQueue = (table, action, payload, description = '') => 
     action,
     payload: payloadCopy,
     description: description || `${action.toUpperCase()} data ${table}`,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    ownerId
   };
 
   queue.push(newItem);
-  localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
-  window.dispatchEvent(new CustomEvent('offline-queue-changed', { detail: queue }));
+  writeCurrentOwnerQueue(queue);
   return newItem;
 };
 
 export const removeOfflineQueueItem = (id) => {
   const queue = getOfflineQueue().filter(item => item.id !== id && item.localId !== id);
-  localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
-  window.dispatchEvent(new CustomEvent('offline-queue-changed', { detail: queue }));
+  writeCurrentOwnerQueue(queue);
 };
 
 const replaceReferencedLocalId = (localId, serverId) => {
@@ -163,8 +207,7 @@ const replaceReferencedLocalId = (localId, serverId) => {
     };
   });
 
-  localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
-  window.dispatchEvent(new CustomEvent('offline-queue-changed', { detail: queue }));
+  writeCurrentOwnerQueue(queue);
 };
 
 // Tetap kompatibel dengan format queue lama: update/delete boleh memakai
@@ -200,8 +243,7 @@ export const removeLocalRecordQueue = (item) => {
     return !references.some(reference => localIds.has(reference));
   });
 
-  localStorage.setItem(QUEUE_KEY, JSON.stringify(queue));
-  window.dispatchEvent(new CustomEvent('offline-queue-changed', { detail: queue }));
+  writeCurrentOwnerQueue(queue);
 };
 
 const performOfflineSync = async (showNotification = true) => {

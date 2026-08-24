@@ -2,6 +2,7 @@
  * RuanganTable – tabel data limbah per ruangan (desktop + mobile card).
  */
 import { useState, useEffect } from 'react';
+import { getLocalDateString } from '../../../lib/localDate';
 
 export default function RuanganTable({
   data,
@@ -75,7 +76,7 @@ export default function RuanganTable({
           </button>
           <button
             type="button"
-            onClick={() => { setFilterMonth(''); if (!filterDate) setFilterDate(new Date().toISOString().split('T')[0]); }}
+            onClick={() => { setFilterMonth(''); if (!filterDate) setFilterDate(getLocalDateString()); }}
             className={`flex-1 text-xs py-2 rounded-lg font-semibold transition ${filterDate ? 'bg-white shadow-sm text-blue-700' : 'text-gray-400 hover:text-gray-600'}`}
           >
             <i className="fas fa-calendar-day mr-1" />Per Tanggal
