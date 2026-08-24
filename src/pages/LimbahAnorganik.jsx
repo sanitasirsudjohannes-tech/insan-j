@@ -198,6 +198,10 @@ export default function LimbahAnorganik({ embedded = false }) {
       MySwal.fire('Peringatan', 'Silakan pilih ruangan terlebih dahulu!', 'warning');
       return;
     }
+    if (!Number.isInteger(Number(formData.jerigen)) || Number(formData.jerigen) < 0) {
+      MySwal.fire('Peringatan', 'Jumlah jerigen harus berupa bilangan bulat karena dihitung per buah.', 'warning');
+      return;
+    }
     setSubmitting(true);
 
     const payload = {

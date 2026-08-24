@@ -72,9 +72,11 @@ export default function AnorganikTable({
               <th className="px-3 py-2.5 font-bold">Tanggal</th>
               <th className="px-3 py-2.5 font-bold">Ruangan</th>
               {JENIS_FIELDS.map(f => (
-                <th key={f.name} className="px-3 py-2.5 font-bold text-right">{f.label}</th>
+                <th key={f.name} className="px-3 py-2.5 font-bold text-right">
+                  {f.label}<br /><span className="normal-case text-gray-500">({f.satuan})</span>
+                </th>
               ))}
-              <th className="px-3 py-2.5 font-bold text-right">Total</th>
+              <th className="px-3 py-2.5 font-bold text-right">Total<br /><span className="normal-case text-gray-500">(Kg)</span></th>
               <th className="px-3 py-2.5 font-bold">Petugas</th>
               <th className="px-3 py-2.5 font-bold text-center">Aksi</th>
             </tr>
@@ -92,7 +94,9 @@ export default function AnorganikTable({
             ) : (
               data.map((item, idx) => {
                 const rowNo = (page - 1) * itemsPerPage + idx + 1;
-                const total = JENIS_FIELDS.reduce((sum, f) => sum + (parseFloat(item[f.name]) || 0), 0);
+                const total = JENIS_FIELDS.reduce((sum, f) => (
+                  f.satuan === 'Kg' ? sum + (parseFloat(item[f.name]) || 0) : sum
+                ), 0);
                 return (
                   <tr key={item.id} className={item.isOffline ? "bg-amber-50/70 hover:bg-amber-100/70 border-l-4 border-l-amber-500 transition-colors" : "hover:bg-cyan-50/40 transition-colors"}>
                     <td className="px-3 py-2 text-gray-400 font-medium">{rowNo}</td>
@@ -104,7 +108,11 @@ export default function AnorganikTable({
                       <span className="inline-block bg-cyan-100 text-cyan-800 text-[10px] px-2 py-0.5 rounded-lg">{item.ruangan || '-'}</span>
                     </td>
                     {JENIS_FIELDS.map(f => (
-                      <td key={f.name} className="px-3 py-2 text-right font-semibold text-gray-700">{(parseFloat(item[f.name]) || 0).toFixed(2)}</td>
+                      <td key={f.name} className="px-3 py-2 text-right font-semibold text-gray-700">
+                        {f.satuan === 'Buah'
+                          ? (parseFloat(item[f.name]) || 0).toLocaleString('id-ID')
+                          : (parseFloat(item[f.name]) || 0).toFixed(2)}
+                      </td>
                     ))}
                     <td className="px-3 py-2 text-right font-black text-slate-800">{total.toFixed(2)} Kg</td>
                     <td className="px-3 py-2 text-gray-600">{item.petugas || '-'}</td>
@@ -135,7 +143,9 @@ export default function AnorganikTable({
         ) : (
           data.map((item, idx) => {
             const rowNo = (page - 1) * itemsPerPage + idx + 1;
-            const total = JENIS_FIELDS.reduce((sum, f) => sum + (parseFloat(item[f.name]) || 0), 0);
+            const total = JENIS_FIELDS.reduce((sum, f) => (
+              f.satuan === 'Kg' ? sum + (parseFloat(item[f.name]) || 0) : sum
+            ), 0);
             return (
               <div key={item.id} className={`flex items-start gap-3 px-4 py-3 border-l-4 ${item.isOffline ? 'border-l-amber-500 bg-amber-50/60' : 'border-l-cyan-400'}`}>
                 <span className="text-[10px] text-gray-400 font-bold pt-0.5 w-5 shrink-0">{rowNo}</span>
@@ -147,9 +157,16 @@ export default function AnorganikTable({
                   </div>
                   <div className="grid grid-cols-3 gap-x-1 gap-y-0.5 text-[10px]">
                     {JENIS_FIELDS.map(f => (
-                      <div key={f.name}><span className="text-gray-400">{f.label}</span><br /><span className="font-bold text-gray-700">{(parseFloat(item[f.name]) || 0).toFixed(2)}</span></div>
+                      <div key={f.name}>
+                        <span className="text-gray-400">{f.label} ({f.satuan})</span><br />
+                        <span className="font-bold text-gray-700">
+                          {f.satuan === 'Buah'
+                            ? (parseFloat(item[f.name]) || 0).toLocaleString('id-ID')
+                            : (parseFloat(item[f.name]) || 0).toFixed(2)}
+                        </span>
+                      </div>
                     ))}
-                    <div><span className="text-gray-400">Total</span><br /><span className="font-black text-slate-800">{total.toFixed(2)}</span></div>
+                    <div><span className="text-gray-400">Total (Kg)</span><br /><span className="font-black text-slate-800">{total.toFixed(2)}</span></div>
                   </div>
                 </div>
                 <div className="flex gap-1 shrink-0">

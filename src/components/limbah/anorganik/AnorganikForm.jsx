@@ -88,7 +88,7 @@ export default function AnorganikForm({
 
             <div className="mb-4">
               <label className="block text-gray-800 font-bold text-sm mb-2">
-                Jumlah Timbulan Limbah Anorganik (Kg)
+                Jumlah Timbulan Limbah Anorganik
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {JENIS_FIELDS.map(f => (
@@ -96,13 +96,13 @@ export default function AnorganikForm({
                     <label className={`block text-sm font-semibold ${f.color} mb-1`}>{f.label} ({f.satuan})</label>
                     <input
                       type="number"
-                      step="0.01"
+                      step={f.satuan === 'Buah' ? '1' : '0.01'}
                       min="0"
                       name={f.name}
                       value={formData[f.name]}
                       onChange={handleInputChange}
                       required
-                      placeholder="0.0"
+                      placeholder={f.satuan === 'Buah' ? '0' : '0.0'}
                       className={`w-full border border-gray-300 rounded-xl px-3 py-2 focus:ring-2 ${f.ring} outline-none text-sm`}
                     />
                   </div>

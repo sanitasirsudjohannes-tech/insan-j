@@ -89,7 +89,7 @@ export default function TabAnorganik() {
           ANORGANIK_TYPES.forEach(t => {
             const val = parseFloat(row[t.key]) || 0;
             dailyMap[tgl][t.key] += val;
-            dailyMap[tgl].total  += val;
+            if (t.satuan === 'Kg') dailyMap[tgl].total += val;
           });
         });
 
@@ -111,7 +111,7 @@ export default function TabAnorganik() {
             };
           }
           ANORGANIK_TYPES.forEach(t => {
-            monthlyMap[mk].total += parseFloat(row[t.key]) || 0;
+            if (t.satuan === 'Kg') monthlyMap[mk].total += parseFloat(row[t.key]) || 0;
           });
         });
 
@@ -205,11 +205,14 @@ export default function TabAnorganik() {
                       <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
                       <Tooltip
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                        formatter={(val, name) => [`${Math.round(val * 100) / 100}`, name]}
+                        formatter={(val, name) => {
+                          const type = ANORGANIK_TYPES.find(item => item.label === name);
+                          return [`${Math.round(val * 100) / 100} ${type?.satuan || ''}`, name];
+                        }}
                       />
                       <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
                       {ANORGANIK_TYPES.map(t => (
-                        <Bar key={t.key} dataKey={t.key} name={t.label} stackId="a" fill={t.color} maxBarSize={40} />
+                        <Bar key={t.key} dataKey={t.key} name={t.label} stackId={t.satuan} fill={t.color} maxBarSize={40} />
                       ))}
                     </BarChart>
                   </ResponsiveContainer>
@@ -223,7 +226,7 @@ export default function TabAnorganik() {
                 <span className="w-8 h-8 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center mr-3">
                   <i className="fas fa-calendar-alt" />
                 </span>
-                Tren Total Bulanan (12 Bulan Terakhir)
+                Tren Total Bulanan dalam Kg (12 Bulan Terakhir)
               </h3>
               <div className="h-80">
                 {monthlyData.length === 0 ? (
@@ -245,7 +248,7 @@ export default function TabAnorganik() {
                       <YAxis tick={{ fontSize: 10, fill: '#64748b' }} axisLine={false} tickLine={false} />
                       <Tooltip
                         contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                        formatter={(val) => [`${Math.round(val * 100) / 100}`, 'Total Anorganik']}
+                        formatter={(val) => [`${Math.round(val * 100) / 100} Kg`, 'Total Anorganik']}
                       />
                       <Area
                         type="monotone"
