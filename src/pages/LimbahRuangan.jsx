@@ -90,6 +90,7 @@ export default function LimbahRuangan({ embedded = false }) {
 
       const filteredDelCount = offlineDeletedItems.length;
 
+      let dbFetchSucceeded = false;
       try {
         let qCount = supabase.from('limbah_ruangan').select('id', { count: 'exact', head: true });
         if (filterDate) { qCount = qCount.eq('tanggal', filterDate); }
@@ -120,9 +121,13 @@ export default function LimbahRuangan({ embedded = false }) {
         const { data: result, error } = await qData;
         if (error) throw error;
         dbData = result || [];
+        dbFetchSucceeded = true;
       } catch (e) {
         console.warn('Handling offline/network error during DB fetch:', e);
-        throw e;
+        // Jangan hentikan proses saat Supabase tidak dapat dijangkau.
+        // Antrean lokal tetap harus digabung dan ditampilkan pada tabel.
+        dbData = [];
+        count = 0;
       }
 
       if (currentFetchId !== fetchIdRef.current) return;
@@ -139,7 +144,9 @@ export default function LimbahRuangan({ embedded = false }) {
       // offline, jadi update tidak boleh menambah total. Insert offline
       // menambah baris baru, dan hapus offline mengurangi baris yang
       // sebelumnya sudah ada di DB (dengan syarat memenuhi filter yang sama).
-      const adjustedTotal = Math.max(0, (count || 0) + insertCount - filteredDelCount);
+      const adjustedTotal = dbFetchSucceeded
+        ? Math.max(0, (count || 0) + insertCount - filteredDelCount)
+        : unsynced.length;
       setTotalData(adjustedTotal);
     } catch (error) {
       console.error('Error fetching limbah ruangan data:', error);
