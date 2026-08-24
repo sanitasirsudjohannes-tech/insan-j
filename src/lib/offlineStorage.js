@@ -2,6 +2,8 @@ import { supabase } from './supabase';
 import Swal from 'sweetalert2';
 
 const QUEUE_KEY = 'insan_j_offline_queue';
+const SYNCED_IDS_KEY = 'insan_j_offline_synced_ids';
+const MAX_SYNCED_IDS_PER_USER = 200;
 
 // Global in-tab mutex for offline synchronization.
 // Prevents auto-sync (online event) and manual sync from processing the same
@@ -14,6 +16,41 @@ const getCurrentQueueOwnerId = () => {
     return raw ? JSON.parse(raw)?.id || null : null;
   } catch {
     return null;
+  }
+};
+
+export const getSyncedServerId = (localId) => {
+  const ownerId = getCurrentQueueOwnerId();
+  if (!ownerId || !localId || !String(localId).startsWith('off_')) return null;
+
+  try {
+    const raw = localStorage.getItem(SYNCED_IDS_KEY);
+    const savedIds = raw ? JSON.parse(raw) : {};
+    return savedIds[ownerId]?.[String(localId)] || null;
+  } catch (error) {
+    console.warn('Gagal membaca pemetaan ID draft tersinkron:', error);
+    return null;
+  }
+};
+
+const rememberSyncedServerId = (localId, serverId) => {
+  const ownerId = getCurrentQueueOwnerId();
+  if (!ownerId || !localId || !serverId) return;
+
+  try {
+    const raw = localStorage.getItem(SYNCED_IDS_KEY);
+    const savedIds = raw ? JSON.parse(raw) : {};
+    const ownerEntries = Object.entries(savedIds[ownerId] || {})
+      .filter(([existingLocalId]) => existingLocalId !== String(localId))
+      .slice(-(MAX_SYNCED_IDS_PER_USER - 1));
+
+    savedIds[ownerId] = Object.fromEntries([
+      ...ownerEntries,
+      [String(localId), serverId],
+    ]);
+    localStorage.setItem(SYNCED_IDS_KEY, JSON.stringify(savedIds));
+  } catch (error) {
+    console.warn('Gagal menyimpan pemetaan ID draft tersinkron:', error);
   }
 };
 
@@ -277,6 +314,7 @@ const performOfflineSync = async (showNotification = true) => {
         error = err;
 
         if (!error && data?.id) {
+          rememberSyncedServerId(item.localId || item.id, data.id);
           replaceReferencedLocalId(item.localId || item.id, data.id);
         }
       } else if (item.action === 'update') {

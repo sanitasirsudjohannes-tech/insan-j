@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser, fetchDaftarRuangan, getSetting } from '../lib/api';
-import { saveToOfflineQueue, getUnsyncedItemsForTable, removeLocalRecordQueue, getOfflineDeletedIds, getOfflineDeletedItems } from '../lib/offlineStorage';
+import { saveToOfflineQueue, getUnsyncedItemsForTable, removeLocalRecordQueue, getOfflineDeletedIds, getOfflineDeletedItems, getSyncedServerId, syncOfflineQueue } from '../lib/offlineStorage';
 import { loadExcelLibrary } from '../lib/excelLoader';
 
 import RuanganForm from '../components/limbah/ruangan/RuanganForm';
@@ -280,18 +280,32 @@ export default function LimbahRuangan({ embedded = false }) {
       waktu_input: new Date().toISOString()
     }));
     const insertPayloads = payloads.map((payload) => ({ ...payload, created_by: user?.id }));
-    const isLocalDraft = Boolean(formData.id) && String(formData.id).startsWith('off_');
+    let recordId = formData.id;
+    let isLocalDraft = Boolean(recordId) && String(recordId).startsWith('off_');
 
     try {
+      if (isLocalDraft) {
+        recordId = getSyncedServerId(formData.id) || formData.id;
+
+        // Tunggu auto-sync yang sedang berjalan agar edit tidak memakai ID
+        // lokal yang baru saja diganti dengan ID asli dari Supabase.
+        if (navigator.onLine && String(recordId).startsWith('off_')) {
+          await syncOfflineQueue(false);
+          recordId = getSyncedServerId(formData.id) || formData.id;
+        }
+
+        isLocalDraft = String(recordId).startsWith('off_');
+      }
+
       if (!navigator.onLine || isLocalDraft) {
         if (formData.id) {
-          saveToOfflineQueue('limbah_ruangan', 'update', { ...payloads[0], id: formData.id }, `Update Limbah Ruangan ${formData.ruangan}`);
+          saveToOfflineQueue('limbah_ruangan', 'update', { ...payloads[0], id: recordId }, `Update Limbah Ruangan ${formData.ruangan}`);
         } else {
           insertPayloads.forEach(p => saveToOfflineQueue('limbah_ruangan', 'insert', p, `Input Limbah Ruangan ${formData.ruangan}`));
         }
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: isLocalDraft && navigator.onLine ? 'Perubahan draft tersimpan dan menunggu sinkronisasi.' : 'Data tersimpan di HP dan akan dikirim otomatis saat online.', confirmButtonColor: '#059669' });
       } else if (formData.id) {
-        const { error } = await supabase.from('limbah_ruangan').update(payloads[0]).eq('id', formData.id);
+        const { error } = await supabase.from('limbah_ruangan').update(payloads[0]).eq('id', recordId);
         if (error) throw error;
         MySwal.fire('Berhasil', 'Data limbah ruangan berhasil diubah', 'success');
       } else {
@@ -311,7 +325,7 @@ export default function LimbahRuangan({ embedded = false }) {
     } catch (error) {
       if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
         if (formData.id) {
-          saveToOfflineQueue('limbah_ruangan', 'update', { ...payloads[0], id: formData.id }, `Update Limbah Ruangan ${formData.ruangan}`);
+          saveToOfflineQueue('limbah_ruangan', 'update', { ...payloads[0], id: recordId }, `Update Limbah Ruangan ${formData.ruangan}`);
         } else {
           insertPayloads.forEach(p => saveToOfflineQueue('limbah_ruangan', 'insert', p, `Input Limbah Ruangan ${formData.ruangan}`));
         }
