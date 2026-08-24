@@ -322,11 +322,17 @@ const performOfflineSync = async (showNotification = true) => {
         if (!serverId) throw new Error(`Server ID tidak tersedia untuk update item ${item.id}`);
 
         const { id: _id, serverId: _serverId, ...updateData } = item.payload || {};
-        const { error: err } = await supabase
+        const { data: updatedRow, error: err } = await supabase
           .from(item.table)
           .update(updateData)
-          .eq('id', serverId);
+          .eq('id', serverId)
+          .select('id')
+          .maybeSingle();
         error = err;
+
+        if (!error && !updatedRow?.id) {
+          throw new Error(`Data untuk update tidak ditemukan atau akses ditolak (ID: ${serverId}). Antrean tetap disimpan.`);
+        }
       } else if (item.action === 'delete') {
         const serverId = getServerId(item);
 
@@ -340,11 +346,17 @@ const performOfflineSync = async (showNotification = true) => {
           throw new Error(`Server ID tidak tersedia untuk delete item ${item.id}`);
         }
 
-        const { error: err } = await supabase
+        const { data: deletedRow, error: err } = await supabase
           .from(item.table)
           .delete()
-          .eq('id', serverId);
+          .eq('id', serverId)
+          .select('id')
+          .maybeSingle();
         error = err;
+
+        if (!error && !deletedRow?.id) {
+          throw new Error(`Data untuk dihapus tidak ditemukan atau akses ditolak (ID: ${serverId}). Antrean tetap disimpan.`);
+        }
       } else {
         throw new Error(`Aksi offline tidak dikenal: ${item.action}`);
       }

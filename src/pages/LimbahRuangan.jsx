@@ -352,8 +352,27 @@ export default function LimbahRuangan({ embedded = false }) {
         }
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: isLocalDraft && navigator.onLine ? 'Perubahan draft tersimpan dan menunggu sinkronisasi.' : 'Data tersimpan di HP dan akan dikirim otomatis saat online.', confirmButtonColor: '#059669' });
       } else if (formData.id) {
-        const { error } = await supabase.from('limbah_ruangan').update(payloads[0]).eq('id', recordId);
+        const pendingRecordUpdate = getOfflineQueue().some(item => {
+          if (item.table !== 'limbah_ruangan') return false;
+          const references = [item.serverId, item.payload?.id, item.payload?.serverId];
+          return references.some(reference => reference != null && String(reference) === String(recordId));
+        });
+
+        // Selesaikan perubahan lama terlebih dahulu agar auto-sync tidak
+        // datang belakangan dan menimpa nilai terbaru yang sedang disimpan.
+        if (pendingRecordUpdate) await syncOfflineQueue(false);
+
+        const { data: updatedRow, error } = await supabase.from('limbah_ruangan')
+          .update(payloads[0])
+          .eq('id', recordId)
+          .select('id')
+          .maybeSingle();
         if (error) throw error;
+        if (!updatedRow?.id) throw new Error('Data tidak ditemukan atau Anda tidak memiliki izin untuk mengubahnya.');
+
+        // Jika percobaan sync lama gagal tetapi update terbaru berhasil,
+        // antrean lama tidak boleh menimpa nilai yang baru saja tersimpan.
+        if (pendingRecordUpdate) removeLocalRecordQueue({ id: recordId });
         MySwal.fire('Berhasil', 'Data limbah ruangan berhasil diubah', 'success');
       } else {
         const { error } = await supabase.from('limbah_ruangan').insert(insertPayloads);
@@ -416,8 +435,13 @@ export default function LimbahRuangan({ embedded = false }) {
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Perintah hapus akan diproses otomatis saat online.', confirmButtonColor: '#059669' });
         fetchData(); return;
       }
-      const { error } = await supabase.from('limbah_ruangan').delete().eq('id', item.id);
+      const { data: deletedRow, error } = await supabase.from('limbah_ruangan')
+        .delete()
+        .eq('id', item.id)
+        .select('id')
+        .maybeSingle();
       if (error) throw error;
+      if (!deletedRow?.id) throw new Error('Data tidak ditemukan atau Anda tidak memiliki izin untuk menghapusnya.');
       // Antrean edit hanya boleh dibuang setelah penghapusan benar-benar
       // dikonfirmasi berhasil oleh server.
       removeLocalRecordQueue(item);
