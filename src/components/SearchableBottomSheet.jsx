@@ -22,6 +22,8 @@ export default function SearchableBottomSheet({
   placeholder = 'Ketik untuk mencari...',
   label = 'Pilih Ruangan',
   accentColor = 'blue',
+  optionNoun = 'ruangan',
+  iconClass = 'fas fa-door-open',
 }) {
   const [query, setQuery] = useState('');
   const [visible, setVisible] = useState(false);
@@ -321,7 +323,7 @@ export default function SearchableBottomSheet({
           className={`bg-linear-to-r ${colors.header} px-5 py-4 flex items-center justify-between mx-3 rounded-2xl mb-3 shrink-0`}
         >
           <div className="flex items-center gap-2 text-white">
-            <i className="fas fa-door-open text-lg" />
+            <i className={\`${iconClass} text-lg\`} />
 
             <span className="font-bold text-base">
               {label}
@@ -380,7 +382,7 @@ export default function SearchableBottomSheet({
           </div>
 
           <p className="text-xs text-gray-400 mt-1 pl-1">
-            {filtered.length} ruangan ditemukan
+            {filtered.length} {optionNoun} ditemukan
           </p>
         </div>
 
@@ -394,7 +396,7 @@ export default function SearchableBottomSheet({
               <i className="fas fa-search text-3xl mb-2 block opacity-40" />
 
               <p className="text-sm">
-                Tidak ada ruangan yang cocok
+                Tidak ada {optionNoun} yang cocok
               </p>
             </div>
           ) : (
@@ -415,7 +417,7 @@ export default function SearchableBottomSheet({
                   >
                     <span className="flex items-center gap-2 min-w-0">
                       <i
-                        className={`fas fa-door-open text-xs shrink-0 ${isSelected
+                        className={`${iconClass} text-xs shrink-0 ${isSelected
                           ? 'text-white'
                           : colors.icon
                           }`}
