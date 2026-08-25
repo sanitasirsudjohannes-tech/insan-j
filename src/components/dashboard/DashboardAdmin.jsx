@@ -15,6 +15,32 @@ export default function DashboardAdmin() {
   const [chartData, setChartData] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [chartReady, setChartReady] = useState(false);
+  const [dataRevision, setDataRevision] = useState(0);
+
+  useEffect(() => {
+    const relevantTables = new Set([
+      'ruang_bangunan', 'limbah_medis', 'pemeriksaan_toilet',
+      'pemeriksaan_reservoir', 'pemeriksaan_gizi', 'limbah_padat', 'limbah_ruangan',
+    ]);
+    let refreshTimer;
+
+    const refreshDashboard = event => {
+      const changedTables = event.detail?.changedTables || [];
+      if (changedTables.length > 0 && !changedTables.some(table => relevantTables.has(table))) return;
+
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => setDataRevision(value => value + 1), 120);
+    };
+
+    window.addEventListener('offline-sync-complete', refreshDashboard);
+    window.addEventListener('insan-j-data-changed', refreshDashboard);
+
+    return () => {
+      window.clearTimeout(refreshTimer);
+      window.removeEventListener('offline-sync-complete', refreshDashboard);
+      window.removeEventListener('insan-j-data-changed', refreshDashboard);
+    };
+  }, []);
 
   useEffect(() => {
     if (!loading) {
@@ -136,14 +162,14 @@ export default function DashboardAdmin() {
     };
 
     fetchData();
-  }, [selectedMonth]);
+  }, [selectedMonth, dataRevision]);
 
   const colors = useMemo(() => ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#6366f1'], []);
 
   return (
     <AppLayout title="Dashboard Admin">
       <div className="container mx-auto px-4 py-8">
-        <DashboardNotification />
+        <DashboardNotification key={`notification-${dataRevision}`} />
         <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between border-b border-gray-100 pb-6">
           <div>
             <h2 className="text-3xl font-extrabold text-gray-800">Dashboard Statistik</h2>

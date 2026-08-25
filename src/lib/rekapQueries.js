@@ -12,7 +12,7 @@ export const MONTH_NAMES = [
  * Fetches all waste records (limbah_padat, limbah_ruangan, pengangkutan_limbah)
  * from Supabase and merges with local offline queue.
  */
-export async function fetchAllRekapData() {
+export async function fetchAllRekapData(selectedYear = new Date().getFullYear()) {
   const padatUnsynced = getUnsyncedItemsForTable('limbah_padat');
   const ruanganUnsynced = getUnsyncedItemsForTable('limbah_ruangan');
   const angkutUnsynced = getUnsyncedItemsForTable('pengangkutan_limbah');
@@ -28,14 +28,23 @@ export async function fetchAllRekapData() {
   ])];
 
   try {
-    const aggregated = await fetchDatabaseAggregation('rekap_limbah_monthly_summary', {
+    const excludedParameters = {
       excluded_padat_ids: getExcludedServerIds(padatUnsynced, padatDelIds),
       excluded_ruangan_ids: getExcludedServerIds(ruanganUnsynced, ruanganDelIds),
       excluded_pengangkutan_ids: getExcludedServerIds(angkutUnsynced, angkutDelIds),
+    };
+    const yearlyAggregation = await fetchDatabaseAggregation('rekap_limbah_yearly_summary', {
+      requested_year: Number(selectedYear),
+      ...excludedParameters,
     });
+    const aggregated = yearlyAggregation || await fetchDatabaseAggregation(
+      'rekap_limbah_monthly_summary',
+      excludedParameters
+    );
 
     if (aggregated) {
       return {
+        availableYears: aggregated.availableYears || [],
         padatRows: [...padatUnsynced, ...(aggregated.padatRows || [])],
         ruanganRows: [...ruanganUnsynced, ...(aggregated.ruanganRows || [])],
         angkutRows: [...angkutUnsynced, ...(aggregated.angkutRows || [])],
@@ -191,7 +200,15 @@ export function calculateRekapitulasi(allData, selectedYear, selectedMonth) {
   });
 
   const allYms = Object.keys(monthDataMap).sort();
-  const availableYearsSet = new Set(allYms.map(ym => ym.split('-')[0]));
+  const actualRecordYears = [...(padatRows || []), ...(ruanganRows || []), ...(angkutRows || [])]
+    .filter(row => !row.is_opening_balance)
+    .map(row => getYearMonth(row.tanggal))
+    .filter(Boolean)
+    .map(yearMonth => yearMonth.split('-')[0]);
+  const availableYearsSet = new Set([
+    ...actualRecordYears,
+    ...(Array.isArray(allData?.availableYears) ? allData.availableYears.map(String) : []),
+  ]);
   const currentYearStr = String(new Date().getFullYear());
   availableYearsSet.add(currentYearStr);
   if (selectedYear) availableYearsSet.add(String(selectedYear));

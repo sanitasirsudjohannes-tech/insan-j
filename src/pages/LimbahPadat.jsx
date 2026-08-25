@@ -28,6 +28,7 @@ import { printViaHiddenIframe } from '../lib/printHelpers';
 import { formatDateFromExcel } from '../lib/excelDateHelpers';
 import { getLocalMonthString } from '../lib/localDate';
 import { fetchAllSupabaseRows } from '../lib/supabasePagination';
+import { notifyDatabaseTablesChanged } from '../lib/databaseAggregations';
 import { isNetworkError } from '../lib/networkErrors';
 import {
   escapeImportHTML,
@@ -189,8 +190,10 @@ export default function LimbahPadat({ embedded = false }) {
     const h = () => fetchData();
     let queueRefreshTimer;
     const handleQueueChange = (event) => {
+      if (event.syncInProgress) return;
       const relevantTables = ['limbah_padat', 'limbah_ruangan'];
-      if (event.changedTables?.length && !event.changedTables.some(table => relevantTables.includes(table))) {
+      const changedTables = event.changedTables || event.detail?.changedTables;
+      if (changedTables?.length && !changedTables.some(table => relevantTables.includes(table))) {
         return;
       }
 
@@ -198,6 +201,7 @@ export default function LimbahPadat({ embedded = false }) {
       queueRefreshTimer = window.setTimeout(h, 180);
     };
     window.addEventListener('offline-queue-changed', handleQueueChange);
+    window.addEventListener('offline-sync-complete', handleQueueChange);
     window.addEventListener('online', h);
     window.addEventListener('offline', h);
 
@@ -211,6 +215,7 @@ export default function LimbahPadat({ embedded = false }) {
     return () => {
       window.clearTimeout(queueRefreshTimer);
       window.removeEventListener('offline-queue-changed', handleQueueChange);
+      window.removeEventListener('offline-sync-complete', handleQueueChange);
       window.removeEventListener('online', h);
       window.removeEventListener('offline', h);
       document.removeEventListener('visibilitychange', handleVisibility);
@@ -278,6 +283,7 @@ export default function LimbahPadat({ embedded = false }) {
       } else {
         const { error } = await supabase.from('limbah_padat').insert([payload]);
         if (error) throw error;
+        notifyDatabaseTablesChanged('limbah_padat');
         MySwal.fire('Berhasil', 'Data berhasil ditambahkan', 'success');
       }
       setFormData(EMPTY_FORM); fetchData();

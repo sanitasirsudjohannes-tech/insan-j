@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { CHECKLIST_ITEMS } from '../../lib/constants';
 import { fetchDaftarRuangan } from '../../lib/api';
+import { notifyDatabaseTablesChanged } from '../../lib/databaseAggregations';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import SearchableBottomSheet from '../SearchableBottomSheet';
@@ -130,6 +131,7 @@ export default function EditRiwayatModal({ isOpen, onClose, item, onSuccess }) {
 
       if (error) throw new Error(error.message);
 
+      notifyDatabaseTablesChanged(item.tableName);
       MySwal.fire('Berhasil', 'Data berhasil diperbarui!', 'success');
       onSuccess(); // Refresh data in parent
       onClose();   // Close modal

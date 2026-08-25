@@ -25,6 +25,7 @@ import {
 } from '../lib/excelImport';
 import { getLocalDateString, getLocalMonthString } from '../lib/localDate';
 import { fetchAllSupabaseRows } from '../lib/supabasePagination';
+import { notifyDatabaseTablesChanged } from '../lib/databaseAggregations';
 import { isNetworkError } from '../lib/networkErrors';
 import {
     deleteRecordWithVersion,
@@ -188,8 +189,9 @@ export default function PengangkutanLimbah() {
 
         let queueRefreshTimer;
         const handleQueueChange = (event) => {
-            if (event.type === 'offline-queue-changed' && event.changedTables?.length &&
-                !event.changedTables.includes('pengangkutan_limbah')) return;
+            if (event.syncInProgress) return;
+            const changedTables = event.changedTables || event.detail?.changedTables;
+            if (changedTables?.length && !changedTables.includes('pengangkutan_limbah')) return;
             window.clearTimeout(queueRefreshTimer);
             queueRefreshTimer = window.setTimeout(fetchData, 180);
         };
@@ -197,6 +199,7 @@ export default function PengangkutanLimbah() {
             if (document.visibilityState === 'visible') fetchData();
         };
         window.addEventListener('offline-queue-changed', handleQueueChange);
+        window.addEventListener('offline-sync-complete', handleQueueChange);
         window.addEventListener('online', handleQueueChange);
         window.addEventListener('offline', handleQueueChange);
         document.addEventListener('visibilitychange', handleVisibility);
@@ -204,6 +207,7 @@ export default function PengangkutanLimbah() {
         return () => {
             window.clearTimeout(queueRefreshTimer);
             window.removeEventListener('offline-queue-changed', handleQueueChange);
+            window.removeEventListener('offline-sync-complete', handleQueueChange);
             window.removeEventListener('online', handleQueueChange);
             window.removeEventListener('offline', handleQueueChange);
             document.removeEventListener('visibilitychange', handleVisibility);
@@ -285,6 +289,7 @@ export default function PengangkutanLimbah() {
                     .single();
                 if (error) throw error;
                 if (insertedRow?.id) cacheServerRows('pengangkutan_limbah', [insertedRow]);
+                notifyDatabaseTablesChanged('pengangkutan_limbah');
                 MySwal.fire('Berhasil', 'Data pengangkutan ditambahkan', 'success');
             }
             setForm(createEmptyForm());

@@ -9,6 +9,7 @@ import { getCurrentUser, fetchDaftarRuangan } from '../lib/api';
 import SearchableBottomSheet from '../components/SearchableBottomSheet';
 import { isNetworkError } from '../lib/networkErrors';
 import { submitInspectionEntries } from '../lib/inspectionSubmission';
+import { notifyDatabaseTablesChanged } from '../lib/databaseAggregations';
 
 const MySwal = withReactContent(Swal);
 
@@ -237,6 +238,7 @@ export default function Inspeksi({ user: propUser }) {
             submissionError.cause = error;
             throw submissionError;
           }
+          notifyDatabaseTablesChanged(entry.table);
         },
         queueEntry: entry => {
           if (!entry.table) throw new Error(`Tabel untuk ${entry.label} tidak tersedia.`);

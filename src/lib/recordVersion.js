@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { notifyDatabaseTablesChanged } from './databaseAggregations';
 
 export const RECORD_VERSION_CONFLICT_CODE = 'INSAN_J_RECORD_VERSION_CONFLICT';
 
@@ -93,7 +94,10 @@ export const updateRecordWithVersion = async (table, id, payload, expectedVersio
 
   const { data, error } = await query.select('id,waktu_input').maybeSingle();
   if (error) throw error;
-  if (data?.id) return data;
+  if (data?.id) {
+    notifyDatabaseTablesChanged(table);
+    return data;
+  }
 
   return explainUnchangedMutation({
     table,
@@ -118,7 +122,10 @@ export const deleteRecordWithVersion = async (
 
   const { data, error } = await query.select('id').maybeSingle();
   if (error) throw error;
-  if (data?.id) return data;
+  if (data?.id) {
+    notifyDatabaseTablesChanged(table);
+    return data;
+  }
 
   return explainUnchangedMutation({
     table,

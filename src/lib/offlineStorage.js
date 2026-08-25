@@ -19,6 +19,10 @@ const SYNC_TAB_ID = `sync_${Date.now()}_${Math.random().toString(36).slice(2, 10
 // Per-tab mutex complemented by Web Locks/localStorage across browser tabs.
 // Prevents automatic/manual synchronization from processing the same queue twice.
 let syncPromise = null;
+let syncInProgress = false;
+let syncChangedTables = new Set();
+
+export const isOfflineSyncInProgress = () => syncInProgress;
 
 const resetRetryState = (item) => ({
   ...item,
@@ -200,6 +204,8 @@ const writeCurrentOwnerQueue = (ownerQueue) => {
   localStorage.setItem(QUEUE_KEY, JSON.stringify([...otherOwnersQueue, ...ownerQueue]));
   const queueEvent = new CustomEvent('offline-queue-changed', { detail: ownerQueue });
   queueEvent.changedTables = [...changedTables];
+  queueEvent.syncInProgress = syncInProgress;
+  if (syncInProgress) changedTables.forEach(table => syncChangedTables.add(table));
   window.dispatchEvent(queueEvent);
   return true;
 };
@@ -876,7 +882,27 @@ export const syncOfflineQueue = (showNotification = true, force = false) => {
   if (syncPromise) return syncPromise;
 
   const ownerId = getCurrentQueueOwnerId();
-  const syncTask = () => performOfflineSync(showNotification, force);
+  const syncTask = async () => {
+    syncInProgress = true;
+    syncChangedTables = new Set();
+    window.dispatchEvent(new CustomEvent('offline-sync-start'));
+
+    try {
+      return await performOfflineSync(showNotification, force);
+    } finally {
+      syncInProgress = false;
+      const changedTables = [...syncChangedTables];
+      syncChangedTables = new Set();
+
+      if (changedTables.length > 0) {
+        window.dispatchEvent(new CustomEvent('offline-sync-complete', {
+          detail: { changedTables },
+        }));
+      }
+
+      window.dispatchEvent(new CustomEvent('offline-sync-finished'));
+    }
+  };
   const runTask = ownerId && navigator.locks?.request
     ? navigator.locks.request(`insan-j-offline-sync-${ownerId}`, syncTask)
     : ownerId ? runWithFallbackSyncLock(ownerId, syncTask) : syncTask();

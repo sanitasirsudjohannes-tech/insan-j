@@ -1,3 +1,5 @@
+import { notifyDatabaseTablesChanged } from './databaseAggregations';
+
 export const parseNonNegativeImportNumber = (rawValue) => {
   if (rawValue === null || rawValue === undefined || String(rawValue).trim() === '') {
     return { value: 0, error: null };
@@ -48,5 +50,6 @@ export const insertImportRowsAtomically = async (client, table, payloads) => {
 
   const { error } = await client.from(table).insert(payloads);
   if (error) throw error;
+  notifyDatabaseTablesChanged(table);
   return payloads.length;
 };

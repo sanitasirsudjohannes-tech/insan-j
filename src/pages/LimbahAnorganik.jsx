@@ -26,6 +26,7 @@ import { printViaHiddenIframe } from '../lib/printHelpers';
 import { getLocalDateString, getLocalMonthString } from '../lib/localDate';
 import { isNetworkError } from '../lib/networkErrors';
 import { fetchAllSupabaseRows } from '../lib/supabasePagination';
+import { notifyDatabaseTablesChanged } from '../lib/databaseAggregations';
 import {
   deleteRecordWithVersion,
   getRecordBaseVersion,
@@ -205,18 +206,25 @@ export default function LimbahAnorganik({ embedded = false }) {
 
   useEffect(() => {
     fetchData();
+    let queueRefreshTimer;
     const handleQueueChange = (event) => {
-      if (event.type === 'offline-queue-changed' && event.changedTables?.length &&
-        !event.changedTables.includes('limbah_anorganik')) {
+      if (event.syncInProgress) return;
+      const changedTables = event.changedTables || event.detail?.changedTables;
+      if (changedTables?.length && !changedTables.includes('limbah_anorganik')) {
         return;
       }
-      fetchData();
+
+      window.clearTimeout(queueRefreshTimer);
+      queueRefreshTimer = window.setTimeout(fetchData, 180);
     };
     window.addEventListener('offline-queue-changed', handleQueueChange);
+    window.addEventListener('offline-sync-complete', handleQueueChange);
     window.addEventListener('online', handleQueueChange);
     window.addEventListener('offline', handleQueueChange);
     return () => {
+      window.clearTimeout(queueRefreshTimer);
       window.removeEventListener('offline-queue-changed', handleQueueChange);
+      window.removeEventListener('offline-sync-complete', handleQueueChange);
       window.removeEventListener('online', handleQueueChange);
       window.removeEventListener('offline', handleQueueChange);
     };
@@ -311,6 +319,7 @@ export default function LimbahAnorganik({ embedded = false }) {
         } else {
           const { error } = await supabase.from('limbah_anorganik').insert([insertPayload]);
           if (error) throw error;
+          notifyDatabaseTablesChanged('limbah_anorganik');
           MySwal.fire('Berhasil', 'Data limbah anorganik berhasil ditambahkan', 'success');
         }
       }

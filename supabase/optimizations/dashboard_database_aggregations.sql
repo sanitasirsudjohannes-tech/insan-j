@@ -226,6 +226,10 @@ BEGIN
         ) AS total
       FROM public.limbah_anorganik
       WHERE tanggal IS NOT NULL
+        AND tanggal >= (
+          SELECT date_trunc('month', MAX(latest.tanggal)::timestamp)::date - interval '11 months'
+          FROM public.limbah_anorganik AS latest
+        )
       GROUP BY to_char(tanggal::date, 'YYYY-MM')
       ORDER BY bulan DESC
       LIMIT 12
@@ -410,12 +414,107 @@ AS $$
   );
 $$;
 
+CREATE OR REPLACE FUNCTION public.rekap_limbah_yearly_summary(
+  requested_year integer,
+  excluded_padat_ids jsonb DEFAULT '[]'::jsonb,
+  excluded_ruangan_ids jsonb DEFAULT '[]'::jsonb,
+  excluded_pengangkutan_ids jsonb DEFAULT '[]'::jsonb
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY INVOKER
+SET search_path = public
+AS $$
+DECLARE
+  year_start date;
+  next_year_start date;
+  opening_date date;
+BEGIN
+  IF requested_year IS NULL OR requested_year < 2000 OR requested_year > 9999 THEN
+    RAISE EXCEPTION 'Tahun rekap tidak valid.';
+  END IF;
+
+  year_start := make_date(requested_year, 1, 1);
+  next_year_start := (year_start + interval '1 year')::date;
+  opening_date := (year_start - interval '1 month')::date;
+
+  RETURN (
+    WITH padat_rows AS (
+      SELECT
+        CASE WHEN tanggal < year_start THEN opening_date
+             ELSE date_trunc('month', tanggal::timestamp)::date END AS tanggal,
+        bool_or(tanggal < year_start) AS is_opening_balance,
+        SUM(COALESCE(infeksius, 0)::numeric) AS infeksius,
+        SUM(COALESCE(jarum_suntik, 0)::numeric) AS jarum_suntik,
+        SUM(COALESCE(botol_obat, 0)::numeric) AS botol_obat,
+        SUM(COALESCE(sitotoksik, 0)::numeric) AS sitotoksik
+      FROM public.limbah_padat
+      WHERE tanggal IS NOT NULL AND tanggal < next_year_start
+        AND NOT EXISTS (
+          SELECT 1 FROM jsonb_array_elements_text(COALESCE(excluded_padat_ids, '[]'::jsonb)) AS excluded(id)
+          WHERE excluded.id = limbah_padat.id::text
+        )
+      GROUP BY CASE WHEN tanggal < year_start THEN opening_date
+                    ELSE date_trunc('month', tanggal::timestamp)::date END
+    ), ruangan_rows AS (
+      SELECT
+        CASE WHEN tanggal < year_start THEN opening_date
+             ELSE date_trunc('month', tanggal::timestamp)::date END AS tanggal,
+        bool_or(tanggal < year_start) AS is_opening_balance,
+        SUM(COALESCE(infeksius, 0)::numeric) AS infeksius,
+        SUM(COALESCE(jarum_suntik, 0)::numeric) AS jarum_suntik,
+        SUM(COALESCE(botol_obat, 0)::numeric) AS botol_obat,
+        SUM(COALESCE(sitotoksik, 0)::numeric) AS sitotoksik
+      FROM public.limbah_ruangan
+      WHERE tanggal IS NOT NULL AND tanggal < next_year_start
+        AND NOT EXISTS (
+          SELECT 1 FROM jsonb_array_elements_text(COALESCE(excluded_ruangan_ids, '[]'::jsonb)) AS excluded(id)
+          WHERE excluded.id = limbah_ruangan.id::text
+        )
+      GROUP BY CASE WHEN tanggal < year_start THEN opening_date
+                    ELSE date_trunc('month', tanggal::timestamp)::date END
+    ), pengangkutan_rows AS (
+      SELECT
+        CASE WHEN tanggal < year_start THEN opening_date
+             ELSE date_trunc('month', tanggal::timestamp)::date END AS tanggal,
+        bool_or(tanggal < year_start) AS is_opening_balance,
+        SUM(COALESCE(jumlah_kg, 0)::numeric) AS jumlah_kg
+      FROM public.pengangkutan_limbah
+      WHERE tanggal IS NOT NULL AND tanggal < next_year_start
+        AND NOT EXISTS (
+          SELECT 1 FROM jsonb_array_elements_text(COALESCE(excluded_pengangkutan_ids, '[]'::jsonb)) AS excluded(id)
+          WHERE excluded.id = pengangkutan_limbah.id::text
+        )
+      GROUP BY CASE WHEN tanggal < year_start THEN opening_date
+                    ELSE date_trunc('month', tanggal::timestamp)::date END
+    ), available_years AS (
+      SELECT DISTINCT to_char(tanggal::date, 'YYYY') AS year
+      FROM public.limbah_padat WHERE tanggal IS NOT NULL
+      UNION
+      SELECT DISTINCT to_char(tanggal::date, 'YYYY')
+      FROM public.limbah_ruangan WHERE tanggal IS NOT NULL
+      UNION
+      SELECT DISTINCT to_char(tanggal::date, 'YYYY')
+      FROM public.pengangkutan_limbah WHERE tanggal IS NOT NULL
+    )
+    SELECT jsonb_build_object(
+      'availableYears', COALESCE((SELECT jsonb_agg(year ORDER BY year DESC) FROM available_years), '[]'::jsonb),
+      'padatRows', COALESCE((SELECT jsonb_agg(to_jsonb(padat_rows) ORDER BY tanggal) FROM padat_rows), '[]'::jsonb),
+      'ruanganRows', COALESCE((SELECT jsonb_agg(to_jsonb(ruangan_rows) ORDER BY tanggal) FROM ruangan_rows), '[]'::jsonb),
+      'angkutRows', COALESCE((SELECT jsonb_agg(to_jsonb(pengangkutan_rows) ORDER BY tanggal) FROM pengangkutan_rows), '[]'::jsonb)
+    )
+  );
+END;
+$$;
+
 REVOKE ALL ON FUNCTION public.dashboard_pengangkutan_summary(text) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.dashboard_jenis_limbah_summary() FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.dashboard_anorganik_summary(text) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.dashboard_admin_inspeksi_summary(text) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.dashboard_missing_waste_dates(date, date) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.rekap_limbah_monthly_summary(jsonb, jsonb, jsonb) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.rekap_limbah_yearly_summary(integer, jsonb, jsonb, jsonb) FROM PUBLIC, anon;
 
 GRANT EXECUTE ON FUNCTION public.dashboard_pengangkutan_summary(text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.dashboard_jenis_limbah_summary() TO authenticated;
@@ -423,8 +522,9 @@ GRANT EXECUTE ON FUNCTION public.dashboard_anorganik_summary(text) TO authentica
 GRANT EXECUTE ON FUNCTION public.dashboard_admin_inspeksi_summary(text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.dashboard_missing_waste_dates(date, date) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.rekap_limbah_monthly_summary(jsonb, jsonb, jsonb) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.rekap_limbah_yearly_summary(integer, jsonb, jsonb, jsonb) TO authenticated;
 
 COMMIT;
 
--- Setelah dijalankan, frontend otomatis memakai enam fungsi di atas.
+-- Setelah dijalankan, frontend otomatis memakai tujuh fungsi di atas.
 -- Semua fungsi hanya tersedia untuk pengguna yang sudah login.

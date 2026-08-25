@@ -29,6 +29,7 @@ import { formatDateFromExcel } from '../lib/excelDateHelpers';
 import { printViaHiddenIframe } from '../lib/printHelpers';
 import { getLocalDateString, getLocalMonthString } from '../lib/localDate';
 import { isNetworkError } from '../lib/networkErrors';
+import { notifyDatabaseTablesChanged } from '../lib/databaseAggregations';
 import {
   escapeImportHTML,
   insertImportRowsAtomically,
@@ -232,11 +233,14 @@ export default function LimbahRuangan({ embedded = false }) {
     const h = () => fetchData();
     let queueRefreshTimer;
     const handleQueueChange = (event) => {
-      if (event.changedTables?.length && !event.changedTables.includes('limbah_ruangan')) return;
+      if (event.syncInProgress) return;
+      const changedTables = event.changedTables || event.detail?.changedTables;
+      if (changedTables?.length && !changedTables.includes('limbah_ruangan')) return;
       window.clearTimeout(queueRefreshTimer);
       queueRefreshTimer = window.setTimeout(h, 180);
     };
     window.addEventListener('offline-queue-changed', handleQueueChange);
+    window.addEventListener('offline-sync-complete', handleQueueChange);
     window.addEventListener('online', h);
     window.addEventListener('offline', h);
     
@@ -252,6 +256,7 @@ export default function LimbahRuangan({ embedded = false }) {
     return () => { 
       window.clearTimeout(queueRefreshTimer);
       window.removeEventListener('offline-queue-changed', handleQueueChange);
+      window.removeEventListener('offline-sync-complete', handleQueueChange);
       window.removeEventListener('online', h); 
       window.removeEventListener('offline', h); 
       document.removeEventListener('visibilitychange', handleVisibility);
@@ -440,6 +445,7 @@ export default function LimbahRuangan({ embedded = false }) {
       } else {
         const { error } = await supabase.from('limbah_ruangan').insert(insertPayloads);
         if (error) throw error;
+        notifyDatabaseTablesChanged('limbah_ruangan');
         MySwal.fire('Berhasil', `Data berhasil disimpan untuk ${totalHari} hari (dibagi rata)`, `success`);
       }
 

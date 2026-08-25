@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import AppLayout from '../components/AppLayout';
 import { fetchAllRekapData, calculateRekapitulasi } from '../lib/rekapQueries';
 import { buildRekapPrintHTML } from '../components/limbah/rekap/rekapPrintTemplate';
@@ -18,18 +18,22 @@ export default function RekapLimbah() {
   const [isPrinting, setIsPrinting] = useState(false);
 
   const frameRef = useRef(null);
+  const loadIdRef = useRef(0);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    const currentLoadId = ++loadIdRef.current;
     setLoading(true);
     try {
-      const data = await fetchAllRekapData();
+      const data = await fetchAllRekapData(selectedYear);
+      if (currentLoadId !== loadIdRef.current) return;
       setAllData(data);
     } catch (err) {
+      if (currentLoadId !== loadIdRef.current) return;
       console.error('Gagal mengambil data rekap:', err);
     } finally {
-      setLoading(false);
+      if (currentLoadId === loadIdRef.current) setLoading(false);
     }
-  };
+  }, [selectedYear]);
 
   useEffect(() => {
     loadData();
@@ -37,23 +41,28 @@ export default function RekapLimbah() {
     let queueRefreshTimer;
     const relevantTables = new Set(['limbah_padat', 'limbah_ruangan', 'pengangkutan_limbah']);
     const handleQueueChange = (event) => {
-      if (event.type === 'offline-queue-changed' && event.changedTables?.length &&
-          !event.changedTables.some(table => relevantTables.has(table))) return;
+      if (event.syncInProgress) return;
+      const changedTables = event.changedTables || event.detail?.changedTables;
+      if (changedTables?.length && !changedTables.some(table => relevantTables.has(table))) return;
 
       window.clearTimeout(queueRefreshTimer);
       queueRefreshTimer = window.setTimeout(loadData, 220);
     };
     window.addEventListener('offline-queue-changed', handleQueueChange);
+    window.addEventListener('offline-sync-complete', handleQueueChange);
+    window.addEventListener('insan-j-data-changed', handleQueueChange);
     window.addEventListener('online', handleQueueChange);
     window.addEventListener('offline', handleQueueChange);
 
     return () => {
       window.clearTimeout(queueRefreshTimer);
       window.removeEventListener('offline-queue-changed', handleQueueChange);
+      window.removeEventListener('offline-sync-complete', handleQueueChange);
+      window.removeEventListener('insan-j-data-changed', handleQueueChange);
       window.removeEventListener('online', handleQueueChange);
       window.removeEventListener('offline', handleQueueChange);
     };
-  }, []);
+  }, [loadData]);
 
   const { availableYears, tableRows, summary, hasAnomaly } = useMemo(() => {
     return calculateRekapitulasi(allData, selectedYear, selectedMonth);
@@ -64,7 +73,7 @@ export default function RekapLimbah() {
     if (availableYears.length > 0 && !availableYears.includes(selectedYear)) {
       setSelectedYear(availableYears[0]);
     }
-  }, [availableYears]);
+  }, [availableYears, selectedYear]);
 
   const handlePrint = async () => {
     setIsPrinting(true);

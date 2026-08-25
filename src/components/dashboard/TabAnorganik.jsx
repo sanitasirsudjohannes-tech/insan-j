@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
-import { fetchDatabaseAggregation } from '../../lib/databaseAggregations';
+import { fetchDatabaseAggregation, fetchSharedCachedResource } from '../../lib/databaseAggregations';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, AreaChart, Area
@@ -93,17 +93,38 @@ export default function TabAnorganik() {
           return;
         }
 
-        const allRows = await fetchAllSupabaseRows(() => supabase
-          .from('limbah_anorganik')
-          .select('tanggal, infus, jerigen, kertas, kardus, botol_mineral, bayclin_dll')
-          .order('tanggal', { ascending: true })
-          .order('id', { ascending: true }));
+        const now = new Date();
+        const trendStartDate = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+        const trendStart = `${trendStartDate.getFullYear()}-${String(trendStartDate.getMonth() + 1).padStart(2, '0')}-01`;
+        const trendEndDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        const trendEnd = `${trendEndDate.getFullYear()}-${String(trendEndDate.getMonth() + 1).padStart(2, '0')}-${String(trendEndDate.getDate()).padStart(2, '0')}`;
+
+        const loadRowsForPeriod = (periodStart, periodEnd) => fetchSharedCachedResource(
+          'legacy:anorganik-period',
+          () => fetchAllSupabaseRows(() => supabase
+            .from('limbah_anorganik')
+            .select('tanggal, infus, jerigen, kertas, kardus, botol_mineral, bayclin_dll')
+            .gte('tanggal', periodStart)
+            .lte('tanggal', periodEnd)
+            .order('tanggal', { ascending: true })
+            .order('id', { ascending: true })),
+          {
+            parameters: { start: periodStart, end: periodEnd },
+            tables: ['limbah_anorganik'],
+          }
+        );
+
+        const selectedWithinTrend = start >= trendStart && end <= trendEnd;
+        const [trendRows, selectedRows] = await Promise.all([
+          loadRowsForPeriod(trendStart, trendEnd),
+          selectedWithinTrend ? Promise.resolve(null) : loadRowsForPeriod(start, end),
+        ]);
 
         if (currentFetchId !== fetchIdRef.current) return;
 
-        // Data bulan pilihan sudah termasuk di hasil lengkap, sehingga tidak
-        // perlu meminta baris yang sama dua kali kepada Supabase.
-        const filteredRows = allRows.filter(row => row.tanggal >= start && row.tanggal <= end);
+        const filteredRows = selectedWithinTrend
+          ? trendRows.filter(row => row.tanggal >= start && row.tanggal <= end)
+          : selectedRows;
 
         // ── Process filtered rows ──────────────────────────────────────
         const dailyMap = {};
@@ -135,9 +156,9 @@ export default function TabAnorganik() {
 
         const sortedDaily = Object.values(dailyMap).sort((a, b) => a.rawDate.localeCompare(b.rawDate));
 
-        // ── Process all rows for monthly trend ────────────────────────
+        // ── Process only the latest twelve calendar months ────────────
         const monthlyMap = {};
-        (allRows || []).forEach(row => {
+        (trendRows || []).forEach(row => {
           const tgl = row.tanggal;
           if (!tgl) return;
           const mk = tgl.substring(0, 7);

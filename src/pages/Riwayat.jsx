@@ -10,6 +10,7 @@ import RekapRuanganTable from '../components/riwayat/RekapRuanganTable';
 import DetailRiwayatTable from '../components/riwayat/DetailRiwayatTable';
 import { useRiwayat } from '../hooks/useRiwayat';
 import { saveToOfflineQueue, removeLocalRecordQueue } from '../lib/offlineStorage';
+import { notifyDatabaseTablesChanged } from '../lib/databaseAggregations';
 
 const MySwal = withReactContent(Swal);
 
@@ -85,6 +86,7 @@ export default function Riwayat() {
 
       if (error) throw new Error(error.message);
 
+      notifyDatabaseTablesChanged(item.tableName);
       MySwal.fire('Terhapus!', 'Data riwayat berhasil dihapus.', 'success');
       setData(prev => prev.filter(d => d.id !== item.id));
 
