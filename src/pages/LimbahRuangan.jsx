@@ -4,7 +4,18 @@ import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser, fetchDaftarRuangan, getSetting } from '../lib/api';
-import { saveToOfflineQueue, getOfflineQueue, getUnsyncedItemsForTable, removeLocalRecordQueue, getOfflineDeletedIds, getSyncedServerId, syncOfflineQueue } from '../lib/offlineStorage';
+import {
+  saveToOfflineQueue,
+  getOfflineQueue,
+  getUnsyncedItemsForTable,
+  removeLocalRecordQueue,
+  getOfflineDeletedIds,
+  getSyncedServerId,
+  syncOfflineQueue,
+  getCachedServerRows,
+  cacheServerRows,
+  removeCachedServerRow,
+} from '../lib/offlineStorage';
 import { loadExcelLibrary } from '../lib/excelLoader';
 
 import RuanganForm from '../components/limbah/ruangan/RuanganForm';
@@ -164,6 +175,7 @@ export default function LimbahRuangan({ embedded = false }) {
       let dbFetchSucceeded = false;
       let dbStartIndex = 0;
       try {
+        if (!navigator.onLine) throw new Error('Perangkat sedang offline.');
         let qCount = supabase.from('limbah_ruangan').select('id', { count: 'exact', head: true });
         if (filterDate) { qCount = qCount.eq('tanggal', filterDate); }
         else if (filterMonth) { const [y, m] = filterMonth.split('-'); const s = `${y}-${m}-01`, en = `${y}-${m}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`; qCount = qCount.gte('tanggal', s).lte('tanggal', en); }
@@ -199,13 +211,20 @@ export default function LimbahRuangan({ embedded = false }) {
           if (batch.length < to - from + 1) break;
         }
 
+        cacheServerRows('limbah_ruangan', dbData);
         dbFetchSucceeded = true;
       } catch (e) {
         console.warn('Handling offline/network error during DB fetch:', e);
-        // Jangan hentikan proses saat Supabase tidak dapat dijangkau.
-        // Antrean lokal tetap harus digabung dan ditampilkan pada tabel.
-        dbData = [];
-        count = 0;
+        // Gabungkan data server yang pernah dimuat dengan draft agar riwayat
+        // tetap dapat dibuka ketika koneksi terputus atau tidak stabil.
+        dbData = getCachedServerRows('limbah_ruangan').filter(item => {
+          if (hiddenServerIds.has(String(item.id))) return false;
+          if (filterDate && item.tanggal !== filterDate) return false;
+          if (!filterDate && filterMonth && !item.tanggal?.startsWith(filterMonth)) return false;
+          if (filterRuangan && item.ruangan !== filterRuangan) return false;
+          return true;
+        });
+        count = dbData.length;
       }
 
       if (currentFetchId !== fetchIdRef.current) return;
@@ -219,9 +238,7 @@ export default function LimbahRuangan({ embedded = false }) {
       // Query server sudah mengecualikan seluruh versi lama yang diedit atau
       // dihapus. Tambahkan semua overlay yang sesuai filter: insert maupun
       // update yang berpindah tanggal/ruangan.
-      const adjustedTotal = dbFetchSucceeded
-        ? Math.max(0, (count || 0) + unsynced.length)
-        : unsynced.length;
+      const adjustedTotal = Math.max(0, (count || 0) + unsynced.length);
       setTotalData(adjustedTotal);
 
       // Jika halaman terakhir hilang setelah hapus data, perubahan filter,
@@ -369,6 +386,7 @@ export default function LimbahRuangan({ embedded = false }) {
           .maybeSingle();
         if (error) throw error;
         if (!updatedRow?.id) throw new Error('Data tidak ditemukan atau Anda tidak memiliki izin untuk mengubahnya.');
+        cacheServerRows('limbah_ruangan', [{ ...payloads[0], id: recordId }]);
 
         // Jika percobaan sync lama gagal tetapi update terbaru berhasil,
         // antrean lama tidak boleh menimpa nilai yang baru saja tersimpan.
@@ -429,7 +447,21 @@ export default function LimbahRuangan({ embedded = false }) {
     const { isConfirmed } = await MySwal.fire({ title: 'Hapus Data Limbah Ruangan?', text: 'Data yang dihapus tidak dapat dikembalikan!', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: 'Ya, Hapus!' });
     if (!isConfirmed) return;
     try {
-      if (item.isOffline && item.offlineAction === 'insert') { removeLocalRecordQueue(item); MySwal.fire('Terhapus', 'Draft offline berhasil dihapus', 'success'); fetchData(); return; }
+      if (item.isOffline && item.offlineAction === 'insert') {
+        let syncedServerId = getSyncedServerId(item.id);
+        if (!syncedServerId && navigator.onLine) {
+          await syncOfflineQueue(false);
+          syncedServerId = getSyncedServerId(item.id);
+        }
+        if (syncedServerId) {
+          item = { ...item, id: syncedServerId };
+        } else {
+          removeLocalRecordQueue(item);
+          MySwal.fire('Terhapus', 'Draft offline berhasil dihapus', 'success');
+          fetchData();
+          return;
+        }
+      }
       if (!navigator.onLine) {
         saveToOfflineQueue('limbah_ruangan', 'delete', item, `Hapus Limbah Ruangan ${item.ruangan || ''}`);
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Perintah hapus akan diproses otomatis saat online.', confirmButtonColor: '#059669' });
@@ -445,6 +477,7 @@ export default function LimbahRuangan({ embedded = false }) {
       // Antrean edit hanya boleh dibuang setelah penghapusan benar-benar
       // dikonfirmasi berhasil oleh server.
       removeLocalRecordQueue(item);
+      removeCachedServerRow('limbah_ruangan', item.id);
       MySwal.fire('Terhapus', 'Data berhasil dihapus', 'success'); fetchData();
     } catch (error) {
       if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {

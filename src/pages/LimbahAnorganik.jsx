@@ -12,6 +12,9 @@ import {
   getOfflineDeletedIds,
   getSyncedServerId,
   syncOfflineQueue,
+  getCachedServerRows,
+  cacheServerRows,
+  removeCachedServerRow,
 } from '../lib/offlineStorage';
 
 import AnorganikForm from '../components/limbah/anorganik/AnorganikForm';
@@ -54,6 +57,7 @@ export default function LimbahAnorganik({ embedded = false }) {
   const [submitting, setSubmitting] = useState(false);
   const [page, setPage] = useState(1);
   const [totalData, setTotalData] = useState(0);
+  const [offlineQueueCount, setOfflineQueueCount] = useState(0);
   const [filterMonth, setFilterMonth] = useState('');
   const [filterRuangan, setFilterRuangan] = useState('');
   const [showRuanganSheet, setShowRuanganSheet] = useState(false);
@@ -83,6 +87,7 @@ export default function LimbahAnorganik({ embedded = false }) {
     try {
       let dbData = [];
       let count = 0;
+      setOfflineQueueCount(getOfflineQueue().filter(item => item.table === 'limbah_anorganik').length);
 
       // Hide every stale server version, even when its offline replacement
       // moved to a different room or month and no longer matches this filter.
@@ -104,6 +109,7 @@ export default function LimbahAnorganik({ embedded = false }) {
       let dbStartIndex = 0;
 
       try {
+        if (!navigator.onLine) throw new Error('Perangkat sedang offline.');
         let queryCount = supabase
           .from('limbah_anorganik')
           .select('id', { count: 'exact', head: true });
@@ -151,20 +157,24 @@ export default function LimbahAnorganik({ embedded = false }) {
           if (batch.length < to - from + 1) break;
         }
 
+        cacheServerRows('limbah_anorganik', dbData);
         dbFetchSucceeded = true;
       } catch (e) {
         console.warn('Handling offline/network error fetching limbah anorganik:', e);
-        dbData = [];
-        count = 0;
+        dbData = getCachedServerRows('limbah_anorganik').filter(item => {
+          if (hiddenServerIds.has(String(item.id))) return false;
+          if (filterMonth && !item.tanggal?.startsWith(filterMonth)) return false;
+          if (filterRuangan && item.ruangan !== filterRuangan) return false;
+          return true;
+        });
+        count = dbData.length;
       }
 
       if (currentFetchId !== fetchIdRef.current) return;
 
       const filteredDb = dbData.filter(item => !hiddenServerIds.has(String(item.id)));
       const mergedData = [...unsynced, ...filteredDb].sort(compareAnorganikRows);
-      const adjustedTotal = dbFetchSucceeded
-        ? Math.max(0, count + unsynced.length)
-        : unsynced.length;
+      const adjustedTotal = Math.max(0, count + unsynced.length);
       setTotalData(adjustedTotal);
 
       const lastAvailablePage = Math.max(1, Math.ceil(adjustedTotal / ITEMS_PER_PAGE));
@@ -278,6 +288,7 @@ export default function LimbahAnorganik({ embedded = false }) {
             .maybeSingle();
           if (error) throw error;
           if (!updatedRow?.id) throw new Error('Data tidak ditemukan atau Anda tidak memiliki izin untuk mengubahnya.');
+          cacheServerRows('limbah_anorganik', [{ ...payload, id: recordId }]);
           if (pendingRecordUpdate) removeLocalRecordQueue({ id: recordId });
           MySwal.fire('Berhasil', 'Data limbah anorganik berhasil diubah', 'success');
         } else {
@@ -333,7 +344,11 @@ export default function LimbahAnorganik({ embedded = false }) {
 
     try {
       if (item.isOffline && item.offlineAction === 'insert') {
-        const syncedServerId = getSyncedServerId(item.id);
+        let syncedServerId = getSyncedServerId(item.id);
+        if (!syncedServerId && navigator.onLine) {
+          await syncOfflineQueue(false);
+          syncedServerId = getSyncedServerId(item.id);
+        }
         if (syncedServerId) {
           item = { ...item, id: syncedServerId };
         } else {
@@ -361,6 +376,7 @@ export default function LimbahAnorganik({ embedded = false }) {
       if (!deletedRow?.id) throw new Error('Data tidak ditemukan atau Anda tidak memiliki izin untuk menghapusnya.');
 
       removeLocalRecordQueue(item);
+      removeCachedServerRow('limbah_anorganik', item.id);
       MySwal.fire('Terhapus', 'Data berhasil dihapus', 'success');
       fetchData();
     } catch (error) {
@@ -465,7 +481,7 @@ export default function LimbahAnorganik({ embedded = false }) {
         />
 
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-          <OfflineBanner data={data} />
+          <OfflineBanner data={data} totalOfflineCount={offlineQueueCount} />
           <AnorganikTable
             data={data}
             loading={loading}

@@ -4,7 +4,18 @@ import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser, getSetting, getSettingCached } from '../lib/api';
-import { saveToOfflineQueue, getUnsyncedItemsForTable, removeLocalRecordQueue, getOfflineDeletedIds } from '../lib/offlineStorage';
+import {
+  saveToOfflineQueue,
+  getOfflineQueue,
+  getUnsyncedItemsForTable,
+  removeLocalRecordQueue,
+  getOfflineDeletedIds,
+  getSyncedServerId,
+  syncOfflineQueue,
+  getCachedServerRows,
+  cacheServerRows,
+  removeCachedServerRow,
+} from '../lib/offlineStorage';
 import { loadExcelLibrary } from '../lib/excelLoader';
 
 import PadatForm, { EMPTY_FORM } from '../components/limbah/padat/PadatForm';
@@ -31,6 +42,7 @@ export default function LimbahPadat({ embedded = false }) {
   const [importing, setImporting] = useState(false);
   const [page, setPage] = useState(1);
   const [totalData, setTotalData] = useState(0);
+  const [offlineQueueCount, setOfflineQueueCount] = useState(0);
   const [filterMonth, setFilterMonth] = useState('');
   const [formEnabled, setFormEnabled] = useState(() => getSettingCached('form_limbah_padat_enabled', true));
   const [formData, setFormData] = useState(EMPTY_FORM);
@@ -56,20 +68,30 @@ export default function LimbahPadat({ embedded = false }) {
         if (pError) throw pError;
         if (rError) throw rError;
         dbPadat = pD || []; dbRuangan = rD || [];
+        cacheServerRows('limbah_padat', dbPadat);
+        cacheServerRows('limbah_ruangan', dbRuangan);
       } catch (err) {
         console.warn('Network issue fetching accumulated data:', err);
-        throw err;
+        dbPadat = getCachedServerRows('limbah_padat');
+        dbRuangan = getCachedServerRows('limbah_ruangan');
       }
+    } else {
+      dbPadat = getCachedServerRows('limbah_padat');
+      dbRuangan = getCachedServerRows('limbah_ruangan');
     }
 
-    let unsyncedP = getUnsyncedItemsForTable('limbah_padat');
-    let unsyncedR = getUnsyncedItemsForTable('limbah_ruangan');
+    const allUnsyncedP = getUnsyncedItemsForTable('limbah_padat');
+    const allUnsyncedR = getUnsyncedItemsForTable('limbah_ruangan');
+    let unsyncedP = allUnsyncedP;
+    let unsyncedR = allUnsyncedR;
     if (targetMonth) {
+      dbPadat = dbPadat.filter(item => item.tanggal?.startsWith(targetMonth));
+      dbRuangan = dbRuangan.filter(item => item.tanggal?.startsWith(targetMonth));
       unsyncedP = unsyncedP.filter(i => i.tanggal?.startsWith(targetMonth));
       unsyncedR = unsyncedR.filter(i => i.tanggal?.startsWith(targetMonth));
     }
-    const pIds = new Set(unsyncedP.map(u => String(u.id)));
-    const rIds = new Set(unsyncedR.map(u => String(u.id)));
+    const pIds = new Set(allUnsyncedP.map(u => String(u.id)));
+    const rIds = new Set(allUnsyncedR.map(u => String(u.id)));
 
     const delPIds = new Set(getOfflineDeletedIds('limbah_padat'));
     const delRIds = new Set(getOfflineDeletedIds('limbah_ruangan'));
@@ -80,7 +102,7 @@ export default function LimbahPadat({ embedded = false }) {
     const dateMap = new Map();
     allRuangan.forEach(item => {
       const tgl = item.tanggal; if (!tgl) return;
-      if (!dateMap.has(tgl)) dateMap.set(tgl, { id: `agg_${tgl}`, tanggal: tgl, infeksius: 0, jarum_suntik: 0, botol_obat: 0, sitotoksik: 0, ruanganCount: 0, ruanganNames: new Set(), padatIds: [], isOffline: false, isRoomAccumulation: true, isManual: false });
+      if (!dateMap.has(tgl)) dateMap.set(tgl, { id: `agg_${tgl}`, tanggal: tgl, infeksius: 0, jarum_suntik: 0, botol_obat: 0, sitotoksik: 0, ruanganCount: 0, ruanganNames: new Set(), padatIds: [], manualRecords: [], isOffline: false, isRoomAccumulation: true, isManual: false });
       const e = dateMap.get(tgl);
       e.infeksius += parseFloat(item.infeksius || 0); e.jarum_suntik += parseFloat(item.jarum_suntik || 0);
       e.botol_obat += parseFloat(item.botol_obat || 0); e.sitotoksik += parseFloat(item.sitotoksik || 0);
@@ -89,12 +111,13 @@ export default function LimbahPadat({ embedded = false }) {
     });
     allPadat.forEach(item => {
       const tgl = item.tanggal; if (!tgl) return;
-      if (!dateMap.has(tgl)) dateMap.set(tgl, { id: item.id || `padat_${tgl}`, tanggal: tgl, infeksius: 0, jarum_suntik: 0, botol_obat: 0, sitotoksik: 0, ruanganCount: 0, ruanganNames: new Set(), padatIds: [], isOffline: false, isManual: true });
+      if (!dateMap.has(tgl)) dateMap.set(tgl, { id: item.id || `padat_${tgl}`, tanggal: tgl, infeksius: 0, jarum_suntik: 0, botol_obat: 0, sitotoksik: 0, ruanganCount: 0, ruanganNames: new Set(), padatIds: [], manualRecords: [], isOffline: false, isManual: true });
       const e = dateMap.get(tgl);
       e.infeksius += parseFloat(item.infeksius || 0); e.jarum_suntik += parseFloat(item.jarum_suntik || 0);
       e.botol_obat += parseFloat(item.botol_obat || 0); e.sitotoksik += parseFloat(item.sitotoksik || 0);
       e.isManual = true;
       if (item.id && !e.padatIds.includes(item.id)) e.padatIds.push(item.id);
+      e.manualRecords.push(item);
       if (item.isOffline) e.isOffline = true;
     });
     return Array.from(dateMap.values());
@@ -105,10 +128,18 @@ export default function LimbahPadat({ embedded = false }) {
     const currentFetchId = ++fetchIdRef.current;
     setLoading(true);
     try {
+      setOfflineQueueCount(getOfflineQueue().filter(item => (
+        item.table === 'limbah_padat' || item.table === 'limbah_ruangan'
+      )).length);
       const accumulated = await getAccumulatedData(filterMonth);
       if (currentFetchId !== fetchIdRef.current) return;
       accumulated.sort((a, b) => b.tanggal.localeCompare(a.tanggal));
       setTotalData(accumulated.length);
+      const lastAvailablePage = Math.max(1, Math.ceil(accumulated.length / ITEMS_PER_PAGE));
+      if (page > lastAvailablePage) {
+        setPage(lastAvailablePage);
+        return;
+      }
       const from = (page - 1) * ITEMS_PER_PAGE;
       setData(accumulated.slice(from, from + ITEMS_PER_PAGE));
     } catch (err) { 
@@ -165,13 +196,39 @@ export default function LimbahPadat({ embedded = false }) {
   const handleSubmit = async (e) => {
     e.preventDefault(); setSubmitting(true);
     const payload = { tanggal: formData.tanggal, petugas: user?.nama || 'Petugas', infeksius: parseFloat(formData.infeksius) || 0, jarum_suntik: parseFloat(formData.jarum_suntik) || 0, botol_obat: parseFloat(formData.botol_obat) || 0, sitotoksik: parseFloat(formData.sitotoksik) || 0, waktu_input: new Date().toISOString() };
+    let recordId = formData.id;
+    let isLocalDraft = Boolean(recordId) && String(recordId).startsWith('off_');
+
     try {
-      if (!navigator.onLine) {
-        saveToOfflineQueue('limbah_padat', formData.id ? 'update' : 'insert', formData.id ? { ...payload, id: formData.id } : payload, 'Input Limbah Padat');
-        MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Data tersimpan di HP dan akan dikirim otomatis saat online.', confirmButtonColor: '#059669' });
+      if (isLocalDraft) {
+        recordId = getSyncedServerId(formData.id) || formData.id;
+        if (navigator.onLine && String(recordId).startsWith('off_')) {
+          await syncOfflineQueue(false);
+          recordId = getSyncedServerId(formData.id) || formData.id;
+        }
+        isLocalDraft = String(recordId).startsWith('off_');
+      }
+
+      if (!navigator.onLine || isLocalDraft) {
+        saveToOfflineQueue('limbah_padat', formData.id ? 'update' : 'insert', formData.id ? { ...payload, id: recordId } : payload, 'Input Limbah Padat');
+        MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: isLocalDraft && navigator.onLine ? 'Perubahan draft tersimpan dan menunggu sinkronisasi.' : 'Data tersimpan di HP dan akan dikirim otomatis saat online.', confirmButtonColor: '#059669' });
       } else if (formData.id) {
-        const { error } = await supabase.from('limbah_padat').update(payload).eq('id', formData.id);
+        const pendingRecordUpdate = getOfflineQueue().some(item => {
+          if (item.table !== 'limbah_padat') return false;
+          return [item.serverId, item.payload?.id, item.payload?.serverId]
+            .some(reference => reference != null && String(reference) === String(recordId));
+        });
+        if (pendingRecordUpdate) await syncOfflineQueue(false);
+
+        const { data: updatedRow, error } = await supabase.from('limbah_padat')
+          .update(payload)
+          .eq('id', recordId)
+          .select('id')
+          .maybeSingle();
         if (error) throw error;
+        if (!updatedRow?.id) throw new Error('Data tidak ditemukan atau Anda tidak memiliki izin untuk mengubahnya.');
+        cacheServerRows('limbah_padat', [{ ...payload, id: recordId }]);
+        if (pendingRecordUpdate) removeLocalRecordQueue({ id: recordId });
         MySwal.fire('Berhasil', 'Data berhasil diubah', 'success');
       } else {
         const { error } = await supabase.from('limbah_padat').insert([payload]);
@@ -181,20 +238,45 @@ export default function LimbahPadat({ embedded = false }) {
       setFormData(EMPTY_FORM); fetchData();
     } catch (error) {
       if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
-        saveToOfflineQueue('limbah_padat', formData.id ? 'update' : 'insert', formData.id ? { ...payload, id: formData.id } : payload, 'Input Limbah Padat');
+        saveToOfflineQueue('limbah_padat', formData.id ? 'update' : 'insert', formData.id ? { ...payload, id: recordId } : payload, 'Input Limbah Padat');
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Jaringan terputus. Data tersimpan di HP.', confirmButtonColor: '#059669' });
         setFormData(EMPTY_FORM);
       } else { MySwal.fire('Gagal', error.message, 'error'); }
     } finally { setSubmitting(false); }
   };
 
-  const handleEdit = (item) => {
+  const handleEdit = async (item) => {
     if (item.isRoomAccumulation && !item.isManual) {
       const rooms = Array.from(item.ruanganNames || []);
       MySwal.fire({ icon: 'info', title: 'Akumulasi Data Ruangan', html: `Data ini merupakan akumulasi otomatis dari <strong>${item.ruanganCount} ruangan</strong>:<br><br><div class="text-left bg-gray-100 p-3 rounded-lg text-xs max-h-40 overflow-y-auto font-mono">${rooms.map(r => `• ${r}`).join('<br>')}</div><br><span class="text-xs text-gray-500">Untuk mengedit, gunakan menu <strong>Limbah Per Ruangan</strong>.</span>`, confirmButtonColor: '#059669' });
       return;
     }
-    setFormData({ id: item.id, tanggal: item.tanggal, infeksius: item.infeksius, jarum_suntik: item.jarum_suntik, botol_obat: item.botol_obat, sitotoksik: item.sitotoksik });
+    const manualRecords = item.manualRecords || [];
+    let selectedRecord = manualRecords[0] || item;
+
+    if (manualRecords.length > 1) {
+      const inputOptions = Object.fromEntries(manualRecords.map((record, index) => {
+        const total = ['infeksius', 'jarum_suntik', 'botol_obat', 'sitotoksik']
+          .reduce((sum, field) => sum + (parseFloat(record[field]) || 0), 0);
+        return [String(record.id), `Input ${index + 1} — ${total.toFixed(2)} Kg${record.petugas ? ` (${record.petugas})` : ''}`];
+      }));
+
+      const { isConfirmed, value } = await MySwal.fire({
+        title: 'Pilih Data Manual',
+        input: 'select',
+        inputOptions,
+        inputPlaceholder: 'Pilih data yang ingin diubah',
+        showCancelButton: true,
+        confirmButtonText: 'Edit Data',
+        cancelButtonText: 'Batal',
+        inputValidator: selectedId => selectedId ? undefined : 'Pilih salah satu data manual.',
+      });
+      if (!isConfirmed || !value) return;
+      selectedRecord = manualRecords.find(record => String(record.id) === String(value));
+      if (!selectedRecord) return;
+    }
+
+    setFormData({ id: selectedRecord.id, tanggal: selectedRecord.tanggal, infeksius: selectedRecord.infeksius, jarum_suntik: selectedRecord.jarum_suntik, botol_obat: selectedRecord.botol_obat, sitotoksik: selectedRecord.sitotoksik });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -204,24 +286,56 @@ export default function LimbahPadat({ embedded = false }) {
       return;
     }
     const isMixed = item.isRoomAccumulation && item.isManual;
-    const idsToDelete = isMixed ? (item.padatIds || []) : [item.id];
+    const idsToDelete = item.padatIds?.length ? item.padatIds : [item.id];
     if (isMixed && idsToDelete.length === 0) { MySwal.fire({ icon: 'warning', title: 'Tidak ada data manual', text: 'Data ruangan harus dihapus dari menu Limbah Per Ruangan.', confirmButtonColor: '#059669' }); return; }
     const tglLabel = new Date(item.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
     const { isConfirmed } = await MySwal.fire({ title: 'Hapus Data?', text: isMixed ? `Hanya data manual pada ${tglLabel} yang dihapus.` : `Data ${tglLabel} akan dihapus permanen!`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', cancelButtonColor: '#3085d6', confirmButtonText: 'Ya, Hapus!' });
     if (!isConfirmed) return;
     try {
-      for (const id of idsToDelete) {
-        removeLocalRecordQueue({ id: String(id) });
-        if (String(id).startsWith('off_')) continue;
-        if (!navigator.onLine) { saveToOfflineQueue('limbah_padat', 'delete', { id }, `Hapus Limbah Padat ${item.tanggal}`); continue; }
-        const { error } = await supabase.from('limbah_padat').delete().eq('id', id);
-        if (error) throw error;
+      let queuedDelete = false;
+
+      for (const initialId of idsToDelete) {
+        let id = getSyncedServerId(initialId) || initialId;
+
+        if (String(id).startsWith('off_') && navigator.onLine) {
+          await syncOfflineQueue(false);
+          id = getSyncedServerId(initialId) || initialId;
+        }
+
+        if (String(id).startsWith('off_')) {
+          removeLocalRecordQueue({ id: String(initialId) });
+          continue;
+        }
+
+        if (!navigator.onLine) {
+          saveToOfflineQueue('limbah_padat', 'delete', { id }, `Hapus Limbah Padat ${item.tanggal}`);
+          queuedDelete = true;
+          continue;
+        }
+
+        try {
+          const { data: deletedRow, error } = await supabase.from('limbah_padat')
+            .delete()
+            .eq('id', id)
+            .select('id')
+            .maybeSingle();
+          if (error) throw error;
+          if (!deletedRow?.id) throw new Error('Data tidak ditemukan atau Anda tidak memiliki izin untuk menghapusnya.');
+          removeLocalRecordQueue({ id: String(id) });
+          removeCachedServerRow('limbah_padat', id);
+        } catch (error) {
+          if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
+            saveToOfflineQueue('limbah_padat', 'delete', { id }, `Hapus Limbah Padat ${item.tanggal}`);
+            queuedDelete = true;
+            continue;
+          }
+          throw error;
+        }
       }
-      MySwal.fire('Terhapus', navigator.onLine ? (isMixed ? 'Data manual berhasil dihapus.' : 'Data berhasil dihapus.') : 'Perintah hapus disimpan offline.', 'success');
+      MySwal.fire(queuedDelete ? 'Tersimpan Offline' : 'Terhapus', queuedDelete ? 'Perintah hapus disimpan dan akan diproses otomatis.' : (isMixed ? 'Data manual berhasil dihapus.' : 'Data berhasil dihapus.'), queuedDelete ? 'info' : 'success');
       fetchData();
     } catch (error) {
-      if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) { MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Perintah hapus disimpan dan akan diproses otomatis.', confirmButtonColor: '#059669' }); fetchData(); }
-      else { MySwal.fire('Gagal', error.message, 'error'); }
+      MySwal.fire('Gagal', error.message, 'error');
     }
   };
 
@@ -335,7 +449,7 @@ export default function LimbahPadat({ embedded = false }) {
         )}
 
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-          <OfflineBanner data={data} />
+          <OfflineBanner data={data} totalOfflineCount={offlineQueueCount} />
           <PadatTable
             data={data}
             loading={loading}

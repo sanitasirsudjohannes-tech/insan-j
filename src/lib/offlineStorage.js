@@ -3,11 +3,15 @@ import Swal from 'sweetalert2';
 
 const QUEUE_KEY = 'insan_j_offline_queue';
 const SYNCED_IDS_KEY = 'insan_j_offline_synced_ids';
+const RECORD_CACHE_KEY = 'insan_j_offline_record_cache';
+const SYNC_LOCK_KEY = 'insan_j_offline_sync_lock';
 const MAX_SYNCED_IDS_PER_USER = 200;
+const MAX_CACHED_ROWS_PER_TABLE = 500;
+const SYNC_LOCK_TTL_MS = 45000;
+const SYNC_TAB_ID = `sync_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
-// Global in-tab mutex for offline synchronization.
-// Prevents auto-sync (online event) and manual sync from processing the same
-// queue concurrently and sending duplicate INSERT/UPDATE/DELETE requests.
+// Per-tab mutex complemented by Web Locks/localStorage across browser tabs.
+// Prevents automatic/manual synchronization from processing the same queue twice.
 let syncPromise = null;
 
 const getCurrentQueueOwnerId = () => {
@@ -16,6 +20,75 @@ const getCurrentQueueOwnerId = () => {
     return raw ? JSON.parse(raw)?.id || null : null;
   } catch {
     return null;
+  }
+};
+
+const readRecordCache = () => {
+  try {
+    const raw = localStorage.getItem(RECORD_CACHE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (error) {
+    console.warn('Gagal membaca cadangan data offline:', error);
+    return {};
+  }
+};
+
+export const getCachedServerRows = (tableName) => {
+  const ownerId = getCurrentQueueOwnerId();
+  if (!ownerId || !tableName) return [];
+
+  const rows = readRecordCache()[ownerId]?.[tableName];
+  return Array.isArray(rows) ? rows : [];
+};
+
+export const cacheServerRows = (tableName, rows) => {
+  const ownerId = getCurrentQueueOwnerId();
+  if (!ownerId || !tableName || !Array.isArray(rows) || rows.length === 0) return;
+
+  try {
+    const cache = readRecordCache();
+    const ownerCache = cache[ownerId] || {};
+    const existingRows = Array.isArray(ownerCache[tableName]) ? ownerCache[tableName] : [];
+    const mergedRows = new Map(existingRows.map(row => [String(row.id), row]));
+
+    rows.forEach(row => {
+      if (!row?.id || String(row.id).startsWith('off_')) return;
+      const { isOffline: _isOffline, offlineId: _offlineId, offlineAction: _offlineAction, ...serverRow } = row;
+      mergedRows.set(String(row.id), { ...mergedRows.get(String(row.id)), ...serverRow });
+    });
+
+    const sortedRows = Array.from(mergedRows.values()).sort((a, b) => {
+      const dateComparison = String(b.tanggal || b.tanggal_pemeriksaan || '')
+        .localeCompare(String(a.tanggal || a.tanggal_pemeriksaan || ''));
+      return dateComparison || String(b.waktu_input || '').localeCompare(String(a.waktu_input || ''));
+    });
+
+    cache[ownerId] = {
+      ...ownerCache,
+      [tableName]: sortedRows.slice(0, MAX_CACHED_ROWS_PER_TABLE),
+    };
+    localStorage.setItem(RECORD_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.warn('Gagal menyimpan cadangan data offline:', error);
+  }
+};
+
+export const removeCachedServerRow = (tableName, id) => {
+  const ownerId = getCurrentQueueOwnerId();
+  if (!ownerId || !tableName || id == null) return;
+
+  try {
+    const cache = readRecordCache();
+    const ownerCache = cache[ownerId];
+    if (!ownerCache || !Array.isArray(ownerCache[tableName])) return;
+
+    cache[ownerId] = {
+      ...ownerCache,
+      [tableName]: ownerCache[tableName].filter(row => String(row.id) !== String(id)),
+    };
+    localStorage.setItem(RECORD_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.warn('Gagal memperbarui cadangan data offline:', error);
   }
 };
 
@@ -283,6 +356,25 @@ export const removeLocalRecordQueue = (item) => {
   writeCurrentOwnerQueue(queue);
 };
 
+const findAlreadyInsertedRow = async (item) => {
+  const payload = item.payload || {};
+  if (!payload.waktu_input) return null;
+
+  let query = supabase.from(item.table)
+    .select('id')
+    .eq('waktu_input', payload.waktu_input)
+    .limit(1);
+
+  if (payload.tanggal) query = query.eq('tanggal', payload.tanggal);
+  if (payload.tanggal_pemeriksaan) query = query.eq('tanggal_pemeriksaan', payload.tanggal_pemeriksaan);
+  if (payload.ruangan) query = query.eq('ruangan', payload.ruangan);
+  if (payload.created_by) query = query.eq('created_by', payload.created_by);
+
+  const { data, error } = await query.maybeSingle();
+  if (error) throw error;
+  return data || null;
+};
+
 const performOfflineSync = async (showNotification = true) => {
   if (!navigator.onLine) return { success: 0, failed: 0, total: 0 };
 
@@ -306,16 +398,23 @@ const performOfflineSync = async (showNotification = true) => {
       let error = null;
 
       if (item.action === 'insert') {
-        const { data, error: err } = await supabase
-          .from(item.table)
-          .insert([item.payload])
-          .select()
-          .single();
-        error = err;
+        const existingRow = await findAlreadyInsertedRow(item);
+        let data = existingRow;
+
+        if (!existingRow) {
+          const insertResult = await supabase
+            .from(item.table)
+            .insert([item.payload])
+            .select()
+            .single();
+          data = insertResult.data;
+          error = insertResult.error;
+        }
 
         if (!error && data?.id) {
           rememberSyncedServerId(item.localId || item.id, data.id);
           replaceReferencedLocalId(item.localId || item.id, data.id);
+          cacheServerRows(item.table, [{ ...item.payload, ...data }]);
         }
       } else if (item.action === 'update') {
         const serverId = getServerId(item);
@@ -333,6 +432,7 @@ const performOfflineSync = async (showNotification = true) => {
         if (!error && !updatedRow?.id) {
           throw new Error(`Data untuk update tidak ditemukan atau akses ditolak (ID: ${serverId}). Antrean tetap disimpan.`);
         }
+        if (!error) cacheServerRows(item.table, [{ ...updateData, id: serverId }]);
       } else if (item.action === 'delete') {
         const serverId = getServerId(item);
 
@@ -357,6 +457,7 @@ const performOfflineSync = async (showNotification = true) => {
         if (!error && !deletedRow?.id) {
           throw new Error(`Data untuk dihapus tidak ditemukan atau akses ditolak (ID: ${serverId}). Antrean tetap disimpan.`);
         }
+        if (!error) removeCachedServerRow(item.table, serverId);
       } else {
         throw new Error(`Aksi offline tidak dikenal: ${item.action}`);
       }
@@ -400,10 +501,65 @@ const performOfflineSync = async (showNotification = true) => {
  * If auto-sync and manual sync are triggered at the same time, both callers
  * receive the same Promise and only one queue-processing loop runs.
  */
+const runWithFallbackSyncLock = async (ownerId, task) => {
+  const now = Date.now();
+  let currentLock = null;
+
+  try {
+    const rawLock = localStorage.getItem(SYNC_LOCK_KEY);
+    currentLock = rawLock ? JSON.parse(rawLock) : null;
+    if (currentLock?.ownerId === ownerId && currentLock.tabId !== SYNC_TAB_ID && currentLock.expiresAt > now) {
+      return { success: 0, failed: 0, total: getOfflineQueue().length, locked: true };
+    }
+
+    const lock = { ownerId, tabId: SYNC_TAB_ID, expiresAt: now + SYNC_LOCK_TTL_MS };
+    localStorage.setItem(SYNC_LOCK_KEY, JSON.stringify(lock));
+    const confirmedLock = JSON.parse(localStorage.getItem(SYNC_LOCK_KEY) || '{}');
+    if (confirmedLock.tabId !== SYNC_TAB_ID) {
+      return { success: 0, failed: 0, total: getOfflineQueue().length, locked: true };
+    }
+  } catch (error) {
+    console.warn('Kunci sinkronisasi lintas tab tidak tersedia:', error);
+    return task();
+  }
+
+  const heartbeat = window.setInterval(() => {
+    try {
+      const existingLock = JSON.parse(localStorage.getItem(SYNC_LOCK_KEY) || '{}');
+      if (existingLock.tabId === SYNC_TAB_ID) {
+        localStorage.setItem(SYNC_LOCK_KEY, JSON.stringify({
+          ...existingLock,
+          expiresAt: Date.now() + SYNC_LOCK_TTL_MS,
+        }));
+      }
+    } catch (error) {
+      console.warn('Gagal memperpanjang kunci sinkronisasi offline:', error);
+    }
+  }, Math.floor(SYNC_LOCK_TTL_MS / 3));
+
+  try {
+    return await task();
+  } finally {
+    window.clearInterval(heartbeat);
+    try {
+      const existingLock = JSON.parse(localStorage.getItem(SYNC_LOCK_KEY) || '{}');
+      if (existingLock.tabId === SYNC_TAB_ID) localStorage.removeItem(SYNC_LOCK_KEY);
+    } catch (error) {
+      console.warn('Gagal membersihkan kunci sinkronisasi offline:', error);
+    }
+  }
+};
+
 export const syncOfflineQueue = (showNotification = true) => {
   if (syncPromise) return syncPromise;
 
-  syncPromise = performOfflineSync(showNotification).finally(() => {
+  const ownerId = getCurrentQueueOwnerId();
+  const syncTask = () => performOfflineSync(showNotification);
+  const runTask = ownerId && navigator.locks?.request
+    ? navigator.locks.request(`insan-j-offline-sync-${ownerId}`, syncTask)
+    : ownerId ? runWithFallbackSyncLock(ownerId, syncTask) : syncTask();
+
+  syncPromise = Promise.resolve(runTask).finally(() => {
     syncPromise = null;
   });
 
@@ -411,6 +567,12 @@ export const syncOfflineQueue = (showNotification = true) => {
 };
 
 if (typeof window !== 'undefined') {
+  window.addEventListener('storage', event => {
+    if (event.key === QUEUE_KEY) {
+      window.dispatchEvent(new CustomEvent('offline-queue-changed', { detail: getOfflineQueue() }));
+    }
+  });
+
   window.addEventListener('online', () => {
     console.log('Koneksi internet kembali aktif. Menjalankan auto-sync...');
     syncOfflineQueue(true).catch((err) => {

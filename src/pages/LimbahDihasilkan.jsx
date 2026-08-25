@@ -1,10 +1,14 @@
-import { useState, Suspense, lazy } from 'react';
+import { useEffect, useState, Suspense, lazy } from 'react';
 import AppLayout from '../components/AppLayout';
 import { getCurrentUser } from '../lib/api';
 
-const LimbahPadat = lazy(() => import('./LimbahPadat'));
-const LimbahRuangan = lazy(() => import('./LimbahRuangan'));
-const LimbahAnorganik = lazy(() => import('./LimbahAnorganik'));
+const loadLimbahPadat = () => import('./LimbahPadat');
+const loadLimbahRuangan = () => import('./LimbahRuangan');
+const loadLimbahAnorganik = () => import('./LimbahAnorganik');
+
+const LimbahPadat = lazy(loadLimbahPadat);
+const LimbahRuangan = lazy(loadLimbahRuangan);
+const LimbahAnorganik = lazy(loadLimbahAnorganik);
 
 const LoadingTab = () => (
   <div className="flex flex-col items-center justify-center py-24">
@@ -43,6 +47,39 @@ export default function LimbahDihasilkan() {
   const [activeTab, setActiveTab] = useState('ruangan');
   const [visitedTabs, setVisitedTabs] = useState(() => new Set(['ruangan']));
   const visibleTabs = isMahasiswa ? TABS.filter((tab) => tab.id !== 'padat') : TABS;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const warmOfflineTabs = async () => {
+      if (!navigator.onLine) return;
+
+      if ('serviceWorker' in navigator) {
+        try {
+          await navigator.serviceWorker.ready;
+        } catch (error) {
+          console.warn('Service worker belum siap untuk cache tab offline:', error);
+        }
+      }
+
+      if (cancelled || !navigator.onLine) return;
+      const loaders = [loadLimbahRuangan, loadLimbahAnorganik];
+      if (!isMahasiswa) loaders.push(loadLimbahPadat);
+      await Promise.allSettled(loaders.map(load => load()));
+    };
+
+    const idleHandle = typeof window.requestIdleCallback === 'function'
+      ? window.requestIdleCallback(warmOfflineTabs, { timeout: 2000 })
+      : window.setTimeout(warmOfflineTabs, 1000);
+
+    window.addEventListener('online', warmOfflineTabs);
+    return () => {
+      cancelled = true;
+      if (typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(idleHandle);
+      else window.clearTimeout(idleHandle);
+      window.removeEventListener('online', warmOfflineTabs);
+    };
+  }, [isMahasiswa]);
 
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
