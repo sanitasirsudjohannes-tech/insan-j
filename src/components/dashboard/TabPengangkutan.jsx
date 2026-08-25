@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -7,14 +7,18 @@ import {
 
 import { fetchWasteRows } from '../../lib/wasteQueries';
 import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
+import { fetchDatabaseAggregation } from '../../lib/databaseAggregations';
 
 export default function TabPengangkutan() {
   const [chartData, setChartData] = useState([]);
-  const [allData, setAllData] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState('');
+  const [availableMonths, setAvailableMonths] = useState([]);
   const [summary, setSummary] = useState({ masuk: 0, diangkut: 0, sisa: 0 });
   const [loading, setLoading] = useState(true);
   const [chartReady, setChartReady] = useState(false);
+  const legacyRowsRef = useRef(null);
+  const loadedMonthRef = useRef(null);
+  const fetchIdRef = useRef(0);
 
   useEffect(() => {
     if (!loading) {
@@ -26,9 +30,51 @@ export default function TabPengangkutan() {
   }, [loading]);
 
   useEffect(() => {
+    if (legacyRowsRef.current) {
+      setChartData(selectedMonth === 'semua'
+        ? legacyRowsRef.current
+        : legacyRowsRef.current.filter(item => item.bulanTahun === selectedMonth));
+      return;
+    }
+
+    if (loadedMonthRef.current === selectedMonth) return;
+
+    const currentFetchId = ++fetchIdRef.current;
     const fetchAll = async () => {
       setLoading(true);
       try {
+        const aggregated = await fetchDatabaseAggregation('dashboard_pengangkutan_summary', {
+          requested_month: selectedMonth || null,
+        });
+
+        if (currentFetchId !== fetchIdRef.current) return;
+
+        if (aggregated) {
+          const resolvedMonth = aggregated.selectedMonth || '';
+          const formattedRows = (aggregated.daily || []).map(row => {
+            const date = new Date(row.tanggal);
+            return {
+              fullDate: row.tanggal,
+              bulanTahun: row.tanggal.slice(0, 7),
+              tanggal: date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
+              masuk: Math.round(Number(row.masuk) || 0),
+              diangkut: Math.round(Number(row.diangkut) || 0),
+              sisa: Math.round(Number(row.sisa) || 0),
+            };
+          });
+
+          loadedMonthRef.current = resolvedMonth;
+          setAvailableMonths(aggregated.availableMonths || []);
+          setChartData(formattedRows);
+          setSummary({
+            masuk: Math.round(Number(aggregated.summary?.masuk) || 0),
+            diangkut: Math.round(Number(aggregated.summary?.diangkut) || 0),
+            sisa: Math.round(Number(aggregated.summary?.sisa) || 0),
+          });
+          if (resolvedMonth !== selectedMonth) setSelectedMonth(resolvedMonth);
+          return;
+        }
+
         const [{ padatRows: limbahPadatRows, ruanganRows: limbahRuanganRows }, angkutRows] = await Promise.all([
           fetchWasteRows(),
           fetchAllSupabaseRows(() => supabase
@@ -82,7 +128,10 @@ export default function TabPengangkutan() {
           };
         });
 
-        setAllData(combined);
+        if (currentFetchId !== fetchIdRef.current) return;
+
+        legacyRowsRef.current = combined;
+        setAvailableMonths([...new Set(combined.map(item => item.bulanTahun))]);
 
         if (combined.length > 0) {
           const latestMonth = combined[combined.length - 1].bulanTahun;
@@ -100,30 +149,18 @@ export default function TabPengangkutan() {
           sisa: Math.round(totalMasuk - totalAngkut)
         });
       } catch (err) {
+        if (currentFetchId !== fetchIdRef.current) return;
         console.error(err);
       } finally {
-        setLoading(false);
+        if (currentFetchId === fetchIdRef.current) setLoading(false);
       }
     };
     fetchAll();
-  }, []);
 
-  useEffect(() => {
-    if (!allData.length) return;
-
-    if (selectedMonth === 'semua') {
-      setChartData(allData);
-    } else if (selectedMonth) {
-      const filtered = allData.filter(
-        item => item.bulanTahun === selectedMonth
-      );
-      setChartData(filtered);
-    }
-  }, [selectedMonth, allData]);
-
-  const availableMonths = [
-    ...new Set(allData.map(item => item.bulanTahun))
-  ];
+    return () => {
+      fetchIdRef.current += 1;
+    };
+  }, [selectedMonth]);
 
   const cards = [
     { label: 'Total Limbah Masuk', value: `${summary.masuk} Kg`, icon: 'fa-plus-circle', color: 'border-blue-500', iconBg: 'bg-blue-100 text-blue-500' },

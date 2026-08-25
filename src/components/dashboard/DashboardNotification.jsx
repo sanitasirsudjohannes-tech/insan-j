@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { getLocalDateString } from '../../lib/localDate';
 import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
+import { fetchDatabaseAggregation } from '../../lib/databaseAggregations';
 
 export default function DashboardNotification() {
   const [missingDates, setMissingDates] = useState([]);
@@ -38,6 +39,16 @@ export default function DashboardNotification() {
 
         const startDateStr = datesToCheck[0];
         const endDateStr = datesToCheck[datesToCheck.length - 1];
+
+        const aggregated = await fetchDatabaseAggregation('dashboard_missing_waste_dates', {
+          start_date: startDateStr,
+          end_date: endDateStr,
+        });
+
+        if (aggregated !== null) {
+          setMissingDates(aggregated);
+          return;
+        }
 
         const [padatData, ruanganData] = await Promise.all([
           'limbah_padat',

@@ -34,12 +34,21 @@ export default function RekapLimbah() {
   useEffect(() => {
     loadData();
 
-    const handleQueueChange = () => loadData();
+    let queueRefreshTimer;
+    const relevantTables = new Set(['limbah_padat', 'limbah_ruangan', 'pengangkutan_limbah']);
+    const handleQueueChange = (event) => {
+      if (event.type === 'offline-queue-changed' && event.changedTables?.length &&
+          !event.changedTables.some(table => relevantTables.has(table))) return;
+
+      window.clearTimeout(queueRefreshTimer);
+      queueRefreshTimer = window.setTimeout(loadData, 220);
+    };
     window.addEventListener('offline-queue-changed', handleQueueChange);
     window.addEventListener('online', handleQueueChange);
     window.addEventListener('offline', handleQueueChange);
 
     return () => {
+      window.clearTimeout(queueRefreshTimer);
       window.removeEventListener('offline-queue-changed', handleQueueChange);
       window.removeEventListener('online', handleQueueChange);
       window.removeEventListener('offline', handleQueueChange);

@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import DashboardNotification from './DashboardNotification';
 import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
+import { fetchDatabaseAggregation } from '../../lib/databaseAggregations';
 
 export default function DashboardAdmin() {
   const [loading, setLoading] = useState(true);
@@ -35,6 +36,29 @@ export default function DashboardAdmin() {
     const fetchData = async () => {
       setLoading(true);
       try {
+        const aggregated = await fetchDatabaseAggregation('dashboard_admin_inspeksi_summary', {
+          requested_month: selectedMonth || null,
+        });
+
+        if (aggregated) {
+          const totalInspeksi = Number(aggregated.totalInspeksi) || 0;
+          setStats({
+            totalInspeksi,
+            rataKebersihan: totalInspeksi > 0
+              ? Math.round((Number(aggregated.totalPersen) || 0) / totalInspeksi)
+              : 0,
+          });
+          setChartData((aggregated.categories || []).map(category => {
+            const jumlah = Number(category.jumlah) || 0;
+            return {
+              name: category.label,
+              nilai: jumlah > 0 ? Math.round((Number(category.total) || 0) / jumlah) : 0,
+              jumlah,
+            };
+          }));
+          return;
+        }
+
         const tables = [
           { name: 'ruang_bangunan', label: 'Bangunan' },
           { name: 'limbah_medis', label: 'Limbah' },

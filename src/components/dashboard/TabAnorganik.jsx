@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
+import { fetchDatabaseAggregation } from '../../lib/databaseAggregations';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, AreaChart, Area
@@ -57,6 +58,40 @@ export default function TabAnorganik() {
         const [y, m] = selectedMonth.split('-');
         const start = `${y}-${m}-01`;
         const end   = `${y}-${m}-${String(new Date(+y, +m, 0).getDate()).padStart(2, '0')}`;
+
+        const aggregated = await fetchDatabaseAggregation('dashboard_anorganik_summary', {
+          requested_month: selectedMonth,
+        });
+
+        if (currentFetchId !== fetchIdRef.current) return;
+
+        if (aggregated) {
+          setSummary(Object.fromEntries(ANORGANIK_TYPES.map(type => [
+            type.key,
+            Number(aggregated.summary?.[type.key]) || 0,
+          ])));
+          setDailyData((aggregated.daily || []).map(row => {
+            const formattedRow = {
+              tanggal: new Date(row.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
+              rawDate: row.tanggal,
+              total: 0,
+            };
+
+            ANORGANIK_TYPES.forEach(type => {
+              const value = Number(row[type.key]) || 0;
+              formattedRow[type.key] = value;
+              if (type.satuan === 'Kg') formattedRow.total += value;
+            });
+
+            return formattedRow;
+          }));
+          setMonthlyData((aggregated.monthly || []).map(row => ({
+            label: new Date(`${row.bulan}-01`).toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }),
+            key: row.bulan,
+            total: Number(row.total) || 0,
+          })));
+          return;
+        }
 
         const allRows = await fetchAllSupabaseRows(() => supabase
           .from('limbah_anorganik')

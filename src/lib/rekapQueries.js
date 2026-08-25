@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { getUnsyncedItemsForTable, getOfflineDeletedIds } from './offlineStorage';
 import { fetchAllSupabaseRows } from './supabasePagination';
+import { fetchDatabaseAggregation } from './databaseAggregations';
 
 export const MONTH_NAMES = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -12,6 +13,40 @@ export const MONTH_NAMES = [
  * from Supabase and merges with local offline queue.
  */
 export async function fetchAllRekapData() {
+  const padatUnsynced = getUnsyncedItemsForTable('limbah_padat');
+  const ruanganUnsynced = getUnsyncedItemsForTable('limbah_ruangan');
+  const angkutUnsynced = getUnsyncedItemsForTable('pengangkutan_limbah');
+  const padatDelIds = new Set(getOfflineDeletedIds('limbah_padat'));
+  const ruanganDelIds = new Set(getOfflineDeletedIds('limbah_ruangan'));
+  const angkutDelIds = new Set(getOfflineDeletedIds('pengangkutan_limbah'));
+
+  const getExcludedServerIds = (unsyncedRows, deletedIds) => [...new Set([
+    ...unsyncedRows
+      .filter(row => row.offlineAction === 'update' && !String(row.id).startsWith('off_'))
+      .map(row => String(row.id)),
+    ...Array.from(deletedIds, String),
+  ])];
+
+  try {
+    const aggregated = await fetchDatabaseAggregation('rekap_limbah_monthly_summary', {
+      excluded_padat_ids: getExcludedServerIds(padatUnsynced, padatDelIds),
+      excluded_ruangan_ids: getExcludedServerIds(ruanganUnsynced, ruanganDelIds),
+      excluded_pengangkutan_ids: getExcludedServerIds(angkutUnsynced, angkutDelIds),
+    });
+
+    if (aggregated) {
+      return {
+        padatRows: [...padatUnsynced, ...(aggregated.padatRows || [])],
+        ruanganRows: [...ruanganUnsynced, ...(aggregated.ruanganRows || [])],
+        angkutRows: [...angkutUnsynced, ...(aggregated.angkutRows || [])],
+      };
+    }
+  } catch (error) {
+    // Pertahankan tampilan draft offline ketika koneksi gagal. Saat online,
+    // fallback juga menjaga aplikasi tetap berfungsi bila fungsi SQL berubah.
+    console.warn('Agregasi rekap tidak dapat dimuat, mencoba query cadangan:', error);
+  }
+
   let padatRows = [];
   let ruanganRows = [];
   let angkutRows = [];
@@ -47,8 +82,6 @@ export async function fetchAllRekapData() {
   }
 
   // Merge with offline storage for limbah_padat
-  const padatUnsynced = getUnsyncedItemsForTable('limbah_padat');
-  const padatDelIds = new Set(getOfflineDeletedIds('limbah_padat'));
   const padatUnsyncedIds = new Set(padatUnsynced.map(u => String(u.id)));
   const padatCombined = [
     ...padatUnsynced,
@@ -56,8 +89,6 @@ export async function fetchAllRekapData() {
   ];
 
   // Merge with offline storage for limbah_ruangan
-  const ruanganUnsynced = getUnsyncedItemsForTable('limbah_ruangan');
-  const ruanganDelIds = new Set(getOfflineDeletedIds('limbah_ruangan'));
   const ruanganUnsyncedIds = new Set(ruanganUnsynced.map(u => String(u.id)));
   const ruanganCombined = [
     ...ruanganUnsynced,
@@ -65,8 +96,6 @@ export async function fetchAllRekapData() {
   ];
 
   // Merge with offline storage for pengangkutan_limbah
-  const angkutUnsynced = getUnsyncedItemsForTable('pengangkutan_limbah');
-  const angkutDelIds = new Set(getOfflineDeletedIds('pengangkutan_limbah'));
   const angkutUnsyncedIds = new Set(angkutUnsynced.map(u => String(u.id)));
   const angkutCombined = [
     ...angkutUnsynced,

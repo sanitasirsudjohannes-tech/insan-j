@@ -1,11 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
-import { supabase } from '../../lib/supabase';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, AreaChart, Area
 } from 'recharts';
 
 import { fetchWasteRows } from '../../lib/wasteQueries';
+import { fetchDatabaseAggregation } from '../../lib/databaseAggregations';
 
 export default function TabJenisLimbah() {
   const [loading, setLoading] = useState(true);
@@ -27,6 +27,33 @@ export default function TabJenisLimbah() {
     const fetchLimbah = async () => {
       setLoading(true);
       try {
+        const aggregated = await fetchDatabaseAggregation('dashboard_jenis_limbah_summary');
+
+        if (aggregated) {
+          setDailyData((aggregated.daily || []).map(row => ({
+            tanggal: new Date(row.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
+            rawDate: row.tanggal,
+            infeksius: Number(row.infeksius) || 0,
+            jarum_suntik: Number(row.jarum_suntik) || 0,
+            botol_obat: Number(row.botol_obat) || 0,
+            sitotoksik: Number(row.sitotoksik) || 0,
+            total: (Number(row.infeksius) || 0) + (Number(row.jarum_suntik) || 0)
+              + (Number(row.botol_obat) || 0) + (Number(row.sitotoksik) || 0),
+          })));
+          setMonthlyData((aggregated.monthly || []).map(row => ({
+            label: new Date(`${row.bulan}-01`).toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }),
+            key: row.bulan,
+            total: Number(row.total) || 0,
+          })));
+          setSummary({
+            infeksius: Math.round(Number(aggregated.summary?.infeksius) || 0),
+            jarum: Math.round(Number(aggregated.summary?.jarum_suntik) || 0),
+            botol: Math.round(Number(aggregated.summary?.botol_obat) || 0),
+            sito: Math.round(Number(aggregated.summary?.sitotoksik) || 0),
+          });
+          return;
+        }
+
         const { padatRows, ruanganRows } = await fetchWasteRows();
 
         const dailyMap = {};
