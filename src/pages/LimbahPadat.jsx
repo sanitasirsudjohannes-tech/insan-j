@@ -26,6 +26,7 @@ import Pagination from '../components/limbah/Pagination';
 import { buildPadatPrintHTML } from '../components/limbah/padat/padatPrintTemplate';
 import { printViaHiddenIframe } from '../lib/printHelpers';
 import { formatDateFromExcel } from '../lib/excelDateHelpers';
+import { getLocalMonthString } from '../lib/localDate';
 
 const MySwal = withReactContent(Swal);
 
@@ -37,13 +38,14 @@ const ITEMS_PER_PAGE = 10;
 export default function LimbahPadat({ embedded = false }) {
   const user = getCurrentUser();
   const [data, setData] = useState([]);
+  const [accumulatedData, setAccumulatedData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [page, setPage] = useState(1);
   const [totalData, setTotalData] = useState(0);
   const [offlineQueueCount, setOfflineQueueCount] = useState(0);
-  const [filterMonth, setFilterMonth] = useState('');
+  const [filterMonth, setFilterMonth] = useState(() => getLocalMonthString());
   const [formEnabled, setFormEnabled] = useState(() => getSettingCached('form_limbah_padat_enabled', true));
   const [formData, setFormData] = useState(EMPTY_FORM);
   const importInputRef = useRef(null);
@@ -133,22 +135,26 @@ export default function LimbahPadat({ embedded = false }) {
       )).length);
       const accumulated = await getAccumulatedData(filterMonth);
       if (currentFetchId !== fetchIdRef.current) return;
+
       accumulated.sort((a, b) => b.tanggal.localeCompare(a.tanggal));
+      setAccumulatedData(accumulated);
       setTotalData(accumulated.length);
+
       const lastAvailablePage = Math.max(1, Math.ceil(accumulated.length / ITEMS_PER_PAGE));
-      if (page > lastAvailablePage) {
-        setPage(lastAvailablePage);
-        return;
-      }
-      const from = (page - 1) * ITEMS_PER_PAGE;
-      setData(accumulated.slice(from, from + ITEMS_PER_PAGE));
-    } catch (err) { 
-      console.error('Error fetching accumulated data:', err); 
-    }
-    finally { 
-      if (currentFetchId === fetchIdRef.current) setLoading(false); 
+      setPage(currentPage => Math.min(currentPage, lastAvailablePage));
+    } catch (err) {
+      console.error('Error fetching accumulated data:', err);
+    } finally {
+      if (currentFetchId === fetchIdRef.current) setLoading(false);
     }
   };
+
+  // Pagination dilakukan dari hasil bulan yang sudah dimuat. Mengganti halaman
+  // tidak lagi meminta seluruh data limbah yang sama ke Supabase.
+  useEffect(() => {
+    const from = (page - 1) * ITEMS_PER_PAGE;
+    setData(accumulatedData.slice(from, from + ITEMS_PER_PAGE));
+  }, [accumulatedData, page]);
 
   useEffect(() => {
     fetchData();
@@ -166,7 +172,7 @@ export default function LimbahPadat({ embedded = false }) {
     window.addEventListener('offline-queue-changed', handleQueueChange);
     window.addEventListener('online', h);
     window.addEventListener('offline', h);
-    
+
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
         h();
@@ -174,21 +180,14 @@ export default function LimbahPadat({ embedded = false }) {
     };
     document.addEventListener('visibilitychange', handleVisibility);
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (['INITIAL_SESSION', 'SIGNED_IN', 'TOKEN_REFRESHED'].includes(event)) {
-        h();
-      }
-    });
-
-    return () => { 
+    return () => {
       window.clearTimeout(queueRefreshTimer);
       window.removeEventListener('offline-queue-changed', handleQueueChange);
-      window.removeEventListener('online', h); 
-      window.removeEventListener('offline', h); 
+      window.removeEventListener('online', h);
+      window.removeEventListener('offline', h);
       document.removeEventListener('visibilitychange', handleVisibility);
-      subscription?.unsubscribe();
     };
-  }, [page, filterMonth]);
+  }, [filterMonth]);
 
   useEffect(() => {
     getSetting('form_limbah_padat_enabled', true).then(setFormEnabled);
