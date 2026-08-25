@@ -23,7 +23,7 @@ export default function OfflineBanner({ data, totalOfflineCount }) {
       </div>
       {navigator.onLine && (
         <button
-          onClick={() => syncOfflineQueue(true)}
+          onClick={() => syncOfflineQueue(true, true)}
           className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
         >
           <i className="fas fa-cloud-upload-alt" /> Sinkronkan Sekarang

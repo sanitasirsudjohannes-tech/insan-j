@@ -213,7 +213,7 @@ export default function LimbahPadat({ embedded = false }) {
       if (isLocalDraft) {
         recordId = getSyncedServerId(formData.id) || formData.id;
         if (navigator.onLine && String(recordId).startsWith('off_')) {
-          await syncOfflineQueue(false);
+          await syncOfflineQueue(false, true);
           recordId = getSyncedServerId(formData.id) || formData.id;
         }
         isLocalDraft = String(recordId).startsWith('off_');
@@ -228,7 +228,7 @@ export default function LimbahPadat({ embedded = false }) {
           return [item.serverId, item.payload?.id, item.payload?.serverId]
             .some(reference => reference != null && String(reference) === String(recordId));
         });
-        if (pendingRecordUpdate) await syncOfflineQueue(false);
+        if (pendingRecordUpdate) await syncOfflineQueue(false, true);
 
         const { data: updatedRow, error } = await supabase.from('limbah_padat')
           .update(payload)
@@ -308,7 +308,7 @@ export default function LimbahPadat({ embedded = false }) {
         let id = getSyncedServerId(initialId) || initialId;
 
         if (String(id).startsWith('off_') && navigator.onLine) {
-          await syncOfflineQueue(false);
+          await syncOfflineQueue(false, true);
           id = getSyncedServerId(initialId) || initialId;
         }
 
@@ -351,7 +351,7 @@ export default function LimbahPadat({ embedded = false }) {
 
   // ── Export Excel ──────────────────────────────────────────────────────────────
   const handleExportExcel = async () => {
-    const { value: selectedMonth } = await MySwal.fire({ title: 'Export Data Limbah', html: `<div class="text-left mt-4"><label class="block text-sm font-bold text-gray-700 mb-1.5">Bulan & Tahun</label><input id="swal-input-month" type="month" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-gray-50" value="${filterMonth || new Date().toISOString().slice(0, 7)}"></div>`, focusConfirm: false, showCancelButton: true, confirmButtonText: '<i class="fas fa-file-excel mr-2"></i>Export', cancelButtonText: 'Batal', confirmButtonColor: '#059669', preConfirm: () => document.getElementById('swal-input-month').value });
+    const { value: selectedMonth } = await MySwal.fire({ title: 'Export Data Limbah', html: `<div class="text-left mt-4"><label class="block text-sm font-bold text-gray-700 mb-1.5">Bulan & Tahun</label><input id="swal-input-month" type="month" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-gray-50" value="${filterMonth || getLocalMonthString()}"></div>`, focusConfirm: false, showCancelButton: true, confirmButtonText: '<i class="fas fa-file-excel mr-2"></i>Export', cancelButtonText: 'Batal', confirmButtonColor: '#059669', preConfirm: () => document.getElementById('swal-input-month').value });
     if (!selectedMonth) return;
     MySwal.fire({ title: 'Mengambil Data...', allowOutsideClick: false, didOpen: () => MySwal.showLoading() });
     try {

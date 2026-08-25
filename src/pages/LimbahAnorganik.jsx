@@ -23,6 +23,7 @@ import OfflineBanner from '../components/limbah/OfflineBanner';
 import Pagination from '../components/limbah/Pagination';
 import { buildAnorganikPrintHTML } from '../components/limbah/anorganik/anorganikPrintTemplate';
 import { printViaHiddenIframe } from '../lib/printHelpers';
+import { getLocalDateString, getLocalMonthString } from '../lib/localDate';
 
 const MySwal = withReactContent(Swal);
 
@@ -65,7 +66,7 @@ export default function LimbahAnorganik({ embedded = false }) {
 
   const emptyForm = {
     id: null,
-    tanggal: new Date().toISOString().split('T')[0],
+    tanggal: getLocalDateString(),
     ruangan: '',
     infus: '',
     jerigen: '',
@@ -257,7 +258,7 @@ export default function LimbahAnorganik({ embedded = false }) {
         recordId = getSyncedServerId(formData.id) || formData.id;
 
         if (navigator.onLine && String(recordId).startsWith('off_')) {
-          await syncOfflineQueue(false);
+          await syncOfflineQueue(false, true);
           recordId = getSyncedServerId(formData.id) || formData.id;
         }
 
@@ -284,7 +285,7 @@ export default function LimbahAnorganik({ embedded = false }) {
             return references.some(reference => reference != null && String(reference) === String(recordId));
           });
 
-          if (pendingRecordUpdate) await syncOfflineQueue(false);
+          if (pendingRecordUpdate) await syncOfflineQueue(false, true);
 
           const { data: updatedRow, error } = await supabase
             .from('limbah_anorganik')
@@ -352,7 +353,7 @@ export default function LimbahAnorganik({ embedded = false }) {
       if (item.isOffline && item.offlineAction === 'insert') {
         let syncedServerId = getSyncedServerId(item.id);
         if (!syncedServerId && navigator.onLine) {
-          await syncOfflineQueue(false);
+          await syncOfflineQueue(false, true);
           syncedServerId = getSyncedServerId(item.id);
         }
         if (syncedServerId) {
@@ -398,7 +399,7 @@ export default function LimbahAnorganik({ embedded = false }) {
 
   // ── Print ─────────────────────────────────────────────────────────────────
   const handlePrint = async () => {
-    const currentMonth = filterMonth || new Date().toISOString().slice(0, 7);
+    const currentMonth = filterMonth || getLocalMonthString();
     const { value: fv } = await MySwal.fire({
       title: 'Cetak Laporan Limbah Anorganik',
       html: `<div class="text-left mt-4 space-y-4"><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Bulan &amp; Tahun</label><input id="swal-print-month" type="month" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 outline-none text-sm bg-gray-50" value="${currentMonth}"/></div><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Ruangan (Opsional)</label><select id="swal-print-ruangan" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 outline-none text-sm bg-gray-50 appearance-none"><option value="">-- Semua Ruangan --</option>${ruanganList.map(r => `<option value="${r}">${r}</option>`).join('')}</select></div></div>`,

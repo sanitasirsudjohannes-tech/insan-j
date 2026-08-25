@@ -8,11 +8,27 @@ const SYNC_LOCK_KEY = 'insan_j_offline_sync_lock';
 const MAX_SYNCED_IDS_PER_USER = 200;
 const MAX_CACHED_ROWS_PER_TABLE = 500;
 const SYNC_LOCK_TTL_MS = 45000;
+const SYNC_RETRY_DELAYS_MS = [60_000, 5 * 60_000, 15 * 60_000];
 const SYNC_TAB_ID = `sync_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
 // Per-tab mutex complemented by Web Locks/localStorage across browser tabs.
 // Prevents automatic/manual synchronization from processing the same queue twice.
 let syncPromise = null;
+
+const resetRetryState = (item) => ({
+  ...item,
+  syncAttempts: 0,
+  lastSyncError: null,
+  lastSyncAttemptAt: null,
+  nextRetryAt: null,
+  requiresManualRetry: false,
+});
+
+const getSyncErrorMessage = (error) => {
+  if (typeof error?.message === 'string' && error.message.trim()) return error.message.trim();
+  if (typeof error === 'string' && error.trim()) return error.trim();
+  return 'Sinkronisasi gagal karena kesalahan yang tidak diketahui.';
+};
 
 const getCurrentQueueOwnerId = () => {
   try {
@@ -189,6 +205,52 @@ export const getOfflineQueue = () => {
     .filter(item => item.ownerId === ownerId);
 };
 
+const queueItemsMatch = (currentItem, snapshotItem) => (
+  currentItem?.table === snapshotItem?.table &&
+  currentItem?.action === snapshotItem?.action &&
+  currentItem?.batchId === snapshotItem?.batchId &&
+  String(currentItem?.serverId || '') === String(snapshotItem?.serverId || '') &&
+  JSON.stringify(currentItem?.payload || {}) === JSON.stringify(snapshotItem?.payload || {})
+);
+
+const markQueueItemsFailed = (snapshotItems, error) => {
+  const snapshots = new Map(
+    snapshotItems.map(item => [String(item.localId || item.id), item])
+  );
+  const now = new Date();
+  const errorMessage = getSyncErrorMessage(error);
+
+  const queue = getOfflineQueue().map(item => {
+    const snapshot = snapshots.get(String(item.localId || item.id));
+    // Jika pengguna mengubah draft ketika request lama berjalan, jangan
+    // menerapkan status gagal request lama ke perubahan yang lebih baru.
+    if (!snapshot || !queueItemsMatch(item, snapshot)) return item;
+
+    const syncAttempts = (Number(item.syncAttempts) || 0) + 1;
+    const retryDelay = SYNC_RETRY_DELAYS_MS[syncAttempts - 1] ?? null;
+    return {
+      ...item,
+      syncAttempts,
+      lastSyncError: errorMessage,
+      lastSyncAttemptAt: now.toISOString(),
+      nextRetryAt: retryDelay === null
+        ? null
+        : new Date(now.getTime() + retryDelay).toISOString(),
+      requiresManualRetry: retryDelay === null,
+    };
+  });
+
+  writeCurrentOwnerQueue(queue);
+};
+
+const isQueueItemReady = (item, force, now = Date.now()) => {
+  if (force) return true;
+  if (item.requiresManualRetry) return false;
+  if (!item.nextRetryAt) return true;
+  const nextRetryAt = Date.parse(item.nextRetryAt);
+  return Number.isNaN(nextRetryAt) || nextRetryAt <= now;
+};
+
 export const getUnsyncedItemsForTable = (tableName) => {
   const items = getOfflineQueue()
     .filter(item => item.table === tableName && item.action !== 'delete')
@@ -201,6 +263,10 @@ export const getUnsyncedItemsForTable = (tableName) => {
         isOffline: true,
         offlineId: item.localId || item.id,
         offlineAction: item.action,
+        offlineSyncAttempts: Number(item.syncAttempts) || 0,
+        offlineSyncError: item.lastSyncError || null,
+        offlineNextRetryAt: item.nextRetryAt || null,
+        offlineRequiresManualRetry: Boolean(item.requiresManualRetry),
         waktu_input: payloadData.waktu_input || item.createdAt || new Date().toISOString()
       };
     });
@@ -264,18 +330,18 @@ export const saveToOfflineQueue = (table, action, payload, description = '') => 
         } else {
           // Record sudah ada di server -> ganti operasi update yang tertunda
           // menjadi operasi delete.
-          queue[existingIndex] = {
+          queue[existingIndex] = resetRetryState({
             ...existing,
             action: 'delete',
             payload: { ...existing.payload, id: existing.serverId, serverId: existing.serverId },
             description: description || existing.description,
             createdAt: new Date().toISOString(),
-          };
+          });
         }
       } else {
         // Amandemen entri yang sudah ada, JANGAN buat entri baru.
         const { id: _omitId, serverId: _omitServerId, ...restPayload } = payloadCopy;
-        queue[existingIndex] = {
+        queue[existingIndex] = resetRetryState({
           ...existing,
           action: isLocalDraft ? 'insert' : 'update',
           payload: isLocalDraft
@@ -283,7 +349,7 @@ export const saveToOfflineQueue = (table, action, payload, description = '') => 
             : { ...existing.payload, ...restPayload, id: existing.serverId },
           description: description || existing.description,
           createdAt: new Date().toISOString(),
-        };
+        });
       }
 
       writeCurrentOwnerQueue(queue);
@@ -294,7 +360,7 @@ export const saveToOfflineQueue = (table, action, payload, description = '') => 
   // Belum ada entri untuk record ini -> ini kali pertama record ditulis
   // secara offline, buat entri baru.
   const localId = `off_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const newItem = {
+  const newItem = resetRetryState({
     id: localId,
     localId,
     serverId: targetId && !String(targetId).startsWith('off_') ? targetId : null,
@@ -304,7 +370,7 @@ export const saveToOfflineQueue = (table, action, payload, description = '') => 
     description: description || `${action.toUpperCase()} data ${table}`,
     createdAt: new Date().toISOString(),
     ownerId
-  };
+  });
 
   queue.push(newItem);
   writeCurrentOwnerQueue(queue);
@@ -323,7 +389,7 @@ export const saveInsertBatchToOfflineQueue = (table, payloads, description = '')
   const batchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   const items = payloads.map((payload, index) => {
     const localId = `off_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`;
-    return {
+    return resetRetryState({
       id: localId,
       localId,
       serverId: null,
@@ -334,7 +400,7 @@ export const saveInsertBatchToOfflineQueue = (table, payloads, description = '')
       description: description || `INSERT data ${table}`,
       createdAt,
       ownerId,
-    };
+    });
   });
 
   writeCurrentOwnerQueue([...queue, ...items]);
@@ -346,24 +412,65 @@ export const removeOfflineQueueItem = (id) => {
   writeCurrentOwnerQueue(queue);
 };
 
-const replaceReferencedLocalId = (localId, serverId) => {
-  const queue = getOfflineQueue().map(item => {
-    const payloadId = item.payload?.serverId || item.payload?.id;
-    const referencesInsertedRecord = payloadId === localId || item.localId === localId;
+const findQueueItemIndex = (queue, snapshotItem) => queue.findIndex(candidate =>
+  candidate.id === snapshotItem.id ||
+  (Boolean(snapshotItem.localId) && candidate.localId === snapshotItem.localId)
+);
 
-    if (!referencesInsertedRecord) return item;
+const removeQueueItemIfUnchanged = (snapshotItem) => {
+  const queue = getOfflineQueue();
+  const currentIndex = findQueueItemIndex(queue, snapshotItem);
+  if (currentIndex === -1 || !queueItemsMatch(queue[currentIndex], snapshotItem)) return false;
+  queue.splice(currentIndex, 1);
+  writeCurrentOwnerQueue(queue);
+  return true;
+};
 
-    return {
-      ...item,
-      serverId,
-      payload: {
-        ...item.payload,
-        id: serverId,
-        serverId
-      }
-    };
+// INSERT dapat selesai saat pengguna sedang mengedit atau menghapus draft.
+// Pertahankan perubahan terbaru sebagai UPDATE/DELETE memakai ID server,
+// alih-alih membuang perubahan tersebut bersama operasi INSERT yang lama.
+const finalizeSyncedInsert = (snapshotItem, serverRow) => {
+  const localId = snapshotItem.localId || snapshotItem.id;
+  const previouslySyncedServerId = getSyncedServerId(localId);
+  rememberSyncedServerId(localId, serverRow.id);
+  cacheServerRows(snapshotItem.table, [{ ...snapshotItem.payload, ...serverRow }]);
+
+  const queue = getOfflineQueue();
+  const currentIndex = findQueueItemIndex(queue, snapshotItem);
+
+  if (currentIndex === -1) {
+    // Antrean yang sama mungkin baru saja diselesaikan tab lain. Dalam kondisi
+    // itu data server sah dan tidak boleh diterjemahkan sebagai permintaan hapus.
+    if (String(previouslySyncedServerId || '') === String(serverRow.id)) return;
+    queue.push(resetRetryState({
+      ...snapshotItem,
+      action: 'delete',
+      serverId: serverRow.id,
+      payload: { id: serverRow.id, serverId: serverRow.id },
+      description: `Hapus data ${snapshotItem.table}`,
+      createdAt: new Date().toISOString(),
+    }));
+    writeCurrentOwnerQueue(queue);
+    return;
+  }
+
+  const currentItem = queue[currentIndex];
+  if (queueItemsMatch(currentItem, snapshotItem)) {
+    queue.splice(currentIndex, 1);
+    writeCurrentOwnerQueue(queue);
+    return;
+  }
+
+  const { id: _id, serverId: _serverId, ...latestPayload } = currentItem.payload || {};
+  queue[currentIndex] = resetRetryState({
+    ...currentItem,
+    action: currentItem.action === 'delete' ? 'delete' : 'update',
+    serverId: serverRow.id,
+    payload: currentItem.action === 'delete'
+      ? { id: serverRow.id, serverId: serverRow.id }
+      : { ...latestPayload, id: serverRow.id },
+    createdAt: new Date().toISOString(),
   });
-
   writeCurrentOwnerQueue(queue);
 };
 
@@ -505,12 +612,12 @@ const syncOfflineInsertBatch = async (items) => {
     // Simpan edit terbaru sebagai UPDATE agar hasil INSERT lama tidak menimpanya.
     if (JSON.stringify(queuedItem.payload) !== JSON.stringify(match.item.payload)) {
       const { batchId: _batchId, ...pendingItem } = queuedItem;
-      updatedQueue.push({
+      updatedQueue.push(resetRetryState({
         ...pendingItem,
         action: 'update',
         serverId: match.row.id,
         payload: { ...queuedItem.payload, id: match.row.id },
-      });
+      }));
     }
   });
 
@@ -520,28 +627,32 @@ const syncOfflineInsertBatch = async (items) => {
 
     // Draft dapat dihapus ketika INSERT masih diproses server. Teruskan
     // penghapusan tersebut setelah ID server berhasil diketahui.
-    updatedQueue.push({
+    updatedQueue.push(resetRetryState({
       ...item,
       action: 'delete',
       serverId: row.id,
       payload: { id: row.id, serverId: row.id },
       description: `Hapus Limbah Ruangan ${item.payload?.ruangan || ''}`,
-    });
+    }));
   });
 
   writeCurrentOwnerQueue(updatedQueue);
   return syncedItems.length;
 };
 
-const performOfflineSync = async (showNotification = true) => {
+const performOfflineSync = async (showNotification = true, force = false) => {
   if (!navigator.onLine) return { success: 0, failed: 0, total: 0 };
 
-  const initialQueue = getOfflineQueue();
-  if (initialQueue.length === 0) return { success: 0, failed: 0, total: 0 };
+  const allQueue = getOfflineQueue();
+  const initialQueue = allQueue.filter(item => isQueueItemReady(item, force));
+  if (allQueue.length === 0) return { success: 0, failed: 0, total: 0, skipped: 0 };
+  if (initialQueue.length === 0) {
+    return { success: 0, failed: 0, total: allQueue.length, skipped: allQueue.length };
+  }
 
   let successCount = 0;
   let failedCount = 0;
-  const total = initialQueue.length;
+  const total = allQueue.length;
   const processedBatchIds = new Set();
 
   // Setiap item dicoba satu kali per putaran. Item yang gagal tetap berada
@@ -567,6 +678,7 @@ const performOfflineSync = async (showNotification = true) => {
         successCount += await syncOfflineInsertBatch(batchItems);
       } catch (batchError) {
         console.error(`Gagal sinkronisasi batch ${item.batchId}:`, batchError);
+        markQueueItemsFailed(batchItems, batchError);
         failedCount += batchItems.length;
       }
       continue;
@@ -574,6 +686,7 @@ const performOfflineSync = async (showNotification = true) => {
 
     try {
       let error = null;
+      let queueHandled = false;
 
       if (item.action === 'insert') {
         const existingRow = await findAlreadyInsertedRow(item);
@@ -589,10 +702,12 @@ const performOfflineSync = async (showNotification = true) => {
           error = insertResult.error;
         }
 
+        if (!error && !data?.id) {
+          throw new Error(`Server tidak mengembalikan ID untuk insert item ${item.id}.`);
+        }
         if (!error && data?.id) {
-          rememberSyncedServerId(item.localId || item.id, data.id);
-          replaceReferencedLocalId(item.localId || item.id, data.id);
-          cacheServerRows(item.table, [{ ...item.payload, ...data }]);
+          finalizeSyncedInsert(item, data);
+          queueHandled = true;
         }
       } else if (item.action === 'update') {
         const serverId = getServerId(item);
@@ -651,27 +766,33 @@ const performOfflineSync = async (showNotification = true) => {
 
       if (error) {
         console.error(`Gagal sync item ${item.id}:`, error);
+        markQueueItemsFailed([item], error);
         failedCount++;
         continue;
       }
 
-      removeOfflineQueueItem(item.id);
+      if (!queueHandled) removeQueueItemIfUnchanged(item);
       successCount++;
     } catch (err) {
       console.error(`Exception sync item ${item.id}:`, err);
+      markQueueItemsFailed([item], err);
       failedCount++;
       continue;
     }
   }
 
   if (showNotification && (successCount > 0 || failedCount > 0)) {
+    const manualRetryCount = getOfflineQueue()
+      .filter(item => item.requiresManualRetry).length;
     Swal.fire({
       icon: failedCount > 0 ? (successCount > 0 ? 'warning' : 'error') : 'success',
       title: failedCount > 0
         ? (successCount > 0 ? 'Sinkronisasi Sebagian Berhasil' : 'Sinkronisasi Gagal')
         : 'Sinkronisasi Berhasil!',
       text: failedCount > 0
-        ? `${successCount} berhasil, ${failedCount} gagal. Data gagal tetap berada di antrean.`
+        ? manualRetryCount > 0
+          ? `${successCount} berhasil, ${failedCount} gagal. ${manualRetryCount} draft menunggu tombol Coba Lagi.`
+          : `${successCount} berhasil, ${failedCount} gagal. Data gagal tetap aman dan akan dicoba ulang bertahap.`
         : `${successCount} data offline telah dikirim ke database.`,
       toast: true,
       position: 'top-end',
@@ -680,7 +801,12 @@ const performOfflineSync = async (showNotification = true) => {
     });
   }
 
-  return { success: successCount, failed: failedCount, total };
+  return {
+    success: successCount,
+    failed: failedCount,
+    total,
+    skipped: Math.max(0, total - initialQueue.length),
+  };
 };
 
 /**
@@ -737,11 +863,11 @@ const runWithFallbackSyncLock = async (ownerId, task) => {
   }
 };
 
-export const syncOfflineQueue = (showNotification = true) => {
+export const syncOfflineQueue = (showNotification = true, force = false) => {
   if (syncPromise) return syncPromise;
 
   const ownerId = getCurrentQueueOwnerId();
-  const syncTask = () => performOfflineSync(showNotification);
+  const syncTask = () => performOfflineSync(showNotification, force);
   const runTask = ownerId && navigator.locks?.request
     ? navigator.locks.request(`insan-j-offline-sync-${ownerId}`, syncTask)
     : ownerId ? runWithFallbackSyncLock(ownerId, syncTask) : syncTask();

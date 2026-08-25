@@ -21,12 +21,15 @@ export default function PengangkutanTable({
   setPage,
   itemsPerPage,
   totalPages,
+  totalOfflineCount,
   handleEdit,
   handleDelete,
   syncOfflineQueue
 }) {
   const [showFilter, setShowFilter] = useState(false);
-  const offlineCount = data.filter(item => item.isOffline).length;
+  const offlineCount = typeof totalOfflineCount === 'number'
+    ? totalOfflineCount
+    : data.filter(item => item.isOffline).length;
   const activeFilterCount = filterMonth ? 1 : 0;
 
   const selectedMonthLabel = monthValueToLabel(filterMonth);
@@ -60,7 +63,7 @@ export default function PengangkutanTable({
           {navigator.onLine && (
             <button
               type="button"
-              onClick={() => syncOfflineQueue(true)}
+              onClick={() => syncOfflineQueue(true, true)}
               className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
             >
               <i className="fas fa-cloud-upload-alt" /> Sinkronkan Sekarang

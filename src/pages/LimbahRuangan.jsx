@@ -418,7 +418,7 @@ export default function LimbahRuangan({ embedded = false }) {
         // Tunggu auto-sync yang sedang berjalan agar edit tidak memakai ID
         // lokal yang baru saja diganti dengan ID asli dari Supabase.
         if (navigator.onLine && String(recordId).startsWith('off_')) {
-          await syncOfflineQueue(false);
+          await syncOfflineQueue(false, true);
           recordId = getSyncedServerId(formData.id) || formData.id;
         }
 
@@ -441,7 +441,7 @@ export default function LimbahRuangan({ embedded = false }) {
 
         // Selesaikan perubahan lama terlebih dahulu agar auto-sync tidak
         // datang belakangan dan menimpa nilai terbaru yang sedang disimpan.
-        if (pendingRecordUpdate) await syncOfflineQueue(false);
+        if (pendingRecordUpdate) await syncOfflineQueue(false, true);
 
         const { data: updatedRow, error } = await supabase.from('limbah_ruangan')
           .update(payloads[0])
@@ -514,7 +514,7 @@ export default function LimbahRuangan({ embedded = false }) {
       if (item.isOffline && item.offlineAction === 'insert') {
         let syncedServerId = getSyncedServerId(item.id);
         if (!syncedServerId && navigator.onLine) {
-          await syncOfflineQueue(false);
+          await syncOfflineQueue(false, true);
           syncedServerId = getSyncedServerId(item.id);
         }
         if (syncedServerId) {

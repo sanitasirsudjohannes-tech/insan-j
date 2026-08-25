@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getOfflineQueue, syncOfflineQueue } from '../lib/offlineStorage';
 
-const AUTO_SYNC_INTERVAL_MS = 30_000;
-
 export default function OfflineSyncIndicator() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [queue, setQueue] = useState([]);
@@ -10,14 +8,14 @@ export default function OfflineSyncIndicator() {
   const syncingRef = useRef(false);
   const mountedRef = useRef(true);
 
-  const runSync = useCallback(async (showNotification = false) => {
+  const runSync = useCallback(async (showNotification = false, force = false) => {
     if (!navigator.onLine || getOfflineQueue().length === 0 || syncingRef.current) return;
 
     syncingRef.current = true;
     setSyncing(true);
 
     try {
-      await syncOfflineQueue(showNotification);
+      await syncOfflineQueue(showNotification, force);
     } catch (error) {
       console.error('Sinkronisasi draft offline gagal:', error);
     } finally {
@@ -49,25 +47,41 @@ export default function OfflineSyncIndicator() {
   useEffect(() => {
     if (!isOnline || queue.length === 0) return;
 
-    runSync();
+    const now = Date.now();
+    const automaticItems = queue.filter(item => !item.requiresManualRetry);
+    const hasReadyItem = automaticItems.some(item => {
+      if (!item.nextRetryAt) return true;
+      const retryAt = Date.parse(item.nextRetryAt);
+      return Number.isNaN(retryAt) || retryAt <= now;
+    });
+    const futureRetryTimes = automaticItems
+      .map(item => Date.parse(item.nextRetryAt || ''))
+      .filter(retryAt => !Number.isNaN(retryAt) && retryAt > now);
+
+    if (hasReadyItem) runSync();
 
     const handleFocus = () => runSync();
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') runSync();
     };
-    const intervalId = window.setInterval(handleFocus, AUTO_SYNC_INTERVAL_MS);
+    const nextRetryAt = futureRetryTimes.length > 0 ? Math.min(...futureRetryTimes) : null;
+    const retryTimer = nextRetryAt
+      ? window.setTimeout(() => runSync(), Math.max(1000, nextRetryAt - now))
+      : null;
 
     window.addEventListener('focus', handleFocus);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      window.clearInterval(intervalId);
+      if (retryTimer) window.clearTimeout(retryTimer);
       window.removeEventListener('focus', handleFocus);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [isOnline, queue.length, runSync]);
+  }, [isOnline, queue, runSync]);
 
-  const handleManualSync = () => runSync(true);
+  const handleManualSync = () => runSync(true, true);
+  const manualRetryCount = queue.filter(item => item.requiresManualRetry).length;
+  const latestError = [...queue].reverse().find(item => item.lastSyncError)?.lastSyncError;
 
   // Bersih: Sembunyikan total jika online & tidak ada antrean pending
   if (isOnline && queue.length === 0) {
@@ -92,11 +106,11 @@ export default function OfflineSyncIndicator() {
         <button
           onClick={handleManualSync}
           disabled={syncing}
-          className="flex items-center gap-2 bg-emerald-600/95 hover:bg-emerald-700 text-white backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-medium shadow-xl border border-emerald-500/50 cursor-pointer active:scale-95 transition-all disabled:opacity-60"
-          title="Klik untuk menyinkronkan data draft offline ke server"
+          className={`flex items-center gap-2 ${manualRetryCount > 0 ? 'bg-amber-600/95 hover:bg-amber-700 border-amber-500/50' : 'bg-emerald-600/95 hover:bg-emerald-700 border-emerald-500/50'} text-white backdrop-blur-md px-3.5 py-1.5 rounded-full text-xs font-medium shadow-xl border cursor-pointer active:scale-95 transition-all disabled:opacity-60`}
+          title={latestError || 'Klik untuk menyinkronkan data draft offline ke server'}
         >
-          <i className={`fas ${syncing ? 'fa-spinner fa-spin' : 'fa-cloud-upload-alt'} text-emerald-200 text-[11px]`}></i>
-          <span>{syncing ? 'Menyinkronkan...' : `Kirim ${queue.length} Data Draft`}</span>
+          <i className={`fas ${syncing ? 'fa-spinner fa-spin' : manualRetryCount > 0 ? 'fa-exclamation-circle' : 'fa-cloud-upload-alt'} text-white/80 text-[11px]`}></i>
+          <span>{syncing ? 'Menyinkronkan...' : manualRetryCount > 0 ? `Coba Lagi ${queue.length} Draft` : `Kirim ${queue.length} Data Draft`}</span>
         </button>
       )}
     </div>

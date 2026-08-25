@@ -1,5 +1,8 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import Swal from 'sweetalert2';
 import { getCurrentUser, logoutUser } from '../lib/api';
+import { getOfflineQueue, syncOfflineQueue } from '../lib/offlineStorage';
 
 export default function Navbar({ title, showBackButton, onMenuToggle }) {
   // const user = getCurrentUser();
@@ -7,6 +10,95 @@ export default function Navbar({ title, showBackButton, onMenuToggle }) {
   const user = getCurrentUser();
   const role = user?.role?.trim().toLowerCase();
   const isAdmin = role === 'admin';
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    if (loggingOut) return;
+
+    const pendingCount = getOfflineQueue().length;
+    if (pendingCount === 0) {
+      setLoggingOut(true);
+      await logoutUser();
+      return;
+    }
+
+    if (!navigator.onLine) {
+      const { isConfirmed } = await Swal.fire({
+        icon: 'warning',
+        title: `${pendingCount} Draft Belum Terkirim`,
+        text: 'Perangkat sedang offline. Draft tetap tersimpan di HP dan hanya dapat dilanjutkan setelah akun yang sama masuk kembali.',
+        showCancelButton: true,
+        confirmButtonText: 'Tetap Logout',
+        cancelButtonText: 'Batal',
+        confirmButtonColor: '#dc2626',
+      });
+      if (!isConfirmed) return;
+      setLoggingOut(true);
+      await logoutUser();
+      return;
+    }
+
+    const choice = await Swal.fire({
+      icon: 'warning',
+      title: `${pendingCount} Draft Belum Terkirim`,
+      text: 'Sinkronkan terlebih dahulu agar data tidak tertahan di HP ini.',
+      showDenyButton: true,
+      showCancelButton: true,
+      confirmButtonText: 'Sinkronkan Sekarang',
+      denyButtonText: 'Tetap Logout',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#059669',
+      denyButtonColor: '#dc2626',
+    });
+
+    if (choice.isDismissed) return;
+    if (choice.isDenied) {
+      setLoggingOut(true);
+      await logoutUser();
+      return;
+    }
+
+    setLoggingOut(true);
+    Swal.fire({
+      title: 'Menyinkronkan Draft...',
+      text: 'Mohon jangan tutup aplikasi.',
+      allowOutsideClick: false,
+      didOpen: () => Swal.showLoading(),
+    });
+
+    try {
+      await syncOfflineQueue(false, true);
+      const remainingCount = getOfflineQueue().length;
+      if (remainingCount === 0) {
+        await logoutUser();
+        return;
+      }
+
+      const remainingChoice = await Swal.fire({
+        icon: 'warning',
+        title: `${remainingCount} Draft Masih Gagal`,
+        text: 'Draft tetap aman di HP. Logout hanya jika Anda memahami bahwa sinkronisasi harus dilanjutkan dengan akun yang sama.',
+        showCancelButton: true,
+        confirmButtonText: 'Tetap Logout',
+        cancelButtonText: 'Tetap di Aplikasi',
+        confirmButtonColor: '#dc2626',
+      });
+      if (remainingChoice.isConfirmed) {
+        await logoutUser();
+        return;
+      }
+    } catch (error) {
+      console.error('Sinkronisasi sebelum logout gagal:', error);
+      await Swal.fire({
+        icon: 'error',
+        title: 'Sinkronisasi Gagal',
+        text: 'Draft tetap tersimpan di HP. Silakan periksa koneksi dan coba kembali.',
+        confirmButtonColor: '#2563eb',
+      });
+    } finally {
+      setLoggingOut(false);
+    }
+  };
 
   return (
     <nav className="bg-white shadow-lg border-b-2 border-blue-500 sticky top-0 z-30">
@@ -50,9 +142,13 @@ export default function Navbar({ title, showBackButton, onMenuToggle }) {
               </span>
             </div>
 
-            <button onClick={logoutUser} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm transition flex items-center shadow-md">
-              <i className="fas fa-sign-out-alt sm:mr-2"></i>
-              <span className="hidden sm:inline">Logout</span>
+            <button
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm transition flex items-center shadow-md disabled:opacity-60"
+            >
+              <i className={`fas ${loggingOut ? 'fa-spinner fa-spin' : 'fa-sign-out-alt'} sm:mr-2`}></i>
+              <span className="hidden sm:inline">{loggingOut ? 'Memproses...' : 'Logout'}</span>
             </button>
           </div>
         </div>
