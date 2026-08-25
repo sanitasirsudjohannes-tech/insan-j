@@ -201,8 +201,7 @@ export default function LimbahPadat({ embedded = false }) {
       queueRefreshTimer = window.setTimeout(h, 180);
     };
     window.addEventListener('offline-queue-changed', handleQueueChange);
-    window.addEventListener('offline-sync-complete', handleQueueChange);
-    window.addEventListener('online', h);
+    window.addEventListener('offline-sync-finished', handleQueueChange);
     window.addEventListener('offline', h);
 
     const handleVisibility = () => {
@@ -215,8 +214,7 @@ export default function LimbahPadat({ embedded = false }) {
     return () => {
       window.clearTimeout(queueRefreshTimer);
       window.removeEventListener('offline-queue-changed', handleQueueChange);
-      window.removeEventListener('offline-sync-complete', handleQueueChange);
-      window.removeEventListener('online', h);
+      window.removeEventListener('offline-sync-finished', handleQueueChange);
       window.removeEventListener('offline', h);
       document.removeEventListener('visibilitychange', handleVisibility);
     };

@@ -199,16 +199,14 @@ export default function PengangkutanLimbah() {
             if (document.visibilityState === 'visible') fetchData();
         };
         window.addEventListener('offline-queue-changed', handleQueueChange);
-        window.addEventListener('offline-sync-complete', handleQueueChange);
-        window.addEventListener('online', handleQueueChange);
+        window.addEventListener('offline-sync-finished', handleQueueChange);
         window.addEventListener('offline', handleQueueChange);
         document.addEventListener('visibilitychange', handleVisibility);
 
         return () => {
             window.clearTimeout(queueRefreshTimer);
             window.removeEventListener('offline-queue-changed', handleQueueChange);
-            window.removeEventListener('offline-sync-complete', handleQueueChange);
-            window.removeEventListener('online', handleQueueChange);
+            window.removeEventListener('offline-sync-finished', handleQueueChange);
             window.removeEventListener('offline', handleQueueChange);
             document.removeEventListener('visibilitychange', handleVisibility);
         };

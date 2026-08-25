@@ -900,7 +900,12 @@ export const syncOfflineQueue = (showNotification = true, force = false) => {
         }));
       }
 
-      window.dispatchEvent(new CustomEvent('offline-sync-finished'));
+      // Selalu dikirim, termasuk ketika antrean kosong/gagal, agar halaman
+      // cukup memuat ulang satu kali setelah proses reconnect benar-benar
+      // selesai. changedTables mempertahankan penyaringan per halaman.
+      window.dispatchEvent(new CustomEvent('offline-sync-finished', {
+        detail: { changedTables },
+      }));
     }
   };
   const runTask = ownerId && navigator.locks?.request

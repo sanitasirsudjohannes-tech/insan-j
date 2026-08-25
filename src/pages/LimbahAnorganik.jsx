@@ -218,14 +218,12 @@ export default function LimbahAnorganik({ embedded = false }) {
       queueRefreshTimer = window.setTimeout(fetchData, 180);
     };
     window.addEventListener('offline-queue-changed', handleQueueChange);
-    window.addEventListener('offline-sync-complete', handleQueueChange);
-    window.addEventListener('online', handleQueueChange);
+    window.addEventListener('offline-sync-finished', handleQueueChange);
     window.addEventListener('offline', handleQueueChange);
     return () => {
       window.clearTimeout(queueRefreshTimer);
       window.removeEventListener('offline-queue-changed', handleQueueChange);
-      window.removeEventListener('offline-sync-complete', handleQueueChange);
-      window.removeEventListener('online', handleQueueChange);
+      window.removeEventListener('offline-sync-finished', handleQueueChange);
       window.removeEventListener('offline', handleQueueChange);
     };
   }, [fetchData]);

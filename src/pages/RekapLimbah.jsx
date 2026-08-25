@@ -49,17 +49,15 @@ export default function RekapLimbah() {
       queueRefreshTimer = window.setTimeout(loadData, 220);
     };
     window.addEventListener('offline-queue-changed', handleQueueChange);
-    window.addEventListener('offline-sync-complete', handleQueueChange);
+    window.addEventListener('offline-sync-finished', handleQueueChange);
     window.addEventListener('insan-j-data-changed', handleQueueChange);
-    window.addEventListener('online', handleQueueChange);
     window.addEventListener('offline', handleQueueChange);
 
     return () => {
       window.clearTimeout(queueRefreshTimer);
       window.removeEventListener('offline-queue-changed', handleQueueChange);
-      window.removeEventListener('offline-sync-complete', handleQueueChange);
+      window.removeEventListener('offline-sync-finished', handleQueueChange);
       window.removeEventListener('insan-j-data-changed', handleQueueChange);
-      window.removeEventListener('online', handleQueueChange);
       window.removeEventListener('offline', handleQueueChange);
     };
   }, [loadData]);

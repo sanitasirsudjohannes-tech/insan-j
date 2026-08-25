@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import AppLayout from '../components/AppLayout';
 import { getCurrentUser } from '../lib/api';
-import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import EditRiwayatModal from '../components/riwayat/EditRiwayatModal';
@@ -9,8 +8,18 @@ import RekapPengisianTable from '../components/riwayat/RekapPengisianTable';
 import RekapRuanganTable from '../components/riwayat/RekapRuanganTable';
 import DetailRiwayatTable from '../components/riwayat/DetailRiwayatTable';
 import { useRiwayat } from '../hooks/useRiwayat';
-import { saveToOfflineQueue, removeLocalRecordQueue } from '../lib/offlineStorage';
-import { notifyDatabaseTablesChanged } from '../lib/databaseAggregations';
+import {
+  getSyncedServerId,
+  removeLocalRecordQueue,
+  saveToOfflineQueue,
+} from '../lib/offlineStorage';
+import { isNetworkError } from '../lib/networkErrors';
+import {
+  deleteRecordWithVersion,
+  getRecordBaseVersion,
+  isRecordConflictError,
+  resolveOfflineRecordConflict,
+} from '../lib/recordVersion';
 
 const MySwal = withReactContent(Swal);
 
@@ -37,12 +46,99 @@ export default function Riwayat() {
     return `${months[parseInt(month, 10) - 1]} ${year}`;
   };
 
-  const handleEditClick = (item) => {
-    setEditingItem(item);
+  const handleEditClick = async (item) => {
+    let editableItem = item;
+
+    try {
+      if (item.offlineHasConflict) {
+        const resolution = await resolveOfflineRecordConflict(
+          item.tableName,
+          { ...item, id: item.originalId },
+          MySwal
+        );
+        if (!resolution) return;
+
+        if (resolution.discardDraft) removeLocalRecordQueue(item);
+        if (!resolution.record) {
+          fetchRiwayat();
+          return;
+        }
+
+        const record = resolution.record;
+        editableItem = {
+          ...item,
+          ...record,
+          id: `${item.tableName}_${record.id}`,
+          originalId: record.id,
+          tanggal: record.tanggal_pemeriksaan,
+          lokasi: record.ruangan,
+          nilai: record.total,
+          maksimal: record.nilai_maks,
+          persentase: Number(record.persen) || 0,
+          isOffline: !resolution.discardDraft,
+          offlineAction: resolution.discardDraft ? null : item.offlineAction,
+          offlineId: resolution.discardDraft ? null : item.offlineId,
+          offlineHasConflict: false,
+          offlineBaseUpdatedAt: resolution.discardDraft
+            ? null
+            : record.offlineBaseUpdatedAt,
+        };
+      }
+    } catch (error) {
+      MySwal.fire('Gagal', error.message, 'error');
+      return;
+    }
+
+    setEditingItem(editableItem);
     setIsEditModalOpen(true);
   };
 
-  const handleDelete = async (item) => {
+  const handleDelete = async (initialItem) => {
+    let item = initialItem;
+
+    if (item.offlineHasConflict) {
+      if (!navigator.onLine) {
+        MySwal.fire({
+          icon: 'warning',
+          title: 'Draft Bertentangan',
+          text: 'Hubungkan internet dan buka kembali data ini untuk meninjau versi server sebelum menghapusnya.',
+          confirmButtonColor: '#d97706',
+        });
+        return;
+      }
+
+      try {
+        const resolution = await resolveOfflineRecordConflict(
+          item.tableName,
+          { ...item, id: item.originalId },
+          MySwal
+        );
+        if (!resolution) return;
+        if (resolution.discardDraft) removeLocalRecordQueue(item);
+        if (!resolution.record) {
+          fetchRiwayat();
+          return;
+        }
+
+        const record = resolution.record;
+        item = {
+          ...item,
+          ...record,
+          originalId: record.id,
+          isOffline: !resolution.discardDraft,
+          offlineAction: resolution.discardDraft ? null : item.offlineAction,
+          offlineId: resolution.discardDraft ? null : item.offlineId,
+          offlineHasConflict: false,
+          offlineBaseUpdatedAt: resolution.discardDraft
+            ? null
+            : record.offlineBaseUpdatedAt,
+        };
+      } catch (error) {
+        MySwal.fire('Gagal', error.message, 'error');
+        return;
+      }
+    }
+
     const confirm = await MySwal.fire({
       title: 'Hapus Data Riwayat?',
       text: `Data riwayat ${item.formName} akan dihapus secara permanen.`,
@@ -64,38 +160,61 @@ export default function Riwayat() {
         }
       });
 
-      if (item.isOffline && item.offlineAction === 'insert') {
+      const localReference = item.offlineId || item.originalId;
+      const syncedServerId = getSyncedServerId(localReference);
+
+      if (item.isOffline && item.offlineAction === 'insert' && !syncedServerId) {
         removeLocalRecordQueue(item);
         MySwal.fire('Terhapus!', 'Draft offline berhasil dihapus.', 'success');
-        setData(prev => prev.filter(d => d.id !== item.id));
+        setData(prev => prev.filter(d => d.id !== initialItem.id));
         return;
       }
-      removeLocalRecordQueue(item);
+
+      const recordId = syncedServerId || item.originalId;
+      const baseUpdatedAt = getRecordBaseVersion(item);
+
+      if (String(recordId).startsWith('off_')) {
+        removeLocalRecordQueue(item);
+        MySwal.fire('Terhapus!', 'Draft offline berhasil dihapus.', 'success');
+        setData(prev => prev.filter(d => d.id !== initialItem.id));
+        return;
+      }
 
       if (!navigator.onLine) {
-        saveToOfflineQueue(item.tableName, 'delete', { id: item.originalId }, `Hapus Riwayat ${item.formName}`);
+        saveToOfflineQueue(
+          item.tableName,
+          'delete',
+          { id: recordId },
+          `Hapus Riwayat ${item.formName}`,
+          { baseUpdatedAt }
+        );
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Perintah hapus disimpan di HP dan akan diproses otomatis.', confirmButtonColor: '#2563eb' });
-        setData(prev => prev.filter(d => d.id !== item.id));
+        setData(prev => prev.filter(d => d.id !== initialItem.id));
         return;
       }
 
-      const { error } = await supabase
-        .from(item.tableName)
-        .delete()
-        .eq('id', item.originalId);
+      await deleteRecordWithVersion(item.tableName, recordId, baseUpdatedAt);
 
-      if (error) throw new Error(error.message);
-
-      notifyDatabaseTablesChanged(item.tableName);
+      removeLocalRecordQueue(item);
       MySwal.fire('Terhapus!', 'Data riwayat berhasil dihapus.', 'success');
-      setData(prev => prev.filter(d => d.id !== item.id));
+      setData(prev => prev.filter(d => d.id !== initialItem.id));
 
     } catch (error) {
       console.error(error);
-      if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
-        saveToOfflineQueue(item.tableName, 'delete', { id: item.originalId }, `Hapus Riwayat ${item.formName}`);
+      if (isNetworkError(error)) {
+        const recordId = getSyncedServerId(item.offlineId || item.originalId) || item.originalId;
+        saveToOfflineQueue(
+          item.tableName,
+          'delete',
+          { id: recordId },
+          `Hapus Riwayat ${item.formName}`,
+          { baseUpdatedAt: getRecordBaseVersion(item) }
+        );
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Jaringan terputus. Perintah hapus disimpan dan akan diproses otomatis.', confirmButtonColor: '#2563eb' });
-        setData(prev => prev.filter(d => d.id !== item.id));
+        setData(prev => prev.filter(d => d.id !== initialItem.id));
+      } else if (isRecordConflictError(error)) {
+        MySwal.fire('Data Sudah Berubah', error.message, 'warning');
+        fetchRiwayat();
       } else {
         MySwal.fire('Error', 'Gagal menghapus data. ' + error.message, 'error');
       }

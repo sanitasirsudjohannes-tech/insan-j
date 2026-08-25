@@ -32,12 +32,12 @@ export default function DashboardAdmin() {
       refreshTimer = window.setTimeout(() => setDataRevision(value => value + 1), 120);
     };
 
-    window.addEventListener('offline-sync-complete', refreshDashboard);
+    window.addEventListener('offline-sync-finished', refreshDashboard);
     window.addEventListener('insan-j-data-changed', refreshDashboard);
 
     return () => {
       window.clearTimeout(refreshTimer);
-      window.removeEventListener('offline-sync-complete', refreshDashboard);
+      window.removeEventListener('offline-sync-finished', refreshDashboard);
       window.removeEventListener('insan-j-data-changed', refreshDashboard);
     };
   }, []);

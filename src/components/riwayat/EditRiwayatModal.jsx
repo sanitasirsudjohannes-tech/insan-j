@@ -2,7 +2,18 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { CHECKLIST_ITEMS } from '../../lib/constants';
 import { fetchDaftarRuangan } from '../../lib/api';
-import { notifyDatabaseTablesChanged } from '../../lib/databaseAggregations';
+import {
+  getOfflineQueue,
+  getSyncedServerId,
+  saveToOfflineQueue,
+  syncOfflineQueue,
+} from '../../lib/offlineStorage';
+import { isNetworkError } from '../../lib/networkErrors';
+import {
+  getRecordBaseVersion,
+  isRecordConflictError,
+  updateRecordWithVersion,
+} from '../../lib/recordVersion';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import SearchableBottomSheet from '../SearchableBottomSheet';
@@ -26,23 +37,38 @@ export default function EditRiwayatModal({ isOpen, onClose, item, onSuccess }) {
         setIsLoading(true);
         try {
           const fields = CHECKLIST_ITEMS[item.formId] || [];
-          const columns = ['id', ...fields.map(f => f.dbCol)].join(', ');
+          const hasQueuedDetails = item.isOffline && fields.every(field => (
+            Object.prototype.hasOwnProperty.call(item, field.dbCol)
+          ));
+          let detailData = item;
 
-          const { data, error } = await supabase
-            .from(item.tableName)
-            .select(columns)
-            .eq('id', item.originalId)
-            .single();
+          // Insert/update yang masih berada di antrean sudah membawa seluruh
+          // nilai checklist. Membacanya langsung membuat draft tetap bisa
+          // diedit tanpa internet dan mencegah query memakai ID off_....
+          if (!hasQueuedDetails) {
+            if (!navigator.onLine) {
+              throw new Error('Detail data server belum tersimpan di HP. Hubungkan internet untuk mengedit data ini.');
+            }
 
-          if (error) throw new Error(error.message);
+            const columns = ['id', 'waktu_input', ...fields.map(f => f.dbCol)].join(', ');
+            const { data, error } = await supabase
+              .from(item.tableName)
+              .select(columns)
+              .eq('id', item.originalId)
+              .single();
+
+            if (error) throw error;
+            detailData = { ...item, ...data };
+          }
 
           const formData = {
             _tanggal: item.tanggal,
-            _lokasi: item.lokasi
+            _lokasi: item.lokasi,
+            _baseUpdatedAt: getRecordBaseVersion(detailData),
           };
 
           fields.forEach(field => {
-            formData[field.id] = data[field.dbCol] || 0;
+            formData[field.id] = Number(detailData[field.dbCol]) || 0;
           });
 
           setEditFormData(formData);
@@ -97,14 +123,13 @@ export default function EditRiwayatModal({ isOpen, onClose, item, onSuccess }) {
     if (!confirm.isConfirmed) return;
 
     setIsSubmittingEdit(true);
+    let updateData = {};
 
     try {
       const items = CHECKLIST_ITEMS[item.formId] || [];
 
       let totalNilai = 0;
       let maksimalNilai = items.length * 10;
-      let updateData = {};
-
       items.forEach(field => {
         const val = editFormData[field.id] || 0;
         totalNilai += val;
@@ -116,6 +141,8 @@ export default function EditRiwayatModal({ isOpen, onClose, item, onSuccess }) {
       // Update nilai agregat
       updateData.total = totalNilai;
       updateData.persen = persentase;
+      updateData.nilai_maks = maksimalNilai;
+      updateData.waktu_input = new Date().toISOString();
 
       if (editFormData._tanggal) {
         updateData.tanggal_pemeriksaan = editFormData._tanggal;
@@ -124,21 +151,82 @@ export default function EditRiwayatModal({ isOpen, onClose, item, onSuccess }) {
         updateData.ruangan = editFormData._lokasi;
       }
 
-      const { error } = await supabase
-        .from(item.tableName)
-        .update(updateData)
-        .eq('id', item.originalId);
+      const localReference = item.offlineId || item.originalId;
+      const recordId = getSyncedServerId(localReference) || item.originalId;
+      const baseUpdatedAt = editFormData._baseUpdatedAt || getRecordBaseVersion(item);
+      const mustUseQueue = item.isOffline || !navigator.onLine || String(recordId).startsWith('off_');
 
-      if (error) throw new Error(error.message);
+      if (mustUseQueue) {
+        const queuedItem = saveToOfflineQueue(
+          item.tableName,
+          'update',
+          { ...updateData, id: recordId },
+          `Edit Riwayat ${item.formName}`,
+          { baseUpdatedAt }
+        );
 
-      notifyDatabaseTablesChanged(item.tableName);
-      MySwal.fire('Berhasil', 'Data berhasil diperbarui!', 'success');
-      onSuccess(); // Refresh data in parent
-      onClose();   // Close modal
+        let remainingItem = queuedItem;
+        if (navigator.onLine) {
+          await syncOfflineQueue(false, true);
+          remainingItem = getOfflineQueue().find(candidate => (
+            candidate.id === queuedItem?.id ||
+            (queuedItem?.localId && candidate.localId === queuedItem.localId)
+          ));
+        }
+
+        if (!remainingItem) {
+          MySwal.fire('Berhasil', 'Data berhasil diperbarui dan dikirim ke server.', 'success');
+        } else if (remainingItem.syncConflict) {
+          MySwal.fire({
+            icon: 'warning',
+            title: 'Perubahan Disimpan sebagai Draft',
+            text: 'Data server sudah berubah. Draft tetap aman; buka kembali data ini untuk memilih versi yang akan digunakan.',
+            confirmButtonColor: '#d97706',
+          });
+        } else {
+          MySwal.fire({
+            icon: 'info',
+            title: 'Tersimpan Offline',
+            text: navigator.onLine
+              ? 'Perubahan aman di antrean dan akan dicoba kembali.'
+              : 'Perubahan disimpan di HP dan akan dikirim otomatis saat online.',
+            confirmButtonColor: '#2563eb',
+          });
+        }
+      } else {
+        await updateRecordWithVersion(item.tableName, recordId, updateData, baseUpdatedAt);
+        MySwal.fire('Berhasil', 'Data berhasil diperbarui!', 'success');
+      }
+
+      onSuccess();
+      onClose();
 
     } catch (error) {
       console.error(error);
-      MySwal.fire('Error', 'Gagal menyimpan perubahan. ' + error.message, 'error');
+      if (isNetworkError(error)) {
+        const recordId = getSyncedServerId(item.offlineId || item.originalId) || item.originalId;
+        saveToOfflineQueue(
+          item.tableName,
+          'update',
+          { ...updateData, id: recordId },
+          `Edit Riwayat ${item.formName}`,
+          { baseUpdatedAt: editFormData._baseUpdatedAt || getRecordBaseVersion(item) }
+        );
+        MySwal.fire({
+          icon: 'info',
+          title: 'Tersimpan Offline',
+          text: 'Jaringan terputus. Perubahan tetap aman di HP.',
+          confirmButtonColor: '#2563eb',
+        });
+        onSuccess();
+        onClose();
+      } else if (isRecordConflictError(error)) {
+        MySwal.fire('Data Sudah Berubah', error.message, 'warning');
+        onSuccess();
+        onClose();
+      } else {
+        MySwal.fire('Error', 'Gagal menyimpan perubahan. ' + error.message, 'error');
+      }
     } finally {
       setIsSubmittingEdit(false);
     }

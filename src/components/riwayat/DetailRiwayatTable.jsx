@@ -57,9 +57,28 @@ export default function DetailRiwayatTable({ data, isAdmin, onEdit, onDelete }) 
                 </div>
               </td>
               <td className="px-3 md:px-6 py-4 md:py-5 print:py-2 print:px-3 print:border print:border-black whitespace-nowrap">
-                <span className="px-2 py-1 print:p-0 inline-flex text-[9px] md:text-xs leading-5 font-bold rounded-lg bg-indigo-50 print:bg-transparent text-indigo-700 print:text-black border border-indigo-100 print:border-none shadow-sm print:shadow-none">
-                  {item.formName}
-                </span>
+                <div className="flex flex-col items-start gap-1">
+                  <span className="px-2 py-1 print:p-0 inline-flex text-[9px] md:text-xs leading-5 font-bold rounded-lg bg-indigo-50 print:bg-transparent text-indigo-700 print:text-black border border-indigo-100 print:border-none shadow-sm print:shadow-none">
+                    {item.formName}
+                  </span>
+                  {item.isOffline && (
+                    <span
+                      className={`print:hidden px-2 py-0.5 rounded-full text-[8px] md:text-[10px] font-bold ${item.offlineHasConflict
+                        ? 'bg-rose-100 text-rose-700'
+                        : item.offlineSyncError
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-blue-100 text-blue-700'
+                        }`}
+                      title={item.offlineSyncError || 'Menunggu sinkronisasi'}
+                    >
+                      {item.offlineHasConflict
+                        ? 'Perlu ditinjau'
+                        : item.offlineSyncError
+                          ? 'Sinkronisasi gagal'
+                          : item.offlineAction === 'insert' ? 'Draft offline' : 'Menunggu sinkron'}
+                    </span>
+                  )}
+                </div>
               </td>
               <td className="px-3 md:px-6 py-4 md:py-5 print:py-2 print:px-3 print:border print:border-black whitespace-nowrap">
                 <div className="text-[10px] md:text-sm text-gray-900 print:text-black font-extrabold bg-gray-50 print:bg-transparent px-2 md:px-3 py-1 print:p-0 rounded-lg inline-block border border-gray-200 print:border-none">
