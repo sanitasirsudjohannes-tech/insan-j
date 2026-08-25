@@ -6,6 +6,7 @@ import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser, fetchDaftarRuangan, getSetting } from '../lib/api';
 import {
   saveToOfflineQueue,
+  saveInsertBatchToOfflineQueue,
   getOfflineQueue,
   getUnsyncedItemsForTable,
   removeLocalRecordQueue,
@@ -176,14 +177,6 @@ export default function LimbahRuangan({ embedded = false }) {
       let dbStartIndex = 0;
       try {
         if (!navigator.onLine) throw new Error('Perangkat sedang offline.');
-        let qCount = supabase.from('limbah_ruangan').select('id', { count: 'exact', head: true });
-        if (filterDate) { qCount = qCount.eq('tanggal', filterDate); }
-        else if (filterMonth) { const [y, m] = filterMonth.split('-'); const s = `${y}-${m}-01`, en = `${y}-${m}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`; qCount = qCount.gte('tanggal', s).lte('tanggal', en); }
-        if (filterRuangan) qCount = qCount.eq('ruangan', filterRuangan);
-        if (excludedIds) qCount = qCount.not('id', 'in', excludedIds);
-        const { count: c, error: errCount } = await qCount;
-        if (errCount) throw errCount;
-        count = c || 0;
 
         // Ambil hanya jendela baris DB yang mungkin masuk ke halaman aktif.
         // Maksimal seluruh draft offline dapat menggeser posisi awal halaman;
@@ -195,7 +188,7 @@ export default function LimbahRuangan({ embedded = false }) {
         for (let from = dbStartIndex; from <= dbEndIndex; from += FETCH_BATCH_SIZE) {
           const to = Math.min(from + FETCH_BATCH_SIZE - 1, dbEndIndex);
           let qData = supabase.from('limbah_ruangan')
-            .select('id, tanggal, ruangan, infeksius, jarum_suntik, botol_obat, sitotoksik, petugas, keterangan, waktu_input, created_by')
+            .select('id, tanggal, ruangan, infeksius, jarum_suntik, botol_obat, sitotoksik, petugas, keterangan, waktu_input, created_by', { count: 'exact' })
             .order('tanggal', { ascending: false })
             .order('waktu_input', { ascending: false })
             .range(from, to);
@@ -204,8 +197,9 @@ export default function LimbahRuangan({ embedded = false }) {
           if (filterRuangan) qData = qData.eq('ruangan', filterRuangan);
           if (excludedIds) qData = qData.not('id', 'in', excludedIds);
 
-          const { data: result, error } = await qData;
+          const { data: result, count: queryCount, error } = await qData;
           if (error) throw error;
+          if (typeof queryCount === 'number') count = queryCount;
           const batch = result || [];
           dbData.push(...batch);
           if (batch.length < to - from + 1) break;
@@ -262,7 +256,15 @@ export default function LimbahRuangan({ embedded = false }) {
   useEffect(() => {
     fetchData();
     const h = () => fetchData();
-    window.addEventListener('offline-queue-changed', h); window.addEventListener('online', h); window.addEventListener('offline', h);
+    let queueRefreshTimer;
+    const handleQueueChange = (event) => {
+      if (event.changedTables?.length && !event.changedTables.includes('limbah_ruangan')) return;
+      window.clearTimeout(queueRefreshTimer);
+      queueRefreshTimer = window.setTimeout(h, 180);
+    };
+    window.addEventListener('offline-queue-changed', handleQueueChange);
+    window.addEventListener('online', h);
+    window.addEventListener('offline', h);
     
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') h();
@@ -274,7 +276,8 @@ export default function LimbahRuangan({ embedded = false }) {
     });
 
     return () => { 
-      window.removeEventListener('offline-queue-changed', h); 
+      window.clearTimeout(queueRefreshTimer);
+      window.removeEventListener('offline-queue-changed', handleQueueChange);
       window.removeEventListener('online', h); 
       window.removeEventListener('offline', h); 
       document.removeEventListener('visibilitychange', handleVisibility);
@@ -348,6 +351,67 @@ export default function LimbahRuangan({ embedded = false }) {
     let isLocalDraft = Boolean(recordId) && String(recordId).startsWith('off_');
 
     try {
+      if (!formData.id && formData.isDistribusi) {
+        const queuedItems = saveInsertBatchToOfflineQueue(
+          'limbah_ruangan',
+          insertPayloads,
+          `Distribusi Limbah Ruangan ${formData.ruangan}`
+        );
+        const visibleRows = queuedItems
+          .map(item => ({
+            ...item.payload,
+            id: item.localId,
+            isOffline: true,
+            offlineId: item.localId,
+            offlineAction: 'insert',
+          }))
+          .filter(item => {
+            if (filterDate && item.tanggal !== filterDate) return false;
+            if (!filterDate && filterMonth && !item.tanggal?.startsWith(filterMonth)) return false;
+            return !filterRuangan || item.ruangan === filterRuangan;
+          });
+
+        if (page === 1 && visibleRows.length > 0) {
+          setData(current => [...visibleRows, ...current]
+            .sort(compareRuanganRows)
+            .slice(0, ITEMS_PER_PAGE));
+        }
+        setTotalData(current => current + visibleRows.length);
+        setOfflineQueueCount(current => current + queuedItems.length);
+        setFormData({
+          ...EMPTY_FORM,
+          tanggal: formData.tanggal,
+          isDistribusi: formData.isDistribusi,
+          distribusiDates: formData.distribusiDates,
+        });
+
+        MySwal.fire({
+          icon: 'success',
+          title: 'Distribusi Tersimpan',
+          text: navigator.onLine
+            ? `${totalHari} tanggal sedang dikirim ke database.`
+            : `${totalHari} tanggal tersimpan di HP dan menunggu koneksi.`,
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 2200,
+        });
+
+        if (navigator.onLine) {
+          const batchId = queuedItems[0]?.batchId;
+          window.setTimeout(() => {
+            syncOfflineQueue(false)
+              .then(result => {
+                const ownBatchStillPending = getOfflineQueue().some(item => item.batchId === batchId);
+                if (ownBatchStillPending && result.failed === 0) return syncOfflineQueue(false);
+                return result;
+              })
+              .catch(error => console.error('Gagal mengirim distribusi limbah:', error));
+          }, 0);
+        }
+        return;
+      }
+
       if (isLocalDraft) {
         recordId = getSyncedServerId(formData.id) || formData.id;
 

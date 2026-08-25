@@ -195,7 +195,13 @@ export default function LimbahAnorganik({ embedded = false }) {
 
   useEffect(() => {
     fetchData();
-    const handleQueueChange = () => fetchData();
+    const handleQueueChange = (event) => {
+      if (event.type === 'offline-queue-changed' && event.changedTables?.length &&
+        !event.changedTables.includes('limbah_anorganik')) {
+        return;
+      }
+      fetchData();
+    };
     window.addEventListener('offline-queue-changed', handleQueueChange);
     window.addEventListener('online', handleQueueChange);
     window.addEventListener('offline', handleQueueChange);

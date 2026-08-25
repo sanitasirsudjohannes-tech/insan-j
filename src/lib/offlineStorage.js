@@ -159,9 +159,26 @@ const writeCurrentOwnerQueue = (ownerQueue) => {
   if (!ownerId) return false;
 
   const allQueue = migrateLegacyQueueOwners(readStoredQueue(), ownerId);
+  const previousOwnerQueue = allQueue.filter(item => item.ownerId === ownerId);
   const otherOwnersQueue = allQueue.filter(item => item.ownerId !== ownerId);
+  const previousItems = new Map(previousOwnerQueue.map(item => [item.id, item]));
+  const nextItems = new Map(ownerQueue.map(item => [item.id, item]));
+  const changedTables = new Set();
+
+  previousOwnerQueue.forEach(item => {
+    const nextItem = nextItems.get(item.id);
+    if (!nextItem || JSON.stringify(nextItem) !== JSON.stringify(item)) {
+      changedTables.add(item.table);
+    }
+  });
+  ownerQueue.forEach(item => {
+    if (!previousItems.has(item.id)) changedTables.add(item.table);
+  });
+
   localStorage.setItem(QUEUE_KEY, JSON.stringify([...otherOwnersQueue, ...ownerQueue]));
-  window.dispatchEvent(new CustomEvent('offline-queue-changed', { detail: ownerQueue }));
+  const queueEvent = new CustomEvent('offline-queue-changed', { detail: ownerQueue });
+  queueEvent.changedTables = [...changedTables];
+  window.dispatchEvent(queueEvent);
   return true;
 };
 
@@ -294,6 +311,36 @@ export const saveToOfflineQueue = (table, action, payload, description = '') => 
   return newItem;
 };
 
+export const saveInsertBatchToOfflineQueue = (table, payloads, description = '') => {
+  const ownerId = getCurrentQueueOwnerId();
+  if (!ownerId) throw new Error('Pengguna tidak teridentifikasi. Silakan masuk kembali.');
+  if (!table || !Array.isArray(payloads) || payloads.length === 0) {
+    throw new Error('Data distribusi tidak tersedia untuk disimpan.');
+  }
+
+  const queue = getOfflineQueue();
+  const createdAt = new Date().toISOString();
+  const batchId = `batch_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  const items = payloads.map((payload, index) => {
+    const localId = `off_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 8)}`;
+    return {
+      id: localId,
+      localId,
+      serverId: null,
+      batchId,
+      table,
+      action: 'insert',
+      payload: { ...payload },
+      description: description || `INSERT data ${table}`,
+      createdAt,
+      ownerId,
+    };
+  });
+
+  writeCurrentOwnerQueue([...queue, ...items]);
+  return items;
+};
+
 export const removeOfflineQueueItem = (id) => {
   const queue = getOfflineQueue().filter(item => item.id !== id && item.localId !== id);
   writeCurrentOwnerQueue(queue);
@@ -375,6 +422,117 @@ const findAlreadyInsertedRow = async (item) => {
   return data || null;
 };
 
+const getBatchInsertSignature = (row) => {
+  const timestamp = Date.parse(row?.waktu_input || '');
+  const normalizedTimestamp = Number.isNaN(timestamp)
+    ? String(row?.waktu_input || '')
+    : String(timestamp);
+
+  return [
+    normalizedTimestamp,
+    row?.tanggal || '',
+    row?.ruangan || '',
+    row?.created_by || '',
+  ].map(String).join('\u001f');
+};
+
+const syncOfflineInsertBatch = async (items) => {
+  const table = items[0]?.table;
+  if (table !== 'limbah_ruangan') {
+    throw new Error(`Sinkronisasi batch belum tersedia untuk tabel ${table || 'tidak dikenal'}.`);
+  }
+
+  const timestamps = [...new Set(items.map(item => item.payload?.waktu_input).filter(Boolean))];
+  if (timestamps.length === 0) throw new Error('Penanda waktu distribusi tidak tersedia.');
+
+  let existingQuery = supabase
+    .from(table)
+    .select('id,waktu_input,tanggal,ruangan,created_by')
+    .in('waktu_input', timestamps);
+
+  const ownerIds = [...new Set(items.map(item => item.payload?.created_by).filter(Boolean))];
+  if (ownerIds.length === 1) existingQuery = existingQuery.eq('created_by', ownerIds[0]);
+
+  const rooms = [...new Set(items.map(item => item.payload?.ruangan).filter(Boolean))];
+  if (rooms.length === 1) existingQuery = existingQuery.eq('ruangan', rooms[0]);
+
+  const { data: existingRows, error: existingError } = await existingQuery;
+  if (existingError) throw existingError;
+
+  const rowsBySignature = new Map(
+    (existingRows || []).map(row => [getBatchInsertSignature(row), row])
+  );
+  const missingItems = items.filter(item => !rowsBySignature.has(getBatchInsertSignature(item.payload)));
+
+  if (missingItems.length > 0) {
+    const { data: insertedRows, error: insertError } = await supabase
+      .from(table)
+      .insert(missingItems.map(item => item.payload))
+      .select('id,waktu_input,tanggal,ruangan,created_by');
+
+    if (insertError) throw insertError;
+    (insertedRows || []).forEach(row => {
+      rowsBySignature.set(getBatchInsertSignature(row), row);
+    });
+  }
+
+  const syncedItems = items.map(item => {
+    const row = rowsBySignature.get(getBatchInsertSignature(item.payload));
+    if (!row?.id) throw new Error(`Data distribusi ${item.payload?.tanggal || ''} belum terkonfirmasi.`);
+    return { item, row };
+  });
+
+  const syncedByLocalId = new Map(syncedItems.map(entry => [entry.item.localId || entry.item.id, entry]));
+  const seenLocalIds = new Set();
+  const queue = getOfflineQueue();
+  const updatedQueue = [];
+
+  syncedItems.forEach(({ item, row }) => {
+    rememberSyncedServerId(item.localId || item.id, row.id);
+  });
+  cacheServerRows(table, syncedItems.map(({ item, row }) => ({ ...item.payload, ...row })));
+
+  queue.forEach(queuedItem => {
+    const match = syncedByLocalId.get(queuedItem.localId || queuedItem.id);
+    if (!match) {
+      updatedQueue.push(queuedItem);
+      return;
+    }
+
+    seenLocalIds.add(match.item.localId || match.item.id);
+
+    // Pengguna boleh mengedit draft ketika pengiriman batch sedang berjalan.
+    // Simpan edit terbaru sebagai UPDATE agar hasil INSERT lama tidak menimpanya.
+    if (JSON.stringify(queuedItem.payload) !== JSON.stringify(match.item.payload)) {
+      const { batchId: _batchId, ...pendingItem } = queuedItem;
+      updatedQueue.push({
+        ...pendingItem,
+        action: 'update',
+        serverId: match.row.id,
+        payload: { ...queuedItem.payload, id: match.row.id },
+      });
+    }
+  });
+
+  syncedItems.forEach(({ item, row }) => {
+    const localId = item.localId || item.id;
+    if (seenLocalIds.has(localId)) return;
+
+    // Draft dapat dihapus ketika INSERT masih diproses server. Teruskan
+    // penghapusan tersebut setelah ID server berhasil diketahui.
+    updatedQueue.push({
+      ...item,
+      action: 'delete',
+      serverId: row.id,
+      payload: { id: row.id, serverId: row.id },
+      description: `Hapus Limbah Ruangan ${item.payload?.ruangan || ''}`,
+    });
+  });
+
+  writeCurrentOwnerQueue(updatedQueue);
+  return syncedItems.length;
+};
+
 const performOfflineSync = async (showNotification = true) => {
   if (!navigator.onLine) return { success: 0, failed: 0, total: 0 };
 
@@ -384,6 +542,7 @@ const performOfflineSync = async (showNotification = true) => {
   let successCount = 0;
   let failedCount = 0;
   const total = initialQueue.length;
+  const processedBatchIds = new Set();
 
   // Setiap item dicoba satu kali per putaran. Item yang gagal tetap berada
   // dalam queue, tetapi tidak boleh menghalangi item valid berikutnya.
@@ -393,6 +552,25 @@ const performOfflineSync = async (showNotification = true) => {
       (Boolean(initialItem.localId) && candidate.localId === initialItem.localId)
     );
     if (!item) continue;
+
+    if (item.action === 'insert' && item.batchId) {
+      if (processedBatchIds.has(item.batchId)) continue;
+      processedBatchIds.add(item.batchId);
+
+      const batchItems = getOfflineQueue().filter(candidate =>
+        candidate.action === 'insert' &&
+        candidate.table === item.table &&
+        candidate.batchId === item.batchId
+      );
+
+      try {
+        successCount += await syncOfflineInsertBatch(batchItems);
+      } catch (batchError) {
+        console.error(`Gagal sinkronisasi batch ${item.batchId}:`, batchError);
+        failedCount += batchItems.length;
+      }
+      continue;
+    }
 
     try {
       let error = null;

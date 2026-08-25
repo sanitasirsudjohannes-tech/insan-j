@@ -153,7 +153,17 @@ export default function LimbahPadat({ embedded = false }) {
   useEffect(() => {
     fetchData();
     const h = () => fetchData();
-    window.addEventListener('offline-queue-changed', h);
+    let queueRefreshTimer;
+    const handleQueueChange = (event) => {
+      const relevantTables = ['limbah_padat', 'limbah_ruangan'];
+      if (event.changedTables?.length && !event.changedTables.some(table => relevantTables.includes(table))) {
+        return;
+      }
+
+      window.clearTimeout(queueRefreshTimer);
+      queueRefreshTimer = window.setTimeout(h, 180);
+    };
+    window.addEventListener('offline-queue-changed', handleQueueChange);
     window.addEventListener('online', h);
     window.addEventListener('offline', h);
     
@@ -171,7 +181,8 @@ export default function LimbahPadat({ embedded = false }) {
     });
 
     return () => { 
-      window.removeEventListener('offline-queue-changed', h); 
+      window.clearTimeout(queueRefreshTimer);
+      window.removeEventListener('offline-queue-changed', handleQueueChange);
       window.removeEventListener('online', h); 
       window.removeEventListener('offline', h); 
       document.removeEventListener('visibilitychange', handleVisibility);
