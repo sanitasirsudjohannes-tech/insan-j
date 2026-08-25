@@ -30,6 +30,11 @@ import { getLocalMonthString } from '../lib/localDate';
 import { fetchAllSupabaseRows } from '../lib/supabasePagination';
 import { isNetworkError } from '../lib/networkErrors';
 import {
+  escapeImportHTML,
+  insertImportRowsAtomically,
+  parseNonNegativeImportNumber,
+} from '../lib/excelImport';
+import {
   deleteRecordWithVersion,
   getRecordBaseVersion,
   isRecordConflictError,
@@ -471,15 +476,65 @@ export default function LimbahPadat({ embedded = false }) {
         let headerIdx=-1;
         for(let i=0;i<rows.length;i++){ if(rows[i].join('').toLowerCase().includes('tanggal')){ headerIdx=i; break; } }
         if(headerIdx===-1){ MySwal.fire('Format Salah','Tidak ditemukan header "Tanggal". Gunakan template yang tersedia.','error'); return; }
-        const dataRows = rows.slice(headerIdx+1).filter(r=>{ const t=r[1]; return t&&String(t).trim()!==''&&!String(t).toLowerCase().includes('petunjuk')&&!String(t).toLowerCase().includes('total'); });
+        const dataRows = rows.slice(headerIdx + 1)
+          .map((row, index) => ({ row, rowNumber: headerIdx + index + 2 }))
+          .filter(({ row }) => {
+            const dateText = String(row[1] ?? '').trim().toLowerCase();
+            const hasAnyData = row.slice(1, 6).some(value => String(value ?? '').trim() !== '');
+            return hasAnyData && !dateText.includes('petunjuk') && !dateText.includes('total');
+          });
         if(!dataRows.length){ MySwal.fire('Tidak Ada Data','Tidak ditemukan baris data yang valid.','warning'); return; }
-        const { isConfirmed } = await MySwal.fire({ title:'Konfirmasi Import', html:`<p>Ditemukan <strong>${dataRows.length} baris data</strong>. Lanjutkan import?</p>`, icon:'question', showCancelButton:true, confirmButtonColor:'#16a34a', confirmButtonText:'Ya, Import!' });
+        const payloads = [];
+        const validationErrors = [];
+        const importTime = new Date().toISOString();
+
+        dataRows.forEach(({ row, rowNumber }) => {
+          const tanggal = formatDateFromExcel(row[1], XLSX);
+          const numberFields = [
+            ['Infeksius', row[2], 'infeksius'],
+            ['Jarum Suntik', row[3], 'jarum_suntik'],
+            ['Botol Obat', row[4], 'botol_obat'],
+            ['Sitotoksik', row[5], 'sitotoksik'],
+          ];
+          const parsedNumbers = {};
+          const rowErrors = [];
+
+          if (!tanggal) rowErrors.push(`tanggal "${String(row[1] ?? '').trim()}" tidak valid`);
+          numberFields.forEach(([label, rawValue, key]) => {
+            const parsed = parseNonNegativeImportNumber(rawValue);
+            if (parsed.error) rowErrors.push(`${label} ${parsed.error}`);
+            else parsedNumbers[key] = parsed.value;
+          });
+
+          if (rowErrors.length > 0) {
+            validationErrors.push(`Baris ${rowNumber}: ${rowErrors.join('; ')}`);
+            return;
+          }
+
+          payloads.push({
+            tanggal,
+            petugas: user?.nama || 'Petugas',
+            ...parsedNumbers,
+            waktu_input: importTime,
+          });
+        });
+
+        if (validationErrors.length > 0) {
+          const shownErrors = validationErrors.slice(0, 10);
+          const remaining = validationErrors.length - shownErrors.length;
+          MySwal.fire({
+            icon: 'error',
+            title: 'Data Excel Belum Valid',
+            html: `<div class="text-left text-sm"><p class="mb-3">Perbaiki data berikut, lalu impor kembali. Tidak ada data yang disimpan.</p><ul class="list-disc pl-5 space-y-1 max-h-64 overflow-y-auto">${shownErrors.map(error => `<li>${escapeImportHTML(error)}</li>`).join('')}</ul>${remaining > 0 ? `<p class="mt-3 font-semibold">Dan ${remaining} kesalahan lainnya.</p>` : ''}</div>`,
+            confirmButtonColor: '#dc2626',
+          });
+          return;
+        }
+
+        const { isConfirmed } = await MySwal.fire({ title:'Konfirmasi Import', html:`<p>Ditemukan <strong>${payloads.length} baris data</strong>. Lanjutkan import?</p>`, icon:'question', showCancelButton:true, confirmButtonColor:'#16a34a', confirmButtonText:'Ya, Import!' });
         if(!isConfirmed) return;
         setImporting(true); MySwal.fire({ title:'Mengimport Data...', allowOutsideClick:false, didOpen:()=>MySwal.showLoading() });
-        const payloads = dataRows.map(r=>({ tanggal:formatDateFromExcel(r[1], XLSX), petugas:user?.nama||'Petugas', infeksius:parseFloat(r[2])||0, jarum_suntik:parseFloat(r[3])||0, botol_obat:parseFloat(r[4])||0, sitotoksik:parseFloat(r[5])||0, waktu_input:new Date().toISOString() })).filter(p=>p.tanggal);
-        if(!payloads.length){ MySwal.fire('Gagal','Tidak ada baris dengan tanggal yang valid.','error'); setImporting(false); return; }
-        let inserted=0;
-        for(let i=0;i<payloads.length;i+=50){ const batch=payloads.slice(i,i+50); const {error}=await supabase.from('limbah_padat').insert(batch); if(error) throw error; inserted+=batch.length; }
+        const inserted = await insertImportRowsAtomically(supabase, 'limbah_padat', payloads);
         await fetchData(); MySwal.fire({ icon:'success', title:'Import Berhasil!', text:`${inserted} data berhasil diimport.`, timer:2500, showConfirmButton:false });
       } catch(err){ MySwal.fire('Gagal Import',err.message||'Terjadi kesalahan saat membaca file.','error'); }
       finally{ setImporting(false); }

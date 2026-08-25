@@ -2,7 +2,8 @@ export default function PengangkutanImportExportToolbar({
   handleDownloadTemplate,
   handleImportFile,
   handleExport,
-  importRef
+  importRef,
+  importing,
 }) {
   return (
     <div className="bg-white rounded-xl shadow-lg mb-6 overflow-hidden">
@@ -23,12 +24,15 @@ export default function PengangkutanImportExportToolbar({
             accept=".xlsx,.xls"
             className="hidden"
             onChange={handleImportFile}
+            disabled={importing}
           />
           <button
             onClick={() => importRef.current?.click()}
-            className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 rounded-lg font-semibold text-sm transition"
+            disabled={importing}
+            className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 rounded-lg font-semibold text-sm transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <i className="fas fa-upload"></i> Import Excel
+            <i className={`fas ${importing ? 'fa-spinner fa-spin' : 'fa-upload'}`}></i>
+            {importing ? 'Mengimport...' : 'Import Excel'}
           </button>
         </div>
         <button

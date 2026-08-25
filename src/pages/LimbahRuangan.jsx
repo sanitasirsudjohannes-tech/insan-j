@@ -30,6 +30,11 @@ import { printViaHiddenIframe } from '../lib/printHelpers';
 import { getLocalDateString, getLocalMonthString } from '../lib/localDate';
 import { isNetworkError } from '../lib/networkErrors';
 import {
+  escapeImportHTML,
+  insertImportRowsAtomically,
+  parseNonNegativeImportNumber,
+} from '../lib/excelImport';
+import {
   deleteRecordWithVersion,
   getRecordBaseVersion,
   isRecordConflictError,
@@ -71,45 +76,6 @@ const fetchRuanganReportRows = async ({ startDate, endDate, ruangan }) => {
     from += batch.length;
   }
 };
-
-const parseImportNumber = (rawValue) => {
-  if (rawValue === null || rawValue === undefined || String(rawValue).trim() === '') {
-    return { value: 0, error: null };
-  }
-
-  if (typeof rawValue === 'number') {
-    return Number.isFinite(rawValue) && rawValue >= 0
-      ? { value: rawValue, error: null }
-      : { value: null, error: 'harus berupa angka nol atau lebih' };
-  }
-
-  let normalized = String(rawValue).trim().replace(/\s+/g, '');
-  if (!/^-?[\d.,]+$/.test(normalized)) {
-    return { value: null, error: 'bukan angka yang valid' };
-  }
-
-  const lastComma = normalized.lastIndexOf(',');
-  const lastDot = normalized.lastIndexOf('.');
-  if (lastComma !== -1 && lastDot !== -1) {
-    normalized = lastComma > lastDot
-      ? normalized.replace(/\./g, '').replace(',', '.')
-      : normalized.replace(/,/g, '');
-  } else if (lastComma !== -1) {
-    normalized = normalized.replace(',', '.');
-  }
-
-  const value = Number(normalized);
-  if (!Number.isFinite(value)) return { value: null, error: 'bukan angka yang valid' };
-  if (value < 0) return { value: null, error: 'tidak boleh negatif' };
-  return { value, error: null };
-};
-
-const escapeHTML = (value) => String(value ?? '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&#039;');
 
 // Urutan harus konsisten dengan query Supabase agar draft/update offline
 // tergabung ke posisi global yang benar sebelum di-slice per halaman.
@@ -673,7 +639,7 @@ export default function LimbahRuangan({ embedded = false }) {
           if (!ruangan) rowErrors.push(`ruangan "${rawRuangan}" tidak terdaftar`);
 
           numberFields.forEach(([label, rawValue, key]) => {
-            const parsed = parseImportNumber(rawValue);
+            const parsed = parseNonNegativeImportNumber(rawValue);
             if (parsed.error) rowErrors.push(`${label} ${parsed.error}`);
             else parsedNumbers[key] = parsed.value;
           });
@@ -700,7 +666,7 @@ export default function LimbahRuangan({ embedded = false }) {
           MySwal.fire({
             icon: 'error',
             title: 'Data Excel Belum Valid',
-            html: `<div class="text-left text-sm"><p class="mb-3">Perbaiki data berikut, lalu impor kembali. Tidak ada data yang disimpan.</p><ul class="list-disc pl-5 space-y-1 max-h-64 overflow-y-auto">${shownErrors.map(error => `<li>${escapeHTML(error)}</li>`).join('')}</ul>${remaining > 0 ? `<p class="mt-3 font-semibold">Dan ${remaining} kesalahan lainnya.</p>` : ''}</div>`,
+            html: `<div class="text-left text-sm"><p class="mb-3">Perbaiki data berikut, lalu impor kembali. Tidak ada data yang disimpan.</p><ul class="list-disc pl-5 space-y-1 max-h-64 overflow-y-auto">${shownErrors.map(error => `<li>${escapeImportHTML(error)}</li>`).join('')}</ul>${remaining > 0 ? `<p class="mt-3 font-semibold">Dan ${remaining} kesalahan lainnya.</p>` : ''}</div>`,
             confirmButtonColor: '#dc2626',
           });
           return;
@@ -710,10 +676,7 @@ export default function LimbahRuangan({ embedded = false }) {
         const { isConfirmed } = await MySwal.fire({ title: 'Konfirmasi Import', html: `<p>Ditemukan <strong>${payloads.length} data limbah ruangan</strong>. Lanjutkan import?</p>`, icon: 'question', showCancelButton: true, confirmButtonColor: '#059669', confirmButtonText: 'Ya, Import!' });
         if (!isConfirmed) return;
         setImporting(true); MySwal.fire({ title: 'Mengimport Data...', allowOutsideClick: false, didOpen: () => MySwal.showLoading() });
-        // Satu request INSERT dijalankan dalam satu transaksi oleh PostgREST:
-        // seluruh baris masuk bersama, atau tidak ada yang tersimpan.
-        const { error } = await supabase.from('limbah_ruangan').insert(payloads);
-        if (error) throw error;
+        await insertImportRowsAtomically(supabase, 'limbah_ruangan', payloads);
         fetchData(); MySwal.fire({ icon: 'success', title: 'Import Berhasil!', text: `${payloads.length} data berhasil diimport.`, timer: 2500, showConfirmButton: false });
       } catch (err) { MySwal.fire('Gagal Import', err.message || 'Terjadi kesalahan saat membaca file.', 'error'); }
       finally { setImporting(false); }

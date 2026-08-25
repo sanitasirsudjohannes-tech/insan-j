@@ -7,6 +7,8 @@ import { saveToOfflineQueue } from '../lib/offlineStorage';
 import { AVAILABLE_FORMS, CHECKLIST_ITEMS } from '../lib/constants';
 import { getCurrentUser, fetchDaftarRuangan } from '../lib/api';
 import SearchableBottomSheet from '../components/SearchableBottomSheet';
+import { isNetworkError } from '../lib/networkErrors';
+import { submitInspectionEntries } from '../lib/inspectionSubmission';
 
 const MySwal = withReactContent(Swal);
 
@@ -186,17 +188,17 @@ export default function Inspeksi({ user: propUser }) {
     });
 
     try {
-      const insertionPromises = selectedForms.map(async formId => {
+      const submissionTime = new Date().toISOString();
+      const entries = selectedForms.map(formId => {
         const items = CHECKLIST_ITEMS[formId] || [];
         const formInfo = AVAILABLE_FORMS.find(f => f.id === formId);
         const tableName = formInfo?.table;
-        if (!tableName) return;
 
         let totalNilai = 0;
         const maksimalNilai = items.length * 10;
 
         const insertData = {
-          waktu_input: new Date().toISOString(),
+          waktu_input: submissionTime,
           tanggal_pemeriksaan: tanggal,
           petugas: user.nama,
           ruangan: lokasi,
@@ -212,21 +214,68 @@ export default function Inspeksi({ user: propUser }) {
         insertData.persen = maksimalNilai > 0 ? Math.round((totalNilai / maksimalNilai) * 100) : 0;
         insertData.nilai_maks = maksimalNilai;
 
-        if (!navigator.onLine) {
-          saveToOfflineQueue(tableName, 'insert', insertData, `Inspeksi ${selectedCategoriesText}`);
-        } else {
-          const { error } = await supabase.from(tableName).insert([insertData]);
-          if (error) throw new Error(`Gagal menyimpan ${tableName}: ` + error.message);
-        }
+        return {
+          formId,
+          label: formInfo?.name || formId,
+          table: tableName,
+          payload: insertData,
+          description: `Inspeksi ${formInfo?.name || formId}`,
+        };
       });
 
-      await Promise.all(insertionPromises);
+      const submission = await submitInspectionEntries({
+        entries,
+        online: navigator.onLine,
+        insertEntry: async entry => {
+          if (!entry.table) throw new Error(`Tabel untuk ${entry.label} tidak tersedia.`);
+          const { error } = await supabase.from(entry.table).insert([entry.payload]);
+          if (error) {
+            const submissionError = new Error(`Gagal menyimpan ${entry.label}: ${error.message}`);
+            submissionError.status = error.status;
+            submissionError.code = error.code;
+            submissionError.details = error.details;
+            submissionError.cause = error;
+            throw submissionError;
+          }
+        },
+        queueEntry: entry => {
+          if (!entry.table) throw new Error(`Tabel untuk ${entry.label} tidak tersedia.`);
+          saveToOfflineQueue(entry.table, 'insert', entry.payload, entry.description);
+        },
+        isNetworkError,
+      });
 
-      if (!navigator.onLine) {
+      const accepted = [...submission.synced, ...submission.queued];
+
+      if (submission.failed.length > 0) {
+        const failedIds = new Set(submission.failed.map(entry => entry.formId));
+        const failedLabels = submission.failed.map(entry => entry.label).join(', ');
+        setSelectedForms(selected => selected.filter(formId => failedIds.has(formId)));
+        setFormDataState(current => Object.fromEntries(
+          Object.entries(current).filter(([key]) => (
+            [...failedIds].some(formId => key.startsWith(`${formId}_`))
+          ))
+        ));
+        setShowForm(true);
+
+        await MySwal.fire({
+          icon: accepted.length > 0 ? 'warning' : 'error',
+          title: accepted.length > 0 ? 'Sebagian Data Belum Tersimpan' : 'Data Belum Tersimpan',
+          text: `${accepted.length} formulir sudah aman. Formulir yang gagal (${failedLabels}) tetap terbuka dan tidak dibuang.`,
+          confirmButtonColor: '#dc2626',
+        });
+      } else if (submission.queued.length > 0 && submission.synced.length > 0) {
+        MySwal.fire({
+          icon: 'warning',
+          title: 'Tersimpan Sebagian sebagai Draft',
+          text: `${submission.synced.length} formulir tersimpan di server dan ${submission.queued.length} formulir aman di antrean offline.`,
+          confirmButtonColor: '#2563eb',
+        });
+      } else if (submission.queued.length > 0) {
         MySwal.fire({
           icon: 'info',
           title: 'Tersimpan Offline (Draft)',
-          text: 'Data inspeksi disimpan di HP. Akan otomatis di-sync ke server saat terhubung internet.',
+          text: `${submission.queued.length} formulir inspeksi disimpan di HP dan akan dikirim otomatis.`,
           confirmButtonColor: '#2563eb'
         });
       } else {
@@ -239,11 +288,10 @@ export default function Inspeksi({ user: propUser }) {
         });
       }
 
-      // Add to activities (top 4 only)
-      setActivities(prev => {
+      if (accepted.length > 0) setActivities(prev => {
         const newAct = {
           id: Date.now(),
-          forms: selectedCategoriesText,
+          forms: accepted.map(entry => entry.label).join(', '),
           lokasi,
           time: new Date(tanggal).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
           petugas: user.nama,
@@ -252,28 +300,16 @@ export default function Inspeksi({ user: propUser }) {
         return [newAct, ...prev].slice(0, 4);
       });
 
-      // Reset
-      setShowForm(false);
-      setSelectedForms([]);
-      setLokasi('');
-      setFormDataState({});
-
-    } catch (error) {
-      console.error(error);
-      if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
-        MySwal.fire({
-          icon: 'info',
-          title: 'Tersimpan Offline (Draft)',
-          text: 'Jaringan terputus. Data inspeksi disimpan di HP dan akan di-sync otomatis.',
-          confirmButtonColor: '#2563eb'
-        });
+      if (submission.failed.length === 0) {
         setShowForm(false);
         setSelectedForms([]);
         setLokasi('');
         setFormDataState({});
-      } else {
-        MySwal.fire('Gagal', error.message, 'error');
       }
+
+    } catch (error) {
+      console.error(error);
+      MySwal.fire('Gagal', `${error.message}. Isian tetap dipertahankan.`, 'error');
     } finally {
       setIsSubmitting(false);
     }

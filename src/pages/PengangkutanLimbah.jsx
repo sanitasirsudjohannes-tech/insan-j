@@ -17,6 +17,12 @@ import {
     syncOfflineQueue,
 } from '../lib/offlineStorage';
 import { loadExcelLibrary } from '../lib/excelLoader';
+import { formatDateFromExcel } from '../lib/excelDateHelpers';
+import {
+    escapeImportHTML,
+    insertImportRowsAtomically,
+    parseNonNegativeImportNumber,
+} from '../lib/excelImport';
 import { getLocalDateString, getLocalMonthString } from '../lib/localDate';
 import { fetchAllSupabaseRows } from '../lib/supabasePagination';
 import { isNetworkError } from '../lib/networkErrors';
@@ -53,6 +59,7 @@ export default function PengangkutanLimbah() {
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [importing, setImporting] = useState(false);
     const [page, setPage] = useState(1);
     const [totalData, setTotalData] = useState(0);
     const [offlineQueueCount, setOfflineQueueCount] = useState(0);
@@ -470,55 +477,69 @@ export default function PengangkutanLimbah() {
                 let hIdx = rows.findIndex(r => r.join('').toLowerCase().includes('tanggal'));
                 if (hIdx === -1) { MySwal.fire('Format Salah', 'Header Tanggal tidak ditemukan.', 'error'); return; }
 
-                const dataRows = rows.slice(hIdx + 1).filter(r => r[1] && !String(r[1]).toLowerCase().includes('total'));
+                const dataRows = rows.slice(hIdx + 1)
+                    .map((row, index) => ({ row, rowNumber: hIdx + index + 2 }))
+                    .filter(({ row }) => {
+                        const dateText = String(row[1] ?? '').trim().toLowerCase();
+                        const hasAnyData = row.slice(1, 4).some(value => String(value ?? '').trim() !== '');
+                        return hasAnyData && !dateText.includes('format') && !dateText.includes('total');
+                    });
                 if (!dataRows.length) { MySwal.fire('Kosong', 'Tidak ada data ditemukan.', 'warning'); return; }
+
+                const payloads = [];
+                const validationErrors = [];
+                const importTime = new Date().toISOString();
+
+                dataRows.forEach(({ row, rowNumber }) => {
+                    const tanggal = formatDateFromExcel(row[1], XLSX);
+                    const parsedWeight = parseNonNegativeImportNumber(row[2]);
+                    const rowErrors = [];
+                    if (!tanggal) rowErrors.push(`tanggal "${String(row[1] ?? '').trim()}" tidak valid`);
+                    if (parsedWeight.error) rowErrors.push(`Jumlah Diangkut ${parsedWeight.error}`);
+
+                    if (rowErrors.length > 0) {
+                        validationErrors.push(`Baris ${rowNumber}: ${rowErrors.join('; ')}`);
+                        return;
+                    }
+
+                    payloads.push({
+                        tanggal,
+                        jumlah_kg: parsedWeight.value,
+                        keterangan: String(row[3] || '').trim(),
+                        petugas: user?.nama || 'Petugas',
+                        waktu_input: importTime,
+                    });
+                });
+
+                if (validationErrors.length > 0) {
+                    const shownErrors = validationErrors.slice(0, 10);
+                    const remaining = validationErrors.length - shownErrors.length;
+                    MySwal.fire({
+                        icon: 'error',
+                        title: 'Data Excel Belum Valid',
+                        html: `<div class="text-left text-sm"><p class="mb-3">Perbaiki data berikut, lalu impor kembali. Tidak ada data yang disimpan.</p><ul class="list-disc pl-5 space-y-1 max-h-64 overflow-y-auto">${shownErrors.map(error => `<li>${escapeImportHTML(error)}</li>`).join('')}</ul>${remaining > 0 ? `<p class="mt-3 font-semibold">Dan ${remaining} kesalahan lainnya.</p>` : ''}</div>`,
+                        confirmButtonColor: '#dc2626',
+                    });
+                    return;
+                }
 
                 const { isConfirmed } = await MySwal.fire({
                     title: 'Konfirmasi Import',
-                    html: `<p>Ditemukan <strong>${dataRows.length} baris</strong> data. Lanjutkan import?</p>`,
+                    html: `<p>Ditemukan <strong>${payloads.length} baris</strong> data. Lanjutkan import?</p>`,
                     icon: 'question', showCancelButton: true, confirmButtonText: 'Ya, Import!'
                 });
                 if (!isConfirmed) return;
 
-                const parseDate = (val) => {
-                    if (!val) return '';
-                    if (typeof val === 'number') {
-                        const date = XLSX.SSF.parse_date_code(val);
-                        if (date) {
-                            return `${date.y}-${String(date.m).padStart(2, '0')}-${String(date.d).padStart(2, '0')}`;
-                        }
-                    }
-                    const str = String(val).trim();
-                    const matchId = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
-                    if (matchId) {
-                        const [, day, month, year] = matchId;
-                        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-                    }
-                    const matchIso = str.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
-                    if (matchIso) {
-                        const [, year, month, day] = matchIso;
-                        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-                    }
-                    return '';
-                };
-
-                const payloads = dataRows.map(r => ({
-                    tanggal: parseDate(r[1]),
-                    jumlah_kg: parseFloat(r[2]) || 0,
-                    keterangan: r[3] || '',
-                    petugas: user?.nama || 'Petugas',
-                    waktu_input: new Date().toISOString()
-                })).filter(p => p.tanggal);
-
-                for (let i = 0; i < payloads.length; i += 50) {
-                    const { error } = await supabase.from('pengangkutan_limbah').insert(payloads.slice(i, i + 50));
-                    if (error) throw error;
-                }
+                setImporting(true);
+                MySwal.fire({ title: 'Mengimport Data...', allowOutsideClick: false, didOpen: () => MySwal.showLoading() });
+                const inserted = await insertImportRowsAtomically(supabase, 'pengangkutan_limbah', payloads);
 
                 fetchData();
-                MySwal.fire({ icon: 'success', title: `${payloads.length} data berhasil diimport!`, timer: 2000, showConfirmButton: false });
+                MySwal.fire({ icon: 'success', title: `${inserted} data berhasil diimport!`, timer: 2000, showConfirmButton: false });
             } catch (err) {
                 MySwal.fire('Gagal Import', err.message, 'error');
+            } finally {
+                setImporting(false);
             }
         };
         reader.readAsBinaryString(file);
@@ -557,6 +578,7 @@ export default function PengangkutanLimbah() {
                     handleImportFile={handleImportFile}
                     handleExport={handleExport}
                     importRef={importRef}
+                    importing={importing}
                 />
 
                 <PengangkutanTable
