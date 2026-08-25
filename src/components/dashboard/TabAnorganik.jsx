@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, AreaChart, Area
@@ -57,26 +58,17 @@ export default function TabAnorganik() {
         const start = `${y}-${m}-01`;
         const end   = `${y}-${m}-${String(new Date(+y, +m, 0).getDate()).padStart(2, '0')}`;
 
-        const [filteredResult, allResult] = await Promise.all([
-          supabase
-            .from('limbah_anorganik')
-            .select('tanggal, infus, jerigen, kertas, kardus, botol_mineral, bayclin_dll')
-            .gte('tanggal', start)
-            .lte('tanggal', end)
-            .order('tanggal', { ascending: true }),
-          supabase
-            .from('limbah_anorganik')
-            .select('tanggal, infus, jerigen, kertas, kardus, botol_mineral, bayclin_dll')
-            .order('tanggal', { ascending: true }),
-        ]);
+        const allRows = await fetchAllSupabaseRows(() => supabase
+          .from('limbah_anorganik')
+          .select('tanggal, infus, jerigen, kertas, kardus, botol_mineral, bayclin_dll')
+          .order('tanggal', { ascending: true })
+          .order('id', { ascending: true }));
 
         if (currentFetchId !== fetchIdRef.current) return;
 
-        const { data: filteredRows, error: errF } = filteredResult;
-        if (errF) throw errF;
-
-        const { data: allRows, error: errA } = allResult;
-        if (errA) throw errA;
+        // Data bulan pilihan sudah termasuk di hasil lengkap, sehingga tidak
+        // perlu meminta baris yang sama dua kali kepada Supabase.
+        const filteredRows = allRows.filter(row => row.tanggal >= start && row.tanggal <= end);
 
         // ── Process filtered rows ──────────────────────────────────────
         const dailyMap = {};

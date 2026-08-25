@@ -27,6 +27,15 @@ import { buildPadatPrintHTML } from '../components/limbah/padat/padatPrintTempla
 import { printViaHiddenIframe } from '../lib/printHelpers';
 import { formatDateFromExcel } from '../lib/excelDateHelpers';
 import { getLocalMonthString } from '../lib/localDate';
+import { fetchAllSupabaseRows } from '../lib/supabasePagination';
+import { isNetworkError } from '../lib/networkErrors';
+import {
+  deleteRecordWithVersion,
+  getRecordBaseVersion,
+  isRecordConflictError,
+  resolveOfflineRecordConflict,
+  updateRecordWithVersion,
+} from '../lib/recordVersion';
 
 const MySwal = withReactContent(Swal);
 
@@ -57,19 +66,33 @@ export default function LimbahPadat({ embedded = false }) {
     let dbPadat = [], dbRuangan = [];
     if (navigator.onLine) {
       try {
-        let qP = supabase.from('limbah_padat').select('id, tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik, petugas, waktu_input');
-        let qR = supabase.from('limbah_ruangan').select('id, tanggal, ruangan, infeksius, jarum_suntik, botol_obat, sitotoksik, petugas, waktu_input');
+        let startDate = null;
+        let endDate = null;
         if (targetMonth) {
           const [y, m] = targetMonth.split('-');
-          const s = `${y}-${m}-01`;
-          const e = `${y}-${m}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
-          qP = qP.gte('tanggal', s).lte('tanggal', e);
-          qR = qR.gte('tanggal', s).lte('tanggal', e);
+          startDate = `${y}-${m}-01`;
+          endDate = `${y}-${m}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
         }
-        const [{ data: pD, error: pError }, { data: rD, error: rError }] = await Promise.all([qP, qR]);
-        if (pError) throw pError;
-        if (rError) throw rError;
-        dbPadat = pD || []; dbRuangan = rD || [];
+
+        const buildMonthlyQuery = (table, columns) => {
+          let query = supabase.from(table)
+            .select(columns)
+            .order('tanggal', { ascending: true })
+            .order('id', { ascending: true });
+          if (startDate && endDate) query = query.gte('tanggal', startDate).lte('tanggal', endDate);
+          return query;
+        };
+
+        [dbPadat, dbRuangan] = await Promise.all([
+          fetchAllSupabaseRows(() => buildMonthlyQuery(
+            'limbah_padat',
+            'id, tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik, petugas, waktu_input'
+          )),
+          fetchAllSupabaseRows(() => buildMonthlyQuery(
+            'limbah_ruangan',
+            'id, tanggal, ruangan, infeksius, jarum_suntik, botol_obat, sitotoksik, petugas, waktu_input'
+          )),
+        ]);
         cacheServerRows('limbah_padat', dbPadat);
         cacheServerRows('limbah_ruangan', dbRuangan);
       } catch (err) {
@@ -207,6 +230,7 @@ export default function LimbahPadat({ embedded = false }) {
     e.preventDefault(); setSubmitting(true);
     const payload = { tanggal: formData.tanggal, petugas: user?.nama || 'Petugas', infeksius: parseFloat(formData.infeksius) || 0, jarum_suntik: parseFloat(formData.jarum_suntik) || 0, botol_obat: parseFloat(formData.botol_obat) || 0, sitotoksik: parseFloat(formData.sitotoksik) || 0, waktu_input: new Date().toISOString() };
     let recordId = formData.id;
+    let baseUpdatedAt = formData.baseUpdatedAt || null;
     let isLocalDraft = Boolean(recordId) && String(recordId).startsWith('off_');
 
     try {
@@ -220,23 +244,29 @@ export default function LimbahPadat({ embedded = false }) {
       }
 
       if (!navigator.onLine || isLocalDraft) {
-        saveToOfflineQueue('limbah_padat', formData.id ? 'update' : 'insert', formData.id ? { ...payload, id: recordId } : payload, 'Input Limbah Padat');
+        saveToOfflineQueue(
+          'limbah_padat',
+          formData.id ? 'update' : 'insert',
+          formData.id ? { ...payload, id: recordId } : payload,
+          'Input Limbah Padat',
+          { baseUpdatedAt }
+        );
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: isLocalDraft && navigator.onLine ? 'Perubahan draft tersimpan dan menunggu sinkronisasi.' : 'Data tersimpan di HP dan akan dikirim otomatis saat online.', confirmButtonColor: '#059669' });
       } else if (formData.id) {
-        const pendingRecordUpdate = getOfflineQueue().some(item => {
+        const pendingRecordUpdate = getOfflineQueue().find(item => {
           if (item.table !== 'limbah_padat') return false;
           return [item.serverId, item.payload?.id, item.payload?.serverId]
             .some(reference => reference != null && String(reference) === String(recordId));
         });
-        if (pendingRecordUpdate) await syncOfflineQueue(false, true);
+        if (pendingRecordUpdate) {
+          await syncOfflineQueue(false, true);
+          const stillPending = getOfflineQueue().some(item => item.id === pendingRecordUpdate.id);
+          if (!stillPending && pendingRecordUpdate.action === 'update') {
+            baseUpdatedAt = pendingRecordUpdate.payload?.waktu_input || baseUpdatedAt;
+          }
+        }
 
-        const { data: updatedRow, error } = await supabase.from('limbah_padat')
-          .update(payload)
-          .eq('id', recordId)
-          .select('id')
-          .maybeSingle();
-        if (error) throw error;
-        if (!updatedRow?.id) throw new Error('Data tidak ditemukan atau Anda tidak memiliki izin untuk mengubahnya.');
+        await updateRecordWithVersion('limbah_padat', recordId, payload, baseUpdatedAt);
         cacheServerRows('limbah_padat', [{ ...payload, id: recordId }]);
         if (pendingRecordUpdate) removeLocalRecordQueue({ id: recordId });
         MySwal.fire('Berhasil', 'Data berhasil diubah', 'success');
@@ -247,10 +277,19 @@ export default function LimbahPadat({ embedded = false }) {
       }
       setFormData(EMPTY_FORM); fetchData();
     } catch (error) {
-      if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
-        saveToOfflineQueue('limbah_padat', formData.id ? 'update' : 'insert', formData.id ? { ...payload, id: recordId } : payload, 'Input Limbah Padat');
+      if (isNetworkError(error)) {
+        saveToOfflineQueue(
+          'limbah_padat',
+          formData.id ? 'update' : 'insert',
+          formData.id ? { ...payload, id: recordId } : payload,
+          'Input Limbah Padat',
+          { baseUpdatedAt }
+        );
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Jaringan terputus. Data tersimpan di HP.', confirmButtonColor: '#059669' });
         setFormData(EMPTY_FORM);
+      } else if (isRecordConflictError(error)) {
+        MySwal.fire('Data Sudah Berubah', error.message, 'warning');
+        fetchData();
       } else { MySwal.fire('Gagal', error.message, 'error'); }
     } finally { setSubmitting(false); }
   };
@@ -286,7 +325,27 @@ export default function LimbahPadat({ embedded = false }) {
       if (!selectedRecord) return;
     }
 
-    setFormData({ id: selectedRecord.id, tanggal: selectedRecord.tanggal, infeksius: selectedRecord.infeksius, jarum_suntik: selectedRecord.jarum_suntik, botol_obat: selectedRecord.botol_obat, sitotoksik: selectedRecord.sitotoksik });
+    try {
+      const resolution = await resolveOfflineRecordConflict('limbah_padat', selectedRecord, MySwal);
+      if (!resolution) return;
+      if (resolution.discardDraft) removeLocalRecordQueue({ id: selectedRecord.id });
+      if (!resolution.record) { fetchData(); return; }
+      selectedRecord = resolution.record;
+      if (resolution.discardDraft) cacheServerRows('limbah_padat', [selectedRecord]);
+
+      setFormData({
+        id: selectedRecord.id,
+        tanggal: selectedRecord.tanggal,
+        infeksius: selectedRecord.infeksius,
+        jarum_suntik: selectedRecord.jarum_suntik,
+        botol_obat: selectedRecord.botol_obat,
+        sitotoksik: selectedRecord.sitotoksik,
+        baseUpdatedAt: getRecordBaseVersion(selectedRecord),
+      });
+    } catch (error) {
+      MySwal.fire('Gagal', error.message, 'error');
+      return;
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -306,6 +365,10 @@ export default function LimbahPadat({ embedded = false }) {
 
       for (const initialId of idsToDelete) {
         let id = getSyncedServerId(initialId) || initialId;
+        const originalRecord = (item.manualRecords || []).find(record => (
+          String(record.id) === String(initialId)
+        )) || item;
+        const baseUpdatedAt = getRecordBaseVersion(originalRecord);
 
         if (String(id).startsWith('off_') && navigator.onLine) {
           await syncOfflineQueue(false, true);
@@ -318,24 +381,30 @@ export default function LimbahPadat({ embedded = false }) {
         }
 
         if (!navigator.onLine) {
-          saveToOfflineQueue('limbah_padat', 'delete', { id }, `Hapus Limbah Padat ${item.tanggal}`);
+          saveToOfflineQueue(
+            'limbah_padat',
+            'delete',
+            { id },
+            `Hapus Limbah Padat ${item.tanggal}`,
+            { baseUpdatedAt }
+          );
           queuedDelete = true;
           continue;
         }
 
         try {
-          const { data: deletedRow, error } = await supabase.from('limbah_padat')
-            .delete()
-            .eq('id', id)
-            .select('id')
-            .maybeSingle();
-          if (error) throw error;
-          if (!deletedRow?.id) throw new Error('Data tidak ditemukan atau Anda tidak memiliki izin untuk menghapusnya.');
+          await deleteRecordWithVersion('limbah_padat', id, baseUpdatedAt);
           removeLocalRecordQueue({ id: String(id) });
           removeCachedServerRow('limbah_padat', id);
         } catch (error) {
-          if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
-            saveToOfflineQueue('limbah_padat', 'delete', { id }, `Hapus Limbah Padat ${item.tanggal}`);
+          if (isNetworkError(error)) {
+            saveToOfflineQueue(
+              'limbah_padat',
+              'delete',
+              { id },
+              `Hapus Limbah Padat ${item.tanggal}`,
+              { baseUpdatedAt }
+            );
             queuedDelete = true;
             continue;
           }
@@ -345,7 +414,12 @@ export default function LimbahPadat({ embedded = false }) {
       MySwal.fire(queuedDelete ? 'Tersimpan Offline' : 'Terhapus', queuedDelete ? 'Perintah hapus disimpan dan akan diproses otomatis.' : (isMixed ? 'Data manual berhasil dihapus.' : 'Data berhasil dihapus.'), queuedDelete ? 'info' : 'success');
       fetchData();
     } catch (error) {
-      MySwal.fire('Gagal', error.message, 'error');
+      if (isRecordConflictError(error)) {
+        MySwal.fire('Data Sudah Berubah', error.message, 'warning');
+        fetchData();
+      } else {
+        MySwal.fire('Gagal', error.message, 'error');
+      }
     }
   };
 

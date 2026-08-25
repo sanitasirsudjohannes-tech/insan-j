@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import { getLocalDateString } from '../../lib/localDate';
+import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
 
 export default function DashboardNotification() {
   const [missingDates, setMissingDates] = useState([]);
@@ -24,7 +26,7 @@ export default function DashboardNotification() {
         if (yesterday >= startOfMonth) {
           for (let d = new Date(startOfMonth); d <= yesterday; d.setDate(d.getDate() + 1)) {
             // format YYYY-MM-DD
-            const formattedDate = d.toISOString().split('T')[0];
+            const formattedDate = getLocalDateString(d);
             datesToCheck.push(formattedDate);
           }
         }
@@ -37,23 +39,16 @@ export default function DashboardNotification() {
         const startDateStr = datesToCheck[0];
         const endDateStr = datesToCheck[datesToCheck.length - 1];
 
-        // Fetch limbah_padat dates
-        const { data: padatData, error: padatError } = await supabase
-          .from('limbah_padat')
+        const [padatData, ruanganData] = await Promise.all([
+          'limbah_padat',
+          'limbah_ruangan',
+        ].map(table => fetchAllSupabaseRows(() => supabase
+          .from(table)
           .select('tanggal')
           .gte('tanggal', startDateStr)
-          .lte('tanggal', endDateStr);
-
-        if (padatError) throw padatError;
-
-        // Fetch limbah_ruangan dates
-        const { data: ruanganData, error: ruanganError } = await supabase
-          .from('limbah_ruangan')
-          .select('tanggal')
-          .gte('tanggal', startDateStr)
-          .lte('tanggal', endDateStr);
-
-        if (ruanganError) throw ruanganError;
+          .lte('tanggal', endDateStr)
+          .order('tanggal', { ascending: true })
+          .order('id', { ascending: true }))));
 
         const padatDates = new Set(padatData.map(d => d.tanggal));
         const ruanganDates = new Set(ruanganData.map(d => d.tanggal));

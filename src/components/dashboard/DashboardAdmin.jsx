@@ -3,6 +3,7 @@ import AppLayout from '../AppLayout';
 import { supabase } from '../../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import DashboardNotification from './DashboardNotification';
+import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
 
 export default function DashboardAdmin() {
   const [loading, setLoading] = useState(true);
@@ -51,16 +52,19 @@ export default function DashboardAdmin() {
         }
 
         const promises = tables.map(async (table) => {
-          let query = supabase.from(table.name).select('persen');
+          const data = await fetchAllSupabaseRows(() => {
+            let query = supabase.from(table.name)
+              .select('persen')
+              .order('id', { ascending: true });
 
-          if (selectedMonth) {
-            query = query.gte('tanggal_pemeriksaan', startDate).lt('tanggal_pemeriksaan', endDate);
-          }
+            if (selectedMonth) {
+              query = query.gte('tanggal_pemeriksaan', startDate).lt('tanggal_pemeriksaan', endDate);
+            }
 
-          const { data, error } = await query;
+            return query;
+          });
 
-          if (error) throw new Error(error.message);
-          return { label: table.label, data: data || [] };
+          return { label: table.label, data };
         });
 
         const results = await Promise.all(promises);

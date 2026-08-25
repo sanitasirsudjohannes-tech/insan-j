@@ -6,6 +6,7 @@ import {
 } from 'recharts';
 
 import { fetchWasteRows } from '../../lib/wasteQueries';
+import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
 
 export default function TabPengangkutan() {
   const [chartData, setChartData] = useState([]);
@@ -28,12 +29,14 @@ export default function TabPengangkutan() {
     const fetchAll = async () => {
       setLoading(true);
       try {
-        const { padatRows: limbahPadatRows, ruanganRows: limbahRuanganRows } = await fetchWasteRows();
-
-        const { data: angkutRows } = await supabase
-          .from('pengangkutan_limbah')
-          .select('tanggal, jumlah_kg')
-          .order('tanggal', { ascending: true });
+        const [{ padatRows: limbahPadatRows, ruanganRows: limbahRuanganRows }, angkutRows] = await Promise.all([
+          fetchWasteRows(),
+          fetchAllSupabaseRows(() => supabase
+            .from('pengangkutan_limbah')
+            .select('tanggal, jumlah_kg')
+            .order('tanggal', { ascending: true })
+            .order('id', { ascending: true })),
+        ]);
 
         // Gabungkan limbah_padat + limbah_ruangan, dijumlahkan per tanggal
         const limbahMap = {};

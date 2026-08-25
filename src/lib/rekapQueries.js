@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { getUnsyncedItemsForTable, getOfflineDeletedIds } from './offlineStorage';
+import { fetchAllSupabaseRows } from './supabasePagination';
 
 export const MONTH_NAMES = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -16,15 +17,31 @@ export async function fetchAllRekapData() {
   let angkutRows = [];
 
   try {
-    const [padatRes, ruanganRes, angkutRes] = await Promise.all([
-      supabase.from('limbah_padat').select('id, tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik'),
-      supabase.from('limbah_ruangan').select('id, tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik'),
-      supabase.from('pengangkutan_limbah').select('id, tanggal, jumlah_kg')
+    const [padatResult, ruanganResult, angkutResult] = await Promise.allSettled([
+      fetchAllSupabaseRows(() => supabase
+        .from('limbah_padat')
+        .select('id, tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
+        .order('tanggal', { ascending: true })
+        .order('id', { ascending: true })),
+      fetchAllSupabaseRows(() => supabase
+        .from('limbah_ruangan')
+        .select('id, tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
+        .order('tanggal', { ascending: true })
+        .order('id', { ascending: true })),
+      fetchAllSupabaseRows(() => supabase
+        .from('pengangkutan_limbah')
+        .select('id, tanggal, jumlah_kg')
+        .order('tanggal', { ascending: true })
+        .order('id', { ascending: true }))
     ]);
 
-    if (!padatRes.error) padatRows = padatRes.data || [];
-    if (!ruanganRes.error) ruanganRows = ruanganRes.data || [];
-    if (!angkutRes.error) angkutRows = angkutRes.data || [];
+    if (padatResult.status === 'fulfilled') padatRows = padatResult.value;
+    if (ruanganResult.status === 'fulfilled') ruanganRows = ruanganResult.value;
+    if (angkutResult.status === 'fulfilled') angkutRows = angkutResult.value;
+
+    [padatResult, ruanganResult, angkutResult]
+      .filter(result => result.status === 'rejected')
+      .forEach(result => console.warn('Sebagian data rekap tidak dapat dimuat:', result.reason));
   } catch (err) {
     console.warn('Network error when fetching rekap data, using offline items if available:', err);
   }

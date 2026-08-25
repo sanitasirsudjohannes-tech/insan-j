@@ -28,6 +28,14 @@ import { buildRuanganPrintHTML } from '../components/limbah/ruangan/ruanganPrint
 import { formatDateFromExcel } from '../lib/excelDateHelpers';
 import { printViaHiddenIframe } from '../lib/printHelpers';
 import { getLocalDateString, getLocalMonthString } from '../lib/localDate';
+import { isNetworkError } from '../lib/networkErrors';
+import {
+  deleteRecordWithVersion,
+  getRecordBaseVersion,
+  isRecordConflictError,
+  resolveOfflineRecordConflict,
+  updateRecordWithVersion,
+} from '../lib/recordVersion';
 
 const MySwal = withReactContent(Swal);
 
@@ -348,6 +356,7 @@ export default function LimbahRuangan({ embedded = false }) {
     }));
     const insertPayloads = payloads.map((payload) => ({ ...payload, created_by: user?.id }));
     let recordId = formData.id;
+    let baseUpdatedAt = formData.baseUpdatedAt || null;
     let isLocalDraft = Boolean(recordId) && String(recordId).startsWith('off_');
 
     try {
@@ -427,13 +436,19 @@ export default function LimbahRuangan({ embedded = false }) {
 
       if (!navigator.onLine || isLocalDraft) {
         if (formData.id) {
-          saveToOfflineQueue('limbah_ruangan', 'update', { ...payloads[0], id: recordId }, `Update Limbah Ruangan ${formData.ruangan}`);
+          saveToOfflineQueue(
+            'limbah_ruangan',
+            'update',
+            { ...payloads[0], id: recordId },
+            `Update Limbah Ruangan ${formData.ruangan}`,
+            { baseUpdatedAt }
+          );
         } else {
           insertPayloads.forEach(p => saveToOfflineQueue('limbah_ruangan', 'insert', p, `Input Limbah Ruangan ${formData.ruangan}`));
         }
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: isLocalDraft && navigator.onLine ? 'Perubahan draft tersimpan dan menunggu sinkronisasi.' : 'Data tersimpan di HP dan akan dikirim otomatis saat online.', confirmButtonColor: '#059669' });
       } else if (formData.id) {
-        const pendingRecordUpdate = getOfflineQueue().some(item => {
+        const pendingRecordUpdate = getOfflineQueue().find(item => {
           if (item.table !== 'limbah_ruangan') return false;
           const references = [item.serverId, item.payload?.id, item.payload?.serverId];
           return references.some(reference => reference != null && String(reference) === String(recordId));
@@ -441,15 +456,15 @@ export default function LimbahRuangan({ embedded = false }) {
 
         // Selesaikan perubahan lama terlebih dahulu agar auto-sync tidak
         // datang belakangan dan menimpa nilai terbaru yang sedang disimpan.
-        if (pendingRecordUpdate) await syncOfflineQueue(false, true);
+        if (pendingRecordUpdate) {
+          await syncOfflineQueue(false, true);
+          const stillPending = getOfflineQueue().some(item => item.id === pendingRecordUpdate.id);
+          if (!stillPending && pendingRecordUpdate.action === 'update') {
+            baseUpdatedAt = pendingRecordUpdate.payload?.waktu_input || baseUpdatedAt;
+          }
+        }
 
-        const { data: updatedRow, error } = await supabase.from('limbah_ruangan')
-          .update(payloads[0])
-          .eq('id', recordId)
-          .select('id')
-          .maybeSingle();
-        if (error) throw error;
-        if (!updatedRow?.id) throw new Error('Data tidak ditemukan atau Anda tidak memiliki izin untuk mengubahnya.');
+        await updateRecordWithVersion('limbah_ruangan', recordId, payloads[0], baseUpdatedAt);
         cacheServerRows('limbah_ruangan', [{ ...payloads[0], id: recordId }]);
 
         // Jika percobaan sync lama gagal tetapi update terbaru berhasil,
@@ -471,9 +486,15 @@ export default function LimbahRuangan({ embedded = false }) {
       });
       fetchData();
     } catch (error) {
-      if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
+      if (isNetworkError(error)) {
         if (formData.id) {
-          saveToOfflineQueue('limbah_ruangan', 'update', { ...payloads[0], id: recordId }, `Update Limbah Ruangan ${formData.ruangan}`);
+          saveToOfflineQueue(
+            'limbah_ruangan',
+            'update',
+            { ...payloads[0], id: recordId },
+            `Update Limbah Ruangan ${formData.ruangan}`,
+            { baseUpdatedAt }
+          );
         } else {
           insertPayloads.forEach(p => saveToOfflineQueue('limbah_ruangan', 'insert', p, `Input Limbah Ruangan ${formData.ruangan}`));
         }
@@ -485,11 +506,26 @@ export default function LimbahRuangan({ embedded = false }) {
           isDistribusi: formData.isDistribusi,
           distribusiDates: formData.distribusiDates
         });
+      } else if (isRecordConflictError(error)) {
+        MySwal.fire('Data Sudah Berubah', error.message, 'warning');
+        fetchData();
       } else { MySwal.fire('Gagal', error.message, 'error'); }
     } finally { setSubmitting(false); }
   };
 
-  const handleEdit = (item) => {
+  const handleEdit = async (item) => {
+    try {
+      const resolution = await resolveOfflineRecordConflict('limbah_ruangan', item, MySwal);
+      if (!resolution) return;
+      if (resolution.discardDraft) removeLocalRecordQueue({ id: item.id });
+      if (!resolution.record) { fetchData(); return; }
+      item = resolution.record;
+      if (resolution.discardDraft) cacheServerRows('limbah_ruangan', [item]);
+    } catch (error) {
+      MySwal.fire('Gagal', error.message, 'error');
+      return;
+    }
+
     setFormData({
       id: item.id,
       tanggal: item.tanggal,
@@ -503,6 +539,7 @@ export default function LimbahRuangan({ embedded = false }) {
       // tidak ikut terbawa ke sesi edit ini.
       isDistribusi: false,
       distribusiDates: [],
+      baseUpdatedAt: getRecordBaseVersion(item),
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -527,26 +564,35 @@ export default function LimbahRuangan({ embedded = false }) {
         }
       }
       if (!navigator.onLine) {
-        saveToOfflineQueue('limbah_ruangan', 'delete', item, `Hapus Limbah Ruangan ${item.ruangan || ''}`);
+        saveToOfflineQueue(
+          'limbah_ruangan',
+          'delete',
+          item,
+          `Hapus Limbah Ruangan ${item.ruangan || ''}`,
+          { baseUpdatedAt: getRecordBaseVersion(item) }
+        );
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Perintah hapus akan diproses otomatis saat online.', confirmButtonColor: '#059669' });
         fetchData(); return;
       }
-      const { data: deletedRow, error } = await supabase.from('limbah_ruangan')
-        .delete()
-        .eq('id', item.id)
-        .select('id')
-        .maybeSingle();
-      if (error) throw error;
-      if (!deletedRow?.id) throw new Error('Data tidak ditemukan atau Anda tidak memiliki izin untuk menghapusnya.');
+      await deleteRecordWithVersion('limbah_ruangan', item.id, getRecordBaseVersion(item));
       // Antrean edit hanya boleh dibuang setelah penghapusan benar-benar
       // dikonfirmasi berhasil oleh server.
       removeLocalRecordQueue(item);
       removeCachedServerRow('limbah_ruangan', item.id);
       MySwal.fire('Terhapus', 'Data berhasil dihapus', 'success'); fetchData();
     } catch (error) {
-      if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
-        saveToOfflineQueue('limbah_ruangan', 'delete', item, `Hapus Limbah Ruangan ${item.ruangan || ''}`);
+      if (isNetworkError(error)) {
+        saveToOfflineQueue(
+          'limbah_ruangan',
+          'delete',
+          item,
+          `Hapus Limbah Ruangan ${item.ruangan || ''}`,
+          { baseUpdatedAt: getRecordBaseVersion(item) }
+        );
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Perintah hapus disimpan dan akan diproses otomatis.', confirmButtonColor: '#059669' });
+        fetchData();
+      } else if (isRecordConflictError(error)) {
+        MySwal.fire('Data Sudah Berubah', error.message, 'warning');
         fetchData();
       } else { MySwal.fire('Gagal', error.message, 'error'); }
     }

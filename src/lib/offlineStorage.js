@@ -1,5 +1,10 @@
 import { supabase } from './supabase';
 import Swal from 'sweetalert2';
+import {
+  deleteRecordWithVersion,
+  isRecordConflictError,
+  updateRecordWithVersion,
+} from './recordVersion';
 
 const QUEUE_KEY = 'insan_j_offline_queue';
 const SYNCED_IDS_KEY = 'insan_j_offline_synced_ids';
@@ -22,6 +27,7 @@ const resetRetryState = (item) => ({
   lastSyncAttemptAt: null,
   nextRetryAt: null,
   requiresManualRetry: false,
+  syncConflict: false,
 });
 
 const getSyncErrorMessage = (error) => {
@@ -209,6 +215,7 @@ const queueItemsMatch = (currentItem, snapshotItem) => (
   currentItem?.table === snapshotItem?.table &&
   currentItem?.action === snapshotItem?.action &&
   currentItem?.batchId === snapshotItem?.batchId &&
+  String(currentItem?.baseUpdatedAt || '') === String(snapshotItem?.baseUpdatedAt || '') &&
   String(currentItem?.serverId || '') === String(snapshotItem?.serverId || '') &&
   JSON.stringify(currentItem?.payload || {}) === JSON.stringify(snapshotItem?.payload || {})
 );
@@ -219,6 +226,7 @@ const markQueueItemsFailed = (snapshotItems, error) => {
   );
   const now = new Date();
   const errorMessage = getSyncErrorMessage(error);
+  const hasConflict = isRecordConflictError(error);
 
   const queue = getOfflineQueue().map(item => {
     const snapshot = snapshots.get(String(item.localId || item.id));
@@ -227,7 +235,7 @@ const markQueueItemsFailed = (snapshotItems, error) => {
     if (!snapshot || !queueItemsMatch(item, snapshot)) return item;
 
     const syncAttempts = (Number(item.syncAttempts) || 0) + 1;
-    const retryDelay = SYNC_RETRY_DELAYS_MS[syncAttempts - 1] ?? null;
+    const retryDelay = hasConflict ? null : (SYNC_RETRY_DELAYS_MS[syncAttempts - 1] ?? null);
     return {
       ...item,
       syncAttempts,
@@ -237,6 +245,7 @@ const markQueueItemsFailed = (snapshotItems, error) => {
         ? null
         : new Date(now.getTime() + retryDelay).toISOString(),
       requiresManualRetry: retryDelay === null,
+      syncConflict: hasConflict,
     };
   });
 
@@ -244,6 +253,9 @@ const markQueueItemsFailed = (snapshotItems, error) => {
 };
 
 const isQueueItemReady = (item, force, now = Date.now()) => {
+  // Konflik harus diselesaikan pengguna; tombol retry tidak boleh menimpa
+  // perubahan yang sudah disimpan perangkat lain.
+  if (item.syncConflict) return false;
   if (force) return true;
   if (item.requiresManualRetry) return false;
   if (!item.nextRetryAt) return true;
@@ -267,6 +279,8 @@ export const getUnsyncedItemsForTable = (tableName) => {
         offlineSyncError: item.lastSyncError || null,
         offlineNextRetryAt: item.nextRetryAt || null,
         offlineRequiresManualRetry: Boolean(item.requiresManualRetry),
+        offlineHasConflict: Boolean(item.syncConflict),
+        offlineBaseUpdatedAt: item.baseUpdatedAt || null,
         waktu_input: payloadData.waktu_input || item.createdAt || new Date().toISOString()
       };
     });
@@ -297,11 +311,12 @@ export const getOfflineDeletedItems = (tableName) => {
  * saveToOfflineQueue (UPSERT)
  */
 
-export const saveToOfflineQueue = (table, action, payload, description = '') => {
+export const saveToOfflineQueue = (table, action, payload, description = '', options = {}) => {
   const ownerId = getCurrentQueueOwnerId();
   if (!ownerId) throw new Error('Pengguna tidak teridentifikasi. Silakan masuk kembali.');
   const queue = getOfflineQueue();
   const payloadCopy = { ...(payload || {}) };
+  const requestedBaseUpdatedAt = options?.baseUpdatedAt || null;
 
   // id yang sedang "disasar" oleh operasi ini: bisa berupa id draft lokal
   // (off_...) atau id asli dari database (record yang sudah pernah tersinkron
@@ -318,6 +333,11 @@ export const saveToOfflineQueue = (table, action, payload, description = '') => 
 
     if (existingIndex !== -1) {
       const existing = queue[existingIndex];
+      // Setelah konflik ditinjau secara sadar, versi server terbaru menjadi
+      // dasar baru. Edit biasa tetap mempertahankan dasar draft semula.
+      const nextBaseUpdatedAt = existing.syncConflict && requestedBaseUpdatedAt
+        ? requestedBaseUpdatedAt
+        : (existing.baseUpdatedAt || requestedBaseUpdatedAt);
       // Entri lama masih berupa "insert" berarti record ini belum pernah
       // sampai ke server sama sekali (masih draft murni).
       const isLocalDraft = existing.action === 'insert';
@@ -334,6 +354,7 @@ export const saveToOfflineQueue = (table, action, payload, description = '') => 
             ...existing,
             action: 'delete',
             payload: { ...existing.payload, id: existing.serverId, serverId: existing.serverId },
+            baseUpdatedAt: nextBaseUpdatedAt,
             description: description || existing.description,
             createdAt: new Date().toISOString(),
           });
@@ -347,6 +368,9 @@ export const saveToOfflineQueue = (table, action, payload, description = '') => 
           payload: isLocalDraft
             ? { ...existing.payload, ...restPayload } // insert payload tetap tanpa field id
             : { ...existing.payload, ...restPayload, id: existing.serverId },
+          baseUpdatedAt: isLocalDraft
+            ? null
+            : nextBaseUpdatedAt,
           description: description || existing.description,
           createdAt: new Date().toISOString(),
         });
@@ -367,6 +391,7 @@ export const saveToOfflineQueue = (table, action, payload, description = '') => 
     table,
     action,
     payload: payloadCopy,
+    baseUpdatedAt: action === 'insert' ? null : requestedBaseUpdatedAt,
     description: description || `${action.toUpperCase()} data ${table}`,
     createdAt: new Date().toISOString(),
     ownerId
@@ -397,6 +422,7 @@ export const saveInsertBatchToOfflineQueue = (table, payloads, description = '')
       table,
       action: 'insert',
       payload: { ...payload },
+      baseUpdatedAt: null,
       description: description || `INSERT data ${table}`,
       createdAt,
       ownerId,
@@ -447,6 +473,7 @@ const finalizeSyncedInsert = (snapshotItem, serverRow) => {
       action: 'delete',
       serverId: serverRow.id,
       payload: { id: serverRow.id, serverId: serverRow.id },
+      baseUpdatedAt: serverRow.waktu_input || snapshotItem.payload?.waktu_input || null,
       description: `Hapus data ${snapshotItem.table}`,
       createdAt: new Date().toISOString(),
     }));
@@ -466,6 +493,7 @@ const finalizeSyncedInsert = (snapshotItem, serverRow) => {
     ...currentItem,
     action: currentItem.action === 'delete' ? 'delete' : 'update',
     serverId: serverRow.id,
+    baseUpdatedAt: serverRow.waktu_input || snapshotItem.payload?.waktu_input || null,
     payload: currentItem.action === 'delete'
       ? { id: serverRow.id, serverId: serverRow.id }
       : { ...latestPayload, id: serverRow.id },
@@ -617,6 +645,7 @@ const syncOfflineInsertBatch = async (items) => {
         action: 'update',
         serverId: match.row.id,
         payload: { ...queuedItem.payload, id: match.row.id },
+        baseUpdatedAt: match.row.waktu_input || match.item.payload?.waktu_input || null,
       }));
     }
   });
@@ -632,6 +661,7 @@ const syncOfflineInsertBatch = async (items) => {
       action: 'delete',
       serverId: row.id,
       payload: { id: row.id, serverId: row.id },
+      baseUpdatedAt: row.waktu_input || item.payload?.waktu_input || null,
       description: `Hapus Limbah Ruangan ${item.payload?.ruangan || ''}`,
     }));
   });
@@ -714,18 +744,8 @@ const performOfflineSync = async (showNotification = true, force = false) => {
         if (!serverId) throw new Error(`Server ID tidak tersedia untuk update item ${item.id}`);
 
         const { id: _id, serverId: _serverId, ...updateData } = item.payload || {};
-        const { data: updatedRow, error: err } = await supabase
-          .from(item.table)
-          .update(updateData)
-          .eq('id', serverId)
-          .select('id')
-          .maybeSingle();
-        error = err;
-
-        if (!error && !updatedRow?.id) {
-          throw new Error(`Data untuk update tidak ditemukan atau akses ditolak (ID: ${serverId}). Antrean tetap disimpan.`);
-        }
-        if (!error) cacheServerRows(item.table, [{ ...updateData, id: serverId }]);
+        await updateRecordWithVersion(item.table, serverId, updateData, item.baseUpdatedAt);
+        cacheServerRows(item.table, [{ ...updateData, id: serverId }]);
       } else if (item.action === 'delete') {
         const serverId = getServerId(item);
 
@@ -739,27 +759,13 @@ const performOfflineSync = async (showNotification = true, force = false) => {
           throw new Error(`Server ID tidak tersedia untuk delete item ${item.id}`);
         }
 
-        const { data: deletedRow, error: err } = await supabase
-          .from(item.table)
-          .delete()
-          .eq('id', serverId)
-          .select('id')
-          .maybeSingle();
-        error = err;
-
-        if (!error && !deletedRow?.id) {
-          const { data: remainingRow, error: verificationError } = await supabase
-            .from(item.table)
-            .select('id')
-            .eq('id', serverId)
-            .maybeSingle();
-
-          if (verificationError) throw verificationError;
-          if (remainingRow?.id) {
-            throw new Error(`Data untuk dihapus masih ada atau akses ditolak (ID: ${serverId}). Antrean tetap disimpan.`);
-          }
-        }
-        if (!error) removeCachedServerRow(item.table, serverId);
+        await deleteRecordWithVersion(
+          item.table,
+          serverId,
+          item.baseUpdatedAt,
+          { allowMissing: true }
+        );
+        removeCachedServerRow(item.table, serverId);
       } else {
         throw new Error(`Aksi offline tidak dikenal: ${item.action}`);
       }
@@ -782,15 +788,18 @@ const performOfflineSync = async (showNotification = true, force = false) => {
   }
 
   if (showNotification && (successCount > 0 || failedCount > 0)) {
-    const manualRetryCount = getOfflineQueue()
-      .filter(item => item.requiresManualRetry).length;
+    const remainingQueue = getOfflineQueue();
+    const manualRetryCount = remainingQueue.filter(item => item.requiresManualRetry).length;
+    const conflictCount = remainingQueue.filter(item => item.syncConflict).length;
     Swal.fire({
       icon: failedCount > 0 ? (successCount > 0 ? 'warning' : 'error') : 'success',
       title: failedCount > 0
         ? (successCount > 0 ? 'Sinkronisasi Sebagian Berhasil' : 'Sinkronisasi Gagal')
         : 'Sinkronisasi Berhasil!',
       text: failedCount > 0
-        ? manualRetryCount > 0
+        ? conflictCount > 0
+          ? `${successCount} berhasil, ${failedCount} gagal. ${conflictCount} draft bertentangan dengan perubahan dari perangkat lain.`
+          : manualRetryCount > 0
           ? `${successCount} berhasil, ${failedCount} gagal. ${manualRetryCount} draft menunggu tombol Coba Lagi.`
           : `${successCount} berhasil, ${failedCount} gagal. Data gagal tetap aman dan akan dicoba ulang bertahap.`
         : `${successCount} data offline telah dikirim ke database.`,

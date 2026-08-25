@@ -18,6 +18,15 @@ import {
 } from '../lib/offlineStorage';
 import { loadExcelLibrary } from '../lib/excelLoader';
 import { getLocalDateString, getLocalMonthString } from '../lib/localDate';
+import { fetchAllSupabaseRows } from '../lib/supabasePagination';
+import { isNetworkError } from '../lib/networkErrors';
+import {
+    deleteRecordWithVersion,
+    getRecordBaseVersion,
+    isRecordConflictError,
+    resolveOfflineRecordConflict,
+    updateRecordWithVersion,
+} from '../lib/recordVersion';
 import PengangkutanForm from '../components/limbah/pengangkutan/PengangkutanForm';
 import PengangkutanImportExportToolbar from '../components/limbah/pengangkutan/PengangkutanImportExportToolbar';
 import PengangkutanTable from '../components/limbah/pengangkutan/PengangkutanTable';
@@ -211,6 +220,7 @@ export default function PengangkutanLimbah() {
             waktu_input: new Date().toISOString()
         };
         let recordId = form.id;
+        let baseUpdatedAt = form.baseUpdatedAt || null;
         let isLocalDraft = Boolean(recordId) && String(recordId).startsWith('off_');
 
         try {
@@ -228,7 +238,8 @@ export default function PengangkutanLimbah() {
                     'pengangkutan_limbah',
                     form.id ? 'update' : 'insert',
                     form.id ? { ...payload, id: recordId } : payload,
-                    'Pengangkutan Limbah'
+                    'Pengangkutan Limbah',
+                    { baseUpdatedAt }
                 );
                 MySwal.fire({
                     icon: 'info',
@@ -239,7 +250,7 @@ export default function PengangkutanLimbah() {
                     confirmButtonColor: '#ea580c'
                 });
             } else if (form.id) {
-                const pendingRecordUpdate = getOfflineQueue().some(item => {
+                const pendingRecordUpdate = getOfflineQueue().find(item => {
                     if (item.table !== 'pengangkutan_limbah') return false;
                     return [item.serverId, item.payload?.id, item.payload?.serverId]
                         .some(reference => reference != null && String(reference) === String(recordId));
@@ -247,18 +258,15 @@ export default function PengangkutanLimbah() {
 
                 // Kirim perubahan lama lebih dulu agar tidak datang belakangan
                 // dan menimpa nilai terbaru yang sedang disimpan.
-                if (pendingRecordUpdate) await syncOfflineQueue(false, true);
-
-                const { data: updatedRow, error } = await supabase
-                    .from('pengangkutan_limbah')
-                    .update(payload)
-                    .eq('id', recordId)
-                    .select('id')
-                    .maybeSingle();
-                if (error) throw error;
-                if (!updatedRow?.id) {
-                    throw new Error('Data tidak ditemukan atau Anda tidak memiliki izin untuk mengubahnya.');
+                if (pendingRecordUpdate) {
+                    await syncOfflineQueue(false, true);
+                    const stillPending = getOfflineQueue().some(item => item.id === pendingRecordUpdate.id);
+                    if (!stillPending && pendingRecordUpdate.action === 'update') {
+                        baseUpdatedAt = pendingRecordUpdate.payload?.waktu_input || baseUpdatedAt;
+                    }
                 }
+
+                await updateRecordWithVersion('pengangkutan_limbah', recordId, payload, baseUpdatedAt);
                 cacheServerRows('pengangkutan_limbah', [{ ...payload, id: recordId }]);
                 if (pendingRecordUpdate) removeLocalRecordQueue({ id: recordId });
                 MySwal.fire('Berhasil', 'Data diperbarui', 'success');
@@ -275,12 +283,13 @@ export default function PengangkutanLimbah() {
             setForm(createEmptyForm());
             fetchData();
         } catch (e) {
-            if (!navigator.onLine || e.message?.includes('Failed to fetch') || e.message?.includes('network')) {
+            if (isNetworkError(e)) {
                 saveToOfflineQueue(
                     'pengangkutan_limbah',
                     form.id ? 'update' : 'insert',
                     form.id ? { ...payload, id: recordId } : payload,
-                    'Pengangkutan Limbah'
+                    'Pengangkutan Limbah',
+                    { baseUpdatedAt }
                 );
                 MySwal.fire({
                     icon: 'info',
@@ -289,6 +298,9 @@ export default function PengangkutanLimbah() {
                     confirmButtonColor: '#ea580c'
                 });
                 setForm(createEmptyForm());
+            } else if (isRecordConflictError(e)) {
+                MySwal.fire('Data Sudah Berubah', e.message, 'warning');
+                fetchData();
             } else {
                 MySwal.fire('Gagal', e.message, 'error');
             }
@@ -297,8 +309,26 @@ export default function PengangkutanLimbah() {
         }
     };
 
-    const handleEdit = (item) => {
-        setForm({ id: item.id, tanggal: item.tanggal, jumlah_kg: item.jumlah_kg, keterangan: item.keterangan || '' });
+    const handleEdit = async (item) => {
+        try {
+            const resolution = await resolveOfflineRecordConflict('pengangkutan_limbah', item, MySwal);
+            if (!resolution) return;
+            if (resolution.discardDraft) removeLocalRecordQueue({ id: item.id });
+            if (!resolution.record) { fetchData(); return; }
+            item = resolution.record;
+            if (resolution.discardDraft) cacheServerRows('pengangkutan_limbah', [item]);
+        } catch (error) {
+            MySwal.fire('Gagal', error.message, 'error');
+            return;
+        }
+
+        setForm({
+            id: item.id,
+            tanggal: item.tanggal,
+            jumlah_kg: item.jumlah_kg,
+            keterangan: item.keterangan || '',
+            baseUpdatedAt: getRecordBaseVersion(item),
+        });
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
@@ -326,30 +356,36 @@ export default function PengangkutanLimbah() {
             }
 
             if (!navigator.onLine) {
-                saveToOfflineQueue('pengangkutan_limbah', 'delete', item, `Hapus Pengangkutan ${item.tanggal}`);
+                saveToOfflineQueue(
+                    'pengangkutan_limbah',
+                    'delete',
+                    item,
+                    `Hapus Pengangkutan ${item.tanggal}`,
+                    { baseUpdatedAt: getRecordBaseVersion(item) }
+                );
                 MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Perintah hapus disimpan di HP dan akan diproses otomatis.', confirmButtonColor: '#ea580c' });
                 fetchData();
                 return;
             }
 
-            const { data: deletedRow, error } = await supabase
-                .from('pengangkutan_limbah')
-                .delete()
-                .eq('id', item.id)
-                .select('id')
-                .maybeSingle();
-            if (error) throw error;
-            if (!deletedRow?.id) {
-                throw new Error('Data tidak ditemukan atau Anda tidak memiliki izin untuk menghapusnya.');
-            }
+            await deleteRecordWithVersion('pengangkutan_limbah', item.id, getRecordBaseVersion(item));
             removeLocalRecordQueue(item);
             removeCachedServerRow('pengangkutan_limbah', item.id);
             MySwal.fire('Terhapus!', 'Data berhasil dihapus', 'success');
             fetchData();
         } catch (e) {
-            if (!navigator.onLine || e.message?.includes('Failed to fetch') || e.message?.includes('network')) {
-                saveToOfflineQueue('pengangkutan_limbah', 'delete', item, `Hapus Pengangkutan ${item.tanggal}`);
+            if (isNetworkError(e)) {
+                saveToOfflineQueue(
+                    'pengangkutan_limbah',
+                    'delete',
+                    item,
+                    `Hapus Pengangkutan ${item.tanggal}`,
+                    { baseUpdatedAt: getRecordBaseVersion(item) }
+                );
                 MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Jaringan terputus. Perintah hapus disimpan dan akan diproses otomatis.', confirmButtonColor: '#ea580c' });
+                fetchData();
+            } else if (isRecordConflictError(e)) {
+                MySwal.fire('Data Sudah Berubah', e.message, 'warning');
                 fetchData();
             } else {
                 MySwal.fire('Gagal', e.message, 'error');
@@ -375,11 +411,21 @@ export default function PengangkutanLimbah() {
         const start = `${y}-${mo}-01`;
         const lastDay = new Date(y, mo, 0).getDate();
         const end = `${y}-${mo}-${String(lastDay).padStart(2, '0')}`;
-        const { data: rows, error } = await supabase
-            .from('pengangkutan_limbah')
-            .select('tanggal, jumlah_kg, keterangan, petugas').gte('tanggal', start).lte('tanggal', end).order('tanggal', { ascending: true });
+        let rows;
+        try {
+            rows = await fetchAllSupabaseRows(() => supabase
+                .from('pengangkutan_limbah')
+                .select('tanggal, jumlah_kg, keterangan, petugas')
+                .gte('tanggal', start)
+                .lte('tanggal', end)
+                .order('tanggal', { ascending: true })
+                .order('id', { ascending: true }));
+        } catch (error) {
+            MySwal.fire('Gagal', error.message || 'Data pengangkutan tidak dapat dimuat.', 'error');
+            return;
+        }
 
-        if (error || !rows?.length) {
+        if (!rows.length) {
             MySwal.fire('Info', 'Tidak ada data bulan ini.', 'info'); return;
         }
 

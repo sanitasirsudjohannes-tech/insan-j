@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getOfflineQueue, syncOfflineQueue } from '../lib/offlineStorage';
+import Swal from 'sweetalert2';
+import {
+  getOfflineQueue,
+  removeOfflineQueueItem,
+  syncOfflineQueue,
+} from '../lib/offlineStorage';
 
 export default function OfflineSyncIndicator() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -79,8 +84,45 @@ export default function OfflineSyncIndicator() {
     };
   }, [isOnline, queue, runSync]);
 
-  const handleManualSync = () => runSync(true, true);
+  const handleManualSync = async () => {
+    const conflictedItems = getOfflineQueue().filter(item => item.syncConflict);
+    if (conflictedItems.length === 0) {
+      await runSync(true, true);
+      return;
+    }
+
+    const choice = await Swal.fire({
+      icon: 'warning',
+      title: `${conflictedItems.length} Draft Bertentangan`,
+      text: 'Data sudah berubah di perangkat lain. Buka draft untuk meninjau perubahannya, atau batalkan draft agar versi server tetap dipakai.',
+      showDenyButton: true,
+      showCancelButton: true,
+      confirmButtonText: 'Pertahankan Draft',
+      denyButtonText: 'Batalkan Draft Konflik',
+      cancelButtonText: 'Tutup',
+      confirmButtonColor: '#2563eb',
+      denyButtonColor: '#dc2626',
+    });
+
+    if (choice.isDenied) {
+      const confirmation = await Swal.fire({
+        icon: 'warning',
+        title: 'Batalkan Perubahan Lokal?',
+        text: `${conflictedItems.length} draft konflik akan dibuang. Data terbaru di server tidak akan diubah.`,
+        showCancelButton: true,
+        confirmButtonText: 'Ya, Batalkan Draft',
+        cancelButtonText: 'Kembali',
+        confirmButtonColor: '#dc2626',
+      });
+      if (!confirmation.isConfirmed) return;
+
+      conflictedItems.forEach(item => removeOfflineQueueItem(item.id));
+    }
+
+    if (choice.isConfirmed || choice.isDenied) await runSync(true, true);
+  };
   const manualRetryCount = queue.filter(item => item.requiresManualRetry).length;
+  const conflictCount = queue.filter(item => item.syncConflict).length;
   const latestError = [...queue].reverse().find(item => item.lastSyncError)?.lastSyncError;
 
   // Bersih: Sembunyikan total jika online & tidak ada antrean pending
@@ -110,7 +152,13 @@ export default function OfflineSyncIndicator() {
           title={latestError || 'Klik untuk menyinkronkan data draft offline ke server'}
         >
           <i className={`fas ${syncing ? 'fa-spinner fa-spin' : manualRetryCount > 0 ? 'fa-exclamation-circle' : 'fa-cloud-upload-alt'} text-white/80 text-[11px]`}></i>
-          <span>{syncing ? 'Menyinkronkan...' : manualRetryCount > 0 ? `Coba Lagi ${queue.length} Draft` : `Kirim ${queue.length} Data Draft`}</span>
+          <span>{syncing
+            ? 'Menyinkronkan...'
+            : conflictCount > 0
+              ? `Periksa ${conflictCount} Konflik`
+              : manualRetryCount > 0
+                ? `Coba Lagi ${queue.length} Draft`
+                : `Kirim ${queue.length} Data Draft`}</span>
         </button>
       )}
     </div>

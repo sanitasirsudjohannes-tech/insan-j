@@ -24,6 +24,15 @@ import Pagination from '../components/limbah/Pagination';
 import { buildAnorganikPrintHTML } from '../components/limbah/anorganik/anorganikPrintTemplate';
 import { printViaHiddenIframe } from '../lib/printHelpers';
 import { getLocalDateString, getLocalMonthString } from '../lib/localDate';
+import { isNetworkError } from '../lib/networkErrors';
+import { fetchAllSupabaseRows } from '../lib/supabasePagination';
+import {
+  deleteRecordWithVersion,
+  getRecordBaseVersion,
+  isRecordConflictError,
+  resolveOfflineRecordConflict,
+  updateRecordWithVersion,
+} from '../lib/recordVersion';
 
 const MySwal = withReactContent(Swal);
 
@@ -251,6 +260,7 @@ export default function LimbahAnorganik({ embedded = false }) {
     };
     const insertPayload = { ...payload, created_by: user?.id };
     let recordId = formData.id;
+    let baseUpdatedAt = formData.baseUpdatedAt || null;
     let isLocalDraft = Boolean(recordId) && String(recordId).startsWith('off_');
 
     try {
@@ -268,7 +278,8 @@ export default function LimbahAnorganik({ embedded = false }) {
       if (!navigator.onLine || isLocalDraft) {
         saveToOfflineQueue('limbah_anorganik', formData.id ? 'update' : 'insert',
           formData.id ? { ...payload, id: recordId } : insertPayload,
-          `Input Limbah Anorganik ${formData.ruangan}`);
+          `Input Limbah Anorganik ${formData.ruangan}`,
+          { baseUpdatedAt });
         MySwal.fire({
           icon: 'info',
           title: 'Tersimpan Offline',
@@ -279,22 +290,21 @@ export default function LimbahAnorganik({ embedded = false }) {
         });
       } else {
         if (formData.id) {
-          const pendingRecordUpdate = getOfflineQueue().some(item => {
+          const pendingRecordUpdate = getOfflineQueue().find(item => {
             if (item.table !== 'limbah_anorganik') return false;
             const references = [item.serverId, item.payload?.id, item.payload?.serverId];
             return references.some(reference => reference != null && String(reference) === String(recordId));
           });
 
-          if (pendingRecordUpdate) await syncOfflineQueue(false, true);
+          if (pendingRecordUpdate) {
+            await syncOfflineQueue(false, true);
+            const stillPending = getOfflineQueue().some(item => item.id === pendingRecordUpdate.id);
+            if (!stillPending && pendingRecordUpdate.action === 'update') {
+              baseUpdatedAt = pendingRecordUpdate.payload?.waktu_input || baseUpdatedAt;
+            }
+          }
 
-          const { data: updatedRow, error } = await supabase
-            .from('limbah_anorganik')
-            .update(payload)
-            .eq('id', recordId)
-            .select('id')
-            .maybeSingle();
-          if (error) throw error;
-          if (!updatedRow?.id) throw new Error('Data tidak ditemukan atau Anda tidak memiliki izin untuk mengubahnya.');
+          await updateRecordWithVersion('limbah_anorganik', recordId, payload, baseUpdatedAt);
           cacheServerRows('limbah_anorganik', [{ ...payload, id: recordId }]);
           if (pendingRecordUpdate) removeLocalRecordQueue({ id: recordId });
           MySwal.fire('Berhasil', 'Data limbah anorganik berhasil diubah', 'success');
@@ -307,12 +317,16 @@ export default function LimbahAnorganik({ embedded = false }) {
       setFormData(emptyForm);
       fetchData();
     } catch (error) {
-      if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
+      if (isNetworkError(error)) {
         saveToOfflineQueue('limbah_anorganik', formData.id ? 'update' : 'insert',
           formData.id ? { ...payload, id: recordId } : insertPayload,
-          `Input Limbah Anorganik ${formData.ruangan}`);
+          `Input Limbah Anorganik ${formData.ruangan}`,
+          { baseUpdatedAt });
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Jaringan terputus. Data telah disimpan di HP (Draft) dan akan dikirim otomatis.', confirmButtonColor: '#0891b2' });
         setFormData(emptyForm);
+      } else if (isRecordConflictError(error)) {
+        MySwal.fire('Data Sudah Berubah', error.message, 'warning');
+        fetchData();
       } else {
         MySwal.fire('Gagal', error.message, 'error');
       }
@@ -321,7 +335,19 @@ export default function LimbahAnorganik({ embedded = false }) {
     }
   };
 
-  const handleEdit = (item) => {
+  const handleEdit = async (item) => {
+    try {
+      const resolution = await resolveOfflineRecordConflict('limbah_anorganik', item, MySwal);
+      if (!resolution) return;
+      if (resolution.discardDraft) removeLocalRecordQueue({ id: item.id });
+      if (!resolution.record) { fetchData(); return; }
+      item = resolution.record;
+      if (resolution.discardDraft) cacheServerRows('limbah_anorganik', [item]);
+    } catch (error) {
+      MySwal.fire('Gagal', error.message, 'error');
+      return;
+    }
+
     setFormData({
       id: item.id,
       tanggal: item.tanggal,
@@ -333,6 +359,7 @@ export default function LimbahAnorganik({ embedded = false }) {
       botol_mineral: item.botol_mineral,
       bayclin_dll: item.bayclin_dll,
       keterangan: item.keterangan || '',
+      baseUpdatedAt: getRecordBaseVersion(item),
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -367,29 +394,37 @@ export default function LimbahAnorganik({ embedded = false }) {
       }
 
       if (!navigator.onLine) {
-        saveToOfflineQueue('limbah_anorganik', 'delete', item, `Hapus Limbah Anorganik ${item.ruangan || ''}`);
+        saveToOfflineQueue(
+          'limbah_anorganik',
+          'delete',
+          item,
+          `Hapus Limbah Anorganik ${item.ruangan || ''}`,
+          { baseUpdatedAt: getRecordBaseVersion(item) }
+        );
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Perintah hapus disimpan di HP. Akan diproses otomatis saat terhubung internet.', confirmButtonColor: '#0891b2' });
         fetchData();
         return;
       }
 
-      const { data: deletedRow, error } = await supabase
-        .from('limbah_anorganik')
-        .delete()
-        .eq('id', item.id)
-        .select('id')
-        .maybeSingle();
-      if (error) throw error;
-      if (!deletedRow?.id) throw new Error('Data tidak ditemukan atau Anda tidak memiliki izin untuk menghapusnya.');
+      await deleteRecordWithVersion('limbah_anorganik', item.id, getRecordBaseVersion(item));
 
       removeLocalRecordQueue(item);
       removeCachedServerRow('limbah_anorganik', item.id);
       MySwal.fire('Terhapus', 'Data berhasil dihapus', 'success');
       fetchData();
     } catch (error) {
-      if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
-        saveToOfflineQueue('limbah_anorganik', 'delete', item, `Hapus Limbah Anorganik ${item.ruangan || ''}`);
+      if (isNetworkError(error)) {
+        saveToOfflineQueue(
+          'limbah_anorganik',
+          'delete',
+          item,
+          `Hapus Limbah Anorganik ${item.ruangan || ''}`,
+          { baseUpdatedAt: getRecordBaseVersion(item) }
+        );
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Jaringan terputus. Perintah hapus disimpan dan akan diproses otomatis.', confirmButtonColor: '#0891b2' });
+        fetchData();
+      } else if (isRecordConflictError(error)) {
+        MySwal.fire('Data Sudah Berubah', error.message, 'warning');
         fetchData();
       } else {
         MySwal.fire('Gagal', error.message, 'error');
@@ -425,13 +460,17 @@ export default function LimbahAnorganik({ embedded = false }) {
     const printedDate = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
     try {
       MySwal.fire({ title: 'Menyiapkan Laporan...', html: 'Mohon tunggu, data sedang diproses.', allowOutsideClick: false, allowEscapeKey: false, didOpen: () => MySwal.showLoading() });
-      let q = supabase.from('limbah_anorganik')
-        .select('tanggal, ruangan, infus, jerigen, kertas, kardus, botol_mineral, bayclin_dll, petugas, keterangan')
-        .gte('tanggal', s).lte('tanggal', en)
-        .order('tanggal', { ascending: true }).order('ruangan', { ascending: true });
-      if (selR) q = q.eq('ruangan', selR);
-      const { data: printData, error } = await q;
-      if (error) throw error;
+      const printData = await fetchAllSupabaseRows(() => {
+        let query = supabase.from('limbah_anorganik')
+          .select('tanggal, ruangan, infus, jerigen, kertas, kardus, botol_mineral, bayclin_dll, petugas, keterangan')
+          .gte('tanggal', s)
+          .lte('tanggal', en)
+          .order('tanggal', { ascending: true })
+          .order('ruangan', { ascending: true })
+          .order('id', { ascending: true });
+        if (selR) query = query.eq('ruangan', selR);
+        return query;
+      });
       if (!printData?.length) {
         MySwal.fire({ icon: 'info', title: 'Tidak Ada Data', text: 'Tidak ada data limbah anorganik untuk periode dan ruangan yang dipilih.', confirmButtonColor: '#2563eb' });
         return;

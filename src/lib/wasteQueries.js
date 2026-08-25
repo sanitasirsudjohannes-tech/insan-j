@@ -1,27 +1,27 @@
 import { supabase } from './supabase';
+import { fetchAllSupabaseRows } from './supabasePagination';
 
 /**
  * Fetches raw waste rows from both `limbah_padat` and `limbah_ruangan` tables in parallel.
  * Returns an object containing { padatRows, ruanganRows }.
  */
 export async function fetchWasteRows() {
-  const [{ data: padatRows, error: errPadat }, { data: ruanganRows, error: errRuangan }] = await Promise.all([
-    supabase
+  const [padatRows, ruanganRows] = await Promise.all([
+    fetchAllSupabaseRows(() => supabase
       .from('limbah_padat')
       .select('tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
-      .order('tanggal', { ascending: true }),
-    supabase
+      .order('tanggal', { ascending: true })
+      .order('id', { ascending: true })),
+    fetchAllSupabaseRows(() => supabase
       .from('limbah_ruangan')
       .select('tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
       .order('tanggal', { ascending: true })
+      .order('id', { ascending: true }))
   ]);
 
-  if (errPadat) throw errPadat;
-  if (errRuangan) throw errRuangan;
-
   return {
-    padatRows: padatRows || [],
-    ruanganRows: ruanganRows || []
+    padatRows,
+    ruanganRows
   };
 }
 
