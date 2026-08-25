@@ -455,7 +455,16 @@ const performOfflineSync = async (showNotification = true) => {
         error = err;
 
         if (!error && !deletedRow?.id) {
-          throw new Error(`Data untuk dihapus tidak ditemukan atau akses ditolak (ID: ${serverId}). Antrean tetap disimpan.`);
+          const { data: remainingRow, error: verificationError } = await supabase
+            .from(item.table)
+            .select('id')
+            .eq('id', serverId)
+            .maybeSingle();
+
+          if (verificationError) throw verificationError;
+          if (remainingRow?.id) {
+            throw new Error(`Data untuk dihapus masih ada atau akses ditolak (ID: ${serverId}). Antrean tetap disimpan.`);
+          }
         }
         if (!error) removeCachedServerRow(item.table, serverId);
       } else {

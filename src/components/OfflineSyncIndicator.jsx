@@ -1,12 +1,33 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { getOfflineQueue, syncOfflineQueue } from '../lib/offlineStorage';
+
+const AUTO_SYNC_INTERVAL_MS = 30_000;
 
 export default function OfflineSyncIndicator() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [queue, setQueue] = useState([]);
   const [syncing, setSyncing] = useState(false);
+  const syncingRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  const runSync = useCallback(async (showNotification = false) => {
+    if (!navigator.onLine || getOfflineQueue().length === 0 || syncingRef.current) return;
+
+    syncingRef.current = true;
+    setSyncing(true);
+
+    try {
+      await syncOfflineQueue(showNotification);
+    } catch (error) {
+      console.error('Sinkronisasi draft offline gagal:', error);
+    } finally {
+      syncingRef.current = false;
+      if (mountedRef.current) setSyncing(false);
+    }
+  }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     setQueue(getOfflineQueue());
 
     const handleOnline = () => setIsOnline(true);
@@ -18,18 +39,35 @@ export default function OfflineSyncIndicator() {
     window.addEventListener('offline-queue-changed', handleQueueChange);
 
     return () => {
+      mountedRef.current = false;
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('offline-queue-changed', handleQueueChange);
     };
   }, []);
 
-  const handleManualSync = async () => {
-    if (!isOnline || queue.length === 0 || syncing) return;
-    setSyncing(true);
-    await syncOfflineQueue(true);
-    setSyncing(false);
-  };
+  useEffect(() => {
+    if (!isOnline || queue.length === 0) return;
+
+    runSync();
+
+    const handleFocus = () => runSync();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') runSync();
+    };
+    const intervalId = window.setInterval(handleFocus, AUTO_SYNC_INTERVAL_MS);
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isOnline, queue.length, runSync]);
+
+  const handleManualSync = () => runSync(true);
 
   // Bersih: Sembunyikan total jika online & tidak ada antrean pending
   if (isOnline && queue.length === 0) {
