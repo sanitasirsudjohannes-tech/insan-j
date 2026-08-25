@@ -39,7 +39,7 @@ export default function RuanganForm({
         <div className="p-6">
           <form onSubmit={handleSubmit}>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              <div>
+              <div className="md:order-1">
                 <div className="flex justify-between items-center mb-1">
                   <label className="block text-gray-700 font-bold text-sm">Tanggal</label>
                   {!formData.id && (
@@ -72,33 +72,8 @@ export default function RuanganForm({
                 />
               </div>
 
-              <div>
-                <label className="block text-gray-700 font-bold text-sm mb-1">Ruangan / Unit</label>
-                <button
-                  type="button"
-                  onClick={() => setShowRuanganSheet(true)}
-                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-left flex items-center justify-between text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
-                >
-                  <span className={formData.ruangan ? 'text-gray-800 font-medium' : 'text-gray-400'}>
-                    {formData.ruangan || '-- Ketik atau pilih ruangan --'}
-                  </span>
-                  <i className="fas fa-chevron-down text-gray-400 text-xs" />
-                </button>
-              </div>
-
-              <div>
-                <label className="block text-gray-700 font-bold text-sm mb-1">Petugas Input</label>
-                <input
-                  type="text"
-                  value={user?.nama || 'Petugas'}
-                  readOnly
-                  className="w-full border border-gray-200 bg-gray-100 text-gray-500 rounded-xl px-3 py-2.5 cursor-not-allowed text-sm font-medium"
-                />
-              </div>
-            </div>
-
-            {formData.isDistribusi && !formData.id && (
-              <div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+              {formData.isDistribusi && !formData.id && (
+              <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl md:order-4 md:col-span-3">
                 <div className="flex justify-between items-center mb-3">
                   <label className="block text-emerald-800 font-bold text-sm">Tanggal Distribusi Tambahan</label>
                   <button
@@ -162,7 +137,32 @@ export default function RuanganForm({
                   Total jumlah limbah akan <strong>dibagi rata</strong> ke <strong>{1 + uniqueDistributionDates.size} hari</strong> (termasuk tanggal utama).
                 </div>
               </div>
-            )}
+              )}
+
+              <div className="md:order-2">
+                <label className="block text-gray-700 font-bold text-sm mb-1">Ruangan / Unit</label>
+                <button
+                  type="button"
+                  onClick={() => setShowRuanganSheet(true)}
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-left flex items-center justify-between text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none bg-white"
+                >
+                  <span className={formData.ruangan ? 'text-gray-800 font-medium' : 'text-gray-400'}>
+                    {formData.ruangan || '-- Ketik atau pilih ruangan --'}
+                  </span>
+                  <i className="fas fa-chevron-down text-gray-400 text-xs" />
+                </button>
+              </div>
+
+              <div className="md:order-3">
+                <label className="block text-gray-700 font-bold text-sm mb-1">Petugas Input</label>
+                <input
+                  type="text"
+                  value={user?.nama || 'Petugas'}
+                  readOnly
+                  className="w-full border border-gray-200 bg-gray-100 text-gray-500 rounded-xl px-3 py-2.5 cursor-not-allowed text-sm font-medium"
+                />
+              </div>
+            </div>
 
             <div className="mb-4">
               <label className="block text-gray-800 font-bold text-sm mb-2">Jumlah Timbulan Limbah (Kg)</label>
