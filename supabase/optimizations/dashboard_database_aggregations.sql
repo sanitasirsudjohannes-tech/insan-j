@@ -119,9 +119,11 @@ $$;
 -- Hapus signature lama tanpa parameter. Signature baru tetap dapat dipanggil
 -- tanpa argumen karena requested_year memiliki nilai default.
 DROP FUNCTION IF EXISTS public.dashboard_jenis_limbah_summary();
+DROP FUNCTION IF EXISTS public.dashboard_jenis_limbah_summary(integer);
 
 CREATE OR REPLACE FUNCTION public.dashboard_jenis_limbah_summary(
-  requested_year integer DEFAULT NULL
+  requested_year integer DEFAULT NULL,
+  requested_month integer DEFAULT NULL
 )
 RETURNS jsonb
 LANGUAGE sql
@@ -152,6 +154,14 @@ AS $$
       (SELECT MAX(year) FROM available_years),
       EXTRACT(YEAR FROM current_date)::integer
     ) AS selected_year
+  ), filtered_rows AS (
+    SELECT *
+    FROM source_rows
+    WHERE EXTRACT(YEAR FROM tanggal)::integer = (SELECT selected_year FROM selected)
+      AND (
+        requested_month IS NULL
+        OR EXTRACT(MONTH FROM tanggal)::integer = requested_month
+      )
   ), daily AS (
     SELECT
       tanggal,
@@ -159,8 +169,7 @@ AS $$
       SUM(COALESCE(jarum_suntik, 0)::numeric) AS jarum_suntik,
       SUM(COALESCE(botol_obat, 0)::numeric) AS botol_obat,
       SUM(COALESCE(sitotoksik, 0)::numeric) AS sitotoksik
-    FROM source_rows
-    WHERE EXTRACT(YEAR FROM tanggal)::integer = (SELECT selected_year FROM selected)
+    FROM filtered_rows
     GROUP BY tanggal
   ), monthly AS (
     SELECT
@@ -171,6 +180,10 @@ AS $$
   )
   SELECT jsonb_build_object(
     'selectedYear', (SELECT selected_year FROM selected),
+    'selectedMonth', CASE
+      WHEN requested_month BETWEEN 1 AND 12 THEN requested_month
+      ELSE NULL
+    END,
     'availableYears', COALESCE((
       SELECT jsonb_agg(year ORDER BY year DESC)
       FROM available_years
@@ -181,13 +194,31 @@ AS $$
       'botol_obat', COALESCE((SELECT SUM(botol_obat) FROM daily), 0),
       'sitotoksik', COALESCE((SELECT SUM(sitotoksik) FROM daily), 0)
     ),
+    'totalWaste', COALESCE((
+      SELECT SUM(infeksius + jarum_suntik + botol_obat + sitotoksik)
+      FROM daily
+    ), 0),
+    'activeDays', (SELECT COUNT(*) FROM daily),
+    'activeMonths', (SELECT COUNT(*) FROM monthly),
+    'dailyAverage', COALESCE((
+      SELECT SUM(infeksius + jarum_suntik + botol_obat + sitotoksik)
+        / NULLIF(COUNT(*), 0)
+      FROM daily
+    ), 0),
+    'monthlyAverage', CASE
+      WHEN requested_month IS NULL THEN COALESCE((
+        SELECT SUM(total) / NULLIF(COUNT(*), 0)
+        FROM monthly
+      ), 0)
+      ELSE NULL
+    END,
     'daily', COALESCE((
       SELECT jsonb_agg(to_jsonb(recent_daily) ORDER BY tanggal)
       FROM (
         SELECT tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik
         FROM daily
         ORDER BY tanggal DESC
-        LIMIT 30
+        LIMIT CASE WHEN requested_month IS NULL THEN 30 ELSE 31 END
       ) AS recent_daily
     ), '[]'::jsonb),
     'monthly', COALESCE((
@@ -533,7 +564,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.dashboard_pengangkutan_summary(text) FROM PUBLIC, anon;
-REVOKE ALL ON FUNCTION public.dashboard_jenis_limbah_summary(integer) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.dashboard_jenis_limbah_summary(integer, integer) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.dashboard_anorganik_summary(text) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.dashboard_admin_inspeksi_summary(text) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.dashboard_missing_waste_dates(date, date) FROM PUBLIC, anon;
@@ -541,7 +572,7 @@ REVOKE ALL ON FUNCTION public.rekap_limbah_monthly_summary(jsonb, jsonb, jsonb) 
 REVOKE ALL ON FUNCTION public.rekap_limbah_yearly_summary(integer, jsonb, jsonb, jsonb) FROM PUBLIC, anon;
 
 GRANT EXECUTE ON FUNCTION public.dashboard_pengangkutan_summary(text) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.dashboard_jenis_limbah_summary(integer) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.dashboard_jenis_limbah_summary(integer, integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.dashboard_anorganik_summary(text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.dashboard_admin_inspeksi_summary(text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.dashboard_missing_waste_dates(date, date) TO authenticated;
