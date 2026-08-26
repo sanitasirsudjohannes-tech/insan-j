@@ -11,23 +11,26 @@ function EmptyState() {
   );
 }
 
-function MobileValue({ label, value, tone = 'slate', highlight = false }) {
+function CompactValue({ label, value, tone = 'slate', highlight = false }) {
   const toneClasses = {
     slate: 'text-slate-800',
     blue: 'text-blue-700',
     orange: 'text-orange-700',
-    red: 'text-red-600'
+    red: 'text-red-600',
+    lightBlue: 'text-blue-300',
+    lightOrange: 'text-orange-300'
   };
 
   return (
-    <div className="min-w-0">
-      <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
+    <div className="min-w-0 text-center">
+      <p className="mb-0.5 truncate text-[8px] font-bold uppercase tracking-tight text-slate-400">{label}</p>
       <p
-        className={`break-words text-sm font-bold tabular-nums ${toneClasses[tone]} ${
-          highlight ? 'inline-block rounded-lg bg-red-50 px-2 py-1' : ''
+        className={`truncate text-[10px] font-extrabold tabular-nums sm:text-xs ${toneClasses[tone]} ${
+          highlight ? 'rounded-md bg-red-50 px-0.5 py-0.5' : ''
         }`}
+        title={`${value} kg`}
       >
-        {value}
+        {value}<span className="ml-0.5 text-[7px] font-semibold text-slate-400">kg</span>
       </p>
     </div>
   );
@@ -37,71 +40,55 @@ function MobileRekapCards({ tableRows, summary }) {
   if (tableRows.length === 0) return <EmptyState />;
 
   return (
-    <div className="space-y-3 p-3">
+    <div className="space-y-2 p-2.5">
       {tableRows.map((row, idx) => {
         const isNegative = row.sisaAkhir < 0;
 
         return (
           <article
             key={row.yearMonth}
-            className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+            className="grid grid-cols-[minmax(58px,1.15fr)_repeat(4,minmax(0,1fr))] items-center gap-1 rounded-xl border border-slate-200 bg-white px-2 py-2.5 shadow-sm"
           >
-            <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-black text-blue-700">
-                {idx + 1}
-              </span>
-              <h3 className="min-w-0 flex-1 truncate text-sm font-extrabold text-slate-900">
+            <div className="min-w-0 border-r border-slate-100 pr-1.5">
+              <p className="text-[8px] font-bold uppercase tracking-tight text-slate-400">{idx + 1}</p>
+              <h3 className="truncate text-[11px] font-extrabold text-slate-900 sm:text-xs" title={row.monthName}>
                 {row.monthName}
               </h3>
               {!row.hasData && (
-                <span className="shrink-0 rounded-full bg-slate-200 px-2 py-1 text-[10px] font-bold text-slate-500">
-                  Tanpa data
-                </span>
+                <span className="block truncate text-[8px] font-bold text-slate-400">Tanpa data</span>
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-x-4 gap-y-4 px-4 py-4">
-              <MobileValue label="Sisa awal" value={formatKg(row.sisaAwal)} />
-              <MobileValue
+              <CompactValue label="S. Awal" value={formatKg(row.sisaAwal, '')} />
+              <CompactValue
                 label="Timbulan"
-                value={row.hasData ? formatKg(row.timbulan) : '—'}
+                value={row.hasData ? formatKg(row.timbulan, '') : '—'}
                 tone="blue"
               />
-              <MobileValue
+              <CompactValue
                 label="Diangkut"
-                value={row.hasData ? formatKg(row.diangkut) : '—'}
+                value={row.hasData ? formatKg(row.diangkut, '') : '—'}
                 tone="orange"
               />
-              <MobileValue
-                label="Sisa akhir"
-                value={formatKg(row.sisaAkhir)}
+              <CompactValue
+                label="S. Akhir"
+                value={formatKg(row.sisaAkhir, '')}
                 tone={isNegative ? 'red' : 'slate'}
                 highlight={isNegative}
               />
-            </div>
           </article>
         );
       })}
 
-      <div className="rounded-xl bg-slate-900 px-4 py-4 text-white shadow-sm">
-        <p className="mb-4 text-xs font-black uppercase tracking-widest text-slate-300">
-          Total Periode
-        </p>
-        <div className="grid grid-cols-2 gap-x-4 gap-y-4">
-          <MobileValue label="Total timbulan" value={formatKg(summary.totalTimbulan)} tone="blue" />
-          <MobileValue label="Total diangkut" value={formatKg(summary.totalDiangkut)} tone="orange" />
-          <div className="col-span-2 border-t border-slate-700 pt-3">
-            <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-slate-400">
-              Sisa akumulasi
-            </p>
-            <p
-              className={`text-base font-black tabular-nums ${
-                summary.sisaAkumulasi < 0 ? 'text-red-300' : 'text-white'
-              }`}
-            >
-              {formatKg(summary.sisaAkumulasi)}
-            </p>
-          </div>
+      <div className="grid grid-cols-[minmax(72px,1.15fr)_repeat(3,minmax(0,1fr))] items-center gap-1 rounded-xl bg-slate-900 px-2.5 py-3 text-white shadow-sm">
+        <p className="text-[10px] font-black uppercase tracking-wide text-slate-300">Total Periode</p>
+        <CompactValue label="Timbulan" value={formatKg(summary.totalTimbulan, '')} tone="lightBlue" />
+        <CompactValue label="Diangkut" value={formatKg(summary.totalDiangkut, '')} tone="lightOrange" />
+        <div className="min-w-0 text-center">
+          <p className="mb-0.5 truncate text-[8px] font-bold uppercase tracking-tight text-slate-400">Sisa</p>
+          <p className={`truncate text-[10px] font-extrabold tabular-nums sm:text-xs ${summary.sisaAkumulasi < 0 ? 'text-red-300' : 'text-white'}`}>
+            {formatKg(summary.sisaAkumulasi, '')}<span className="ml-0.5 text-[7px] text-slate-400">kg</span>
+          </p>
         </div>
       </div>
     </div>

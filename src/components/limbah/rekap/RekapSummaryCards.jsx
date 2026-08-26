@@ -8,7 +8,6 @@ export default function RekapSummaryCards({ summary }) {
     {
       title: 'Total Timbulan',
       value: formatKg(totalTimbulan),
-      desc: 'Total limbah dihasilkan pada periode ini',
       icon: 'fas fa-recycle',
       bgGradient: 'from-blue-500 to-indigo-600',
       shadowColor: 'shadow-blue-500/20',
@@ -17,7 +16,6 @@ export default function RekapSummaryCards({ summary }) {
     {
       title: 'Total Diangkut',
       value: formatKg(totalDiangkut),
-      desc: 'Total limbah diangkut pada periode ini',
       icon: 'fas fa-truck',
       bgGradient: 'from-amber-500 to-orange-600',
       shadowColor: 'shadow-orange-500/20',
@@ -26,7 +24,6 @@ export default function RekapSummaryCards({ summary }) {
     {
       title: 'Sisa / Akumulasi',
       value: formatKg(sisaAkumulasi),
-      desc: 'Sisa akhir akumulasi pada akhir periode',
       icon: 'fas fa-dumpster',
       bgGradient: sisaAkumulasi > 0 ? 'from-red-500 to-rose-600' : 'from-emerald-500 to-teal-600',
       shadowColor: sisaAkumulasi > 0 ? 'shadow-red-500/20' : 'shadow-emerald-500/20',
@@ -35,7 +32,6 @@ export default function RekapSummaryCards({ summary }) {
     {
       title: 'Rata-rata Timbulan',
       value: formatKg(rataRataTimbulan, ' kg/bulan'),
-      desc: 'Rata-rata limbah per bulan aktif',
       icon: 'fas fa-chart-line',
       bgGradient: 'from-purple-500 to-violet-600',
       shadowColor: 'shadow-purple-500/20',
@@ -44,28 +40,21 @@ export default function RekapSummaryCards({ summary }) {
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
       {cards.map((c, i) => (
         <div
           key={i}
-          className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md transition-all duration-200 flex flex-col justify-between"
+          className="bg-white rounded-xl md:rounded-2xl p-3.5 md:p-5 shadow-sm border border-slate-100 hover:shadow-md transition-all duration-200 flex min-w-0 flex-col items-center justify-center text-center"
         >
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              {c.title}
-            </span>
-            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${c.bgGradient} text-white flex items-center justify-center shadow-lg ${c.shadowColor}`}>
+          <div className={`w-9 h-9 md:w-10 md:h-10 rounded-full bg-gradient-to-br ${c.bgGradient} text-white flex items-center justify-center shadow-lg ${c.shadowColor} mb-2.5`}>
               <i className={`${c.icon} text-sm`}></i>
-            </div>
           </div>
-          <div>
-            <h3 className="text-2xl font-black text-slate-800 tracking-tight">
-              {c.value}
-            </h3>
-            <p className="text-xs text-slate-500 mt-1 font-medium">
-              {c.desc}
-            </p>
-          </div>
+          <span className="min-h-7 text-[10px] md:text-xs font-bold uppercase tracking-wide text-slate-500 leading-tight flex items-center">
+            {c.title}
+          </span>
+          <h3 className="mt-1 max-w-full truncate text-lg md:text-2xl font-black text-slate-800 tracking-tight">
+            {c.value}
+          </h3>
         </div>
       ))}
     </div>
