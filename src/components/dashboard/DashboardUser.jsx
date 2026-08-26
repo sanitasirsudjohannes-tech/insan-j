@@ -73,7 +73,7 @@ export default function DashboardUser({ user }) {
               : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
               }`}
           >
-            <i className="fas fa-layer-group mr-2"></i> Jenis & Trend Bulanan
+            <i className="fas fa-layer-group mr-2"></i> Jenis & Tren Tahunan
           </button>
           <button
             onClick={() => setActiveTab('anorganik')}

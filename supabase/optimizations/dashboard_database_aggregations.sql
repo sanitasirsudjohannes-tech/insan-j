@@ -116,7 +116,13 @@ AS $$
   );
 $$;
 
-CREATE OR REPLACE FUNCTION public.dashboard_jenis_limbah_summary()
+-- Hapus signature lama tanpa parameter. Signature baru tetap dapat dipanggil
+-- tanpa argumen karena requested_year memiliki nilai default.
+DROP FUNCTION IF EXISTS public.dashboard_jenis_limbah_summary();
+
+CREATE OR REPLACE FUNCTION public.dashboard_jenis_limbah_summary(
+  requested_year integer DEFAULT NULL
+)
 RETURNS jsonb
 LANGUAGE sql
 STABLE
@@ -133,6 +139,19 @@ AS $$
     SELECT tanggal::date, infeksius, jarum_suntik, botol_obat, sitotoksik
     FROM public.limbah_ruangan
     WHERE tanggal IS NOT NULL
+  ), available_years AS (
+    SELECT DISTINCT EXTRACT(YEAR FROM tanggal)::integer AS year
+    FROM source_rows
+  ), selected AS (
+    SELECT COALESCE(
+      (
+        SELECT requested_year
+        WHERE requested_year BETWEEN 2000 AND 9999
+          AND EXISTS (SELECT 1 FROM available_years WHERE year = requested_year)
+      ),
+      (SELECT MAX(year) FROM available_years),
+      EXTRACT(YEAR FROM current_date)::integer
+    ) AS selected_year
   ), daily AS (
     SELECT
       tanggal,
@@ -141,6 +160,7 @@ AS $$
       SUM(COALESCE(botol_obat, 0)::numeric) AS botol_obat,
       SUM(COALESCE(sitotoksik, 0)::numeric) AS sitotoksik
     FROM source_rows
+    WHERE EXTRACT(YEAR FROM tanggal)::integer = (SELECT selected_year FROM selected)
     GROUP BY tanggal
   ), monthly AS (
     SELECT
@@ -150,6 +170,11 @@ AS $$
     GROUP BY to_char(tanggal, 'YYYY-MM')
   )
   SELECT jsonb_build_object(
+    'selectedYear', (SELECT selected_year FROM selected),
+    'availableYears', COALESCE((
+      SELECT jsonb_agg(year ORDER BY year DESC)
+      FROM available_years
+    ), jsonb_build_array((SELECT selected_year FROM selected))),
     'summary', jsonb_build_object(
       'infeksius', COALESCE((SELECT SUM(infeksius) FROM daily), 0),
       'jarum_suntik', COALESCE((SELECT SUM(jarum_suntik) FROM daily), 0),
@@ -171,7 +196,6 @@ AS $$
         SELECT bulan, total
         FROM monthly
         ORDER BY bulan DESC
-        LIMIT 12
       ) AS recent_monthly
     ), '[]'::jsonb)
   );
@@ -509,7 +533,7 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.dashboard_pengangkutan_summary(text) FROM PUBLIC, anon;
-REVOKE ALL ON FUNCTION public.dashboard_jenis_limbah_summary() FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.dashboard_jenis_limbah_summary(integer) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.dashboard_anorganik_summary(text) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.dashboard_admin_inspeksi_summary(text) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.dashboard_missing_waste_dates(date, date) FROM PUBLIC, anon;
@@ -517,7 +541,7 @@ REVOKE ALL ON FUNCTION public.rekap_limbah_monthly_summary(jsonb, jsonb, jsonb) 
 REVOKE ALL ON FUNCTION public.rekap_limbah_yearly_summary(integer, jsonb, jsonb, jsonb) FROM PUBLIC, anon;
 
 GRANT EXECUTE ON FUNCTION public.dashboard_pengangkutan_summary(text) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.dashboard_jenis_limbah_summary() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.dashboard_jenis_limbah_summary(integer) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.dashboard_anorganik_summary(text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.dashboard_admin_inspeksi_summary(text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.dashboard_missing_waste_dates(date, date) TO authenticated;

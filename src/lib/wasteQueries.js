@@ -6,23 +6,30 @@ import { fetchSharedCachedResource } from './databaseAggregations';
  * Fetches raw waste rows from both `limbah_padat` and `limbah_ruangan` tables in parallel.
  * Returns an object containing { padatRows, ruanganRows }.
  */
-export async function fetchWasteRows() {
+export async function fetchWasteRows({ startDate = null, endDate = null } = {}) {
+  const buildQuery = table => {
+    let query = supabase
+      .from(table)
+      .select('tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
+      .order('tanggal', { ascending: true })
+      .order('id', { ascending: true });
+
+    if (startDate) query = query.gte('tanggal', startDate);
+    if (endDate) query = query.lt('tanggal', endDate);
+    return query;
+  };
+
   return fetchSharedCachedResource('legacy:waste-rows', async () => {
     const [padatRows, ruanganRows] = await Promise.all([
-      fetchAllSupabaseRows(() => supabase
-        .from('limbah_padat')
-        .select('tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
-        .order('tanggal', { ascending: true })
-        .order('id', { ascending: true })),
-      fetchAllSupabaseRows(() => supabase
-        .from('limbah_ruangan')
-        .select('tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
-        .order('tanggal', { ascending: true })
-        .order('id', { ascending: true }))
+      fetchAllSupabaseRows(() => buildQuery('limbah_padat')),
+      fetchAllSupabaseRows(() => buildQuery('limbah_ruangan')),
     ]);
 
     return { padatRows, ruanganRows };
-  }, { tables: ['limbah_padat', 'limbah_ruangan'] });
+  }, {
+    parameters: { startDate, endDate },
+    tables: ['limbah_padat', 'limbah_ruangan'],
+  });
 }
 
 /**
