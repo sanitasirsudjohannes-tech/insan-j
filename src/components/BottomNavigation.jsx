@@ -12,17 +12,14 @@ const NavItem = ({ item, onClick }) => (
   >
     {({ isActive }) => (
       <>
-        <span className={`${item.emphasized ? '-mt-7 h-13 w-13 rounded-2xl' : 'h-9 w-12 rounded-xl'} relative flex items-center justify-center transition-all duration-200 ${
-          item.emphasized
-            ? `border border-white/70 bg-linear-to-br from-cyan-400 via-blue-500 to-indigo-600 text-white shadow-[0_8px_0_#1d4ed8,0_13px_22px_rgba(37,99,235,0.38)] ${isActive ? '-translate-y-1 scale-105' : 'active:translate-y-1 active:shadow-[0_4px_0_#1d4ed8,0_7px_14px_rgba(37,99,235,0.3)]'}`
-            : isActive
-              ? '-translate-y-0.5 border border-white bg-linear-to-b from-white to-blue-50 shadow-[0_5px_10px_rgba(37,99,235,0.18),inset_0_1px_0_white]'
-              : 'border border-transparent group-active:translate-y-0.5 group-active:bg-slate-100'
+        <span className={`relative flex h-9 w-12 items-center justify-center rounded-xl border transition-all duration-200 ${
+          isActive
+            ? '-translate-y-0.5 border-white bg-linear-to-b from-white to-blue-50 shadow-[0_5px_10px_rgba(37,99,235,0.18),inset_0_1px_0_white]'
+            : 'border-transparent group-active:translate-y-0.5 group-active:bg-slate-100'
         }`}>
-          {item.emphasized && <span className="absolute inset-x-2 top-1 h-1/3 rounded-full bg-white/25 blur-[1px]" />}
-          <i className={`${item.icon} relative text-base ${item.emphasized ? 'text-lg drop-shadow-sm' : ''}`} />
+          <i className={`${item.icon} relative text-base`} />
         </span>
-        <span className={`max-w-full truncate ${item.emphasized ? 'mt-0.5 text-blue-700' : ''}`}>{item.label}</span>
+        <span className="max-w-full truncate">{item.label}</span>
       </>
     )}
   </NavLink>
@@ -42,7 +39,7 @@ export default function BottomNavigation() {
       return {
         primaryItems: [
           { to: '/dashboard', label: 'Beranda', icon: 'fas fa-house' },
-          { to: '/limbah-dihasilkan', label: 'Input', icon: 'fas fa-plus', emphasized: true },
+          { to: '/limbah-dihasilkan', label: 'Input', icon: 'fas fa-plus' },
           { to: '/akun', label: 'Akun', icon: 'fas fa-user-gear' },
         ],
         moreItems: [],
@@ -66,7 +63,7 @@ export default function BottomNavigation() {
     return {
       primaryItems: [
         { to: '/dashboard', label: 'Beranda', icon: 'fas fa-house' },
-        { to: '/limbah-dihasilkan', label: 'Input', icon: 'fas fa-plus', emphasized: true },
+        { to: '/limbah-dihasilkan', label: 'Input', icon: 'fas fa-plus' },
         { to: '/pengangkutan', label: 'Angkut', icon: 'fas fa-truck' },
         { to: '/rekap-limbah', label: 'Rekap', icon: 'fas fa-file-invoice' },
       ],
