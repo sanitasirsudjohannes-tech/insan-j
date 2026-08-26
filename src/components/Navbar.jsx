@@ -108,7 +108,7 @@ export default function Navbar({ title, showBackButton, onMenuToggle }) {
             {/* Hamburger for mobile */}
             <button
               onClick={onMenuToggle}
-              className="text-gray-600 hover:text-gray-800 focus:outline-none p-2 rounded-lg hover:bg-gray-100 transition"
+              className="hidden md:block text-gray-600 hover:text-gray-800 focus:outline-none p-2 rounded-lg hover:bg-gray-100 transition"
               aria-label="Toggle sidebar"
             >
               <i className="fas fa-bars text-lg"></i>
