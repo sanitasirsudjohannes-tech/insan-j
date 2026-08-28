@@ -7,6 +7,9 @@ import { saveToOfflineQueue } from '../lib/offlineStorage';
 import { AVAILABLE_FORMS, CHECKLIST_ITEMS } from '../lib/constants';
 import { getCurrentUser, fetchDaftarRuangan } from '../lib/api';
 import SearchableBottomSheet from '../components/SearchableBottomSheet';
+import { isNetworkError } from '../lib/networkErrors';
+import { submitInspectionEntries } from '../lib/inspectionSubmission';
+import { notifyDatabaseTablesChanged } from '../lib/databaseAggregations';
 
 const MySwal = withReactContent(Swal);
 
@@ -186,118 +189,95 @@ export default function Inspeksi({ user: propUser }) {
     });
 
     try {
-      const insertionPromises = selectedForms.map(async formId => {
+      const submissionTime = new Date().toISOString();
+      const entries = selectedForms.map(formId => {
         const items = CHECKLIST_ITEMS[formId] || [];
+        const formInfo = AVAILABLE_FORMS.find(f => f.id === formId);
+        const tableName = formInfo?.table;
+
         let totalNilai = 0;
-        let maksimalNilai = items.length * 10;
+        const maksimalNilai = items.length * 10;
+
+        const insertData = {
+          waktu_input: submissionTime,
+          tanggal_pemeriksaan: tanggal,
+          petugas: user.nama,
+          ruangan: lokasi,
+        };
 
         items.forEach(item => {
           const val = formDataState[`${formId}_${item.id}`] || 0;
           totalNilai += val;
+          insertData[item.dbCol] = val;
         });
 
-        const persentase = maksimalNilai > 0 ? Math.round((totalNilai / maksimalNilai) * 100) : 0;
+        insertData.total = totalNilai;
+        insertData.persen = maksimalNilai > 0 ? Math.round((totalNilai / maksimalNilai) * 100) : 0;
+        insertData.nilai_maks = maksimalNilai;
 
-        let tableName = '';
-        let insertData = {
-          waktu_input: new Date().toISOString(),
-          tanggal_pemeriksaan: tanggal,
-          petugas: user.nama,
-          ruangan: lokasi,
-          total: totalNilai,
-          persen: persentase,
-          nilai_maks: maksimalNilai,
+        return {
+          formId,
+          label: formInfo?.name || formId,
+          table: tableName,
+          payload: insertData,
+          description: `Inspeksi ${formInfo?.name || formId}`,
         };
-
-        if (formId === 'ruang_bangunan') {
-          tableName = 'ruang_bangunan';
-          insertData.dinding_bersih = formDataState['ruang_bangunan_dinding_bersih'] || 0;
-          insertData.lantai_rata = formDataState['ruang_bangunan_lantai_rata'] || 0;
-          insertData.tidak_ada_genangan_air = formDataState['ruang_bangunan_genangan_air'] || 0;
-          insertData.plafon_utuh = formDataState['ruang_bangunan_plafon_utuh'] || 0;
-          insertData.tidak_ada_jamur = formDataState['ruang_bangunan_jamur_plafon'] || 0;
-          insertData.sudut_mudah_dibersihkan = formDataState['ruang_bangunan_sudut_ruangan'] || 0;
-          insertData.udara_tidak_pengap = formDataState['ruang_bangunan_udara_pengap'] || 0;
-          insertData.lantai_dibersihkan = formDataState['ruang_bangunan_lantai_rutin'] || 0;
-          insertData.tempat_sampah = formDataState['ruang_bangunan_sampah_baik'] || 0;
-          insertData.tidak_ada_serangga = formDataState['ruang_bangunan_serangga_tikus'] || 0;
-          insertData.toilet_bersih = formDataState['ruang_bangunan_toilet_bersih'] || 0;
-          insertData.sudut_konus = formDataState['ruang_bangunan_sudut_konus'] || 0;
-        } else if (formId === 'pengolahan_limbah') {
-          tableName = 'limbah_medis';
-          insertData.tempat_sampah_sesuai_kode = formDataState['pengolahan_limbah_tempat_sampah_warna'] || 0;
-          insertData.kantong_sesuai_warna = formDataState['pengolahan_limbah_kantong_warna'] || 0;
-          insertData.limbah_tajam_ke_safetybox = formDataState['pengolahan_limbah_limbah_tajam'] || 0;
-          insertData.tidak_ada_pencampuran_limbah = formDataState['pengolahan_limbah_pencampuran_limbah'] || 0;
-          insertData.tempat_sampah_berpenutup = formDataState['pengolahan_limbah_sampah_penutup'] || 0;
-          insertData.tempat_sampah_bersih = formDataState['pengolahan_limbah_sampah_bersih'] || 0;
-          insertData.tempat_sampah_baik = formDataState['pengolahan_limbah_sampah_baik_limbah'] || 0;
-          insertData.tidak_ada_bau = formDataState['pengolahan_limbah_bau_menyengat'] || 0;
-          insertData.tidak_ada_vektor = formDataState['pengolahan_limbah_vektor'] || 0;
-          insertData.troli_tertutup = formDataState['pengolahan_limbah_troli_tertutup'] || 0;
-          insertData.troli_dibersihkan = formDataState['pengolahan_limbah_troli_dibersihkan'] || 0;
-          insertData.troli_baik = formDataState['pengolahan_limbah_troli_baik'] || 0;
-          insertData.troli_kantong_sesuai = formDataState['pengolahan_limbah_troli_kantong'] || 0;
-        } else if (formId === 'toilet') {
-          tableName = 'pemeriksaan_toilet';
-          insertData.lantai_bersih = formDataState['toilet_lantai_bersih_toilet'] || 0;
-          insertData.spal_tidak_tersumbat = formDataState['toilet_spal_tersumbat'] || 0;
-          insertData.tidak_ada_laba_laba = formDataState['toilet_lawa_lawa'] || 0;
-          insertData.closet_bersih_tidak_tersumbat = formDataState['toilet_closet_bersih'] || 0;
-          insertData.bak_air_bersih = formDataState['toilet_bak_air_bersih'] || 0;
-          insertData.bak_air_tidak_retak = formDataState['toilet_bak_air_retak'] || 0;
-          insertData.tidak_ada_jentik = formDataState['toilet_jentik'] || 0;
-          insertData.ventilasi_bersih = formDataState['toilet_ventilasi_bersih'] || 0;
-          insertData.tidak_ada_serangga = formDataState['toilet_serangga_toilet'] || 0;
-          insertData.ada_tempat_sampah = formDataState['toilet_tempat_sampah_toilet'] || 0;
-          insertData.saluran_air_tidak_bocor = formDataState['toilet_saluran_air_bocor'] || 0;
-          insertData.spal_berpenutup = formDataState['toilet_spal_penutup'] || 0;
-          insertData.ada_sabun_cuci_tangan = formDataState['toilet_sabun_cuci'] || 0;
-          insertData.kloset_kondisi_baik = formDataState['toilet_kloset_baik'] || 0;
-        } else if (formId === 'reservoir') {
-          tableName = 'pemeriksaan_reservoir';
-          insertData.bak_tidak_bocor = formDataState['reservoir_bak_tidak_bocor'] || 0;
-          insertData.tidak_ada_genangan = formDataState['reservoir_genangan_reservoir'] || 0;
-          insertData.bak_tidak_berlumut = formDataState['reservoir_bak_tidak_berlumut'] || 0;
-          insertData.bak_air_bersih = formDataState['reservoir_bak_bersih'] || 0;
-          insertData.perpipaan_tidak_bocor = formDataState['reservoir_perpipaan_bocor'] || 0;
-          insertData.perpipaan_tidak_korosif = formDataState['reservoir_perpipaan_korosif'] || 0;
-          insertData.reservoir_berpenutup = formDataState['reservoir_penutup_reservoir'] || 0;
-          insertData.penutup_reservoir_baik = formDataState['reservoir_penutup_baik'] || 0;
-          insertData.tidak_ada_celah_reservoir = formDataState['reservoir_celah_terbuka'] || 0;
-        } else if (formId === 'gizi') {
-          tableName = 'pemeriksaan_gizi';
-          insertData.limbah_dilengkapi_grease_trap = formDataState['gizi_limbah'] || 0;
-          insertData.lantai_dinding_bersih = formDataState['gizi_lantai_dan_dinding'] || 0;
-          insertData.ruang_kantor_terpisah = formDataState['gizi_pengaturan_ruang'] || 0;
-          insertData.ada_penangkap_asap = formDataState['gizi_ventilasi'] || 0;
-          insertData.fasilitas_cuci_baik = formDataState['gizi_fasilitas_pencucian'] || 0;
-          insertData.peralatan_disterilkan = formDataState['gizi_fasilitas_pencucian2'] || 0;
-          insertData.ada_tempat_cuci_tangan = formDataState['gizi_fasilitas_pencucian3'] || 0;
-          insertData.lemari_dingin_5_10c = formDataState['gizi_fasilitas_pencucian4'] || 0;
-          insertData.ruang_olah_terpisah = formDataState['gizi_fasilitas_pencucian5'] || 0;
-          insertData.karyawan_sehat = formDataState['gizi_karyawan'] || 0;
-          insertData.menggunakan_apd = formDataState['gizi_karyawan2'] || 0;
-          insertData.kebersihan_personal = formDataState['gizi_karyawan3'] || 0;
-        }
-
-        if (tableName) {
-          if (!navigator.onLine) {
-            saveToOfflineQueue(tableName, 'insert', insertData, `Inspeksi ${selectedCategoriesText}`);
-          } else {
-            const { error } = await supabase.from(tableName).insert([insertData]);
-            if (error) throw new Error(`Gagal menyimpan ${tableName}: ` + error.message);
-          }
-        }
       });
 
-      await Promise.all(insertionPromises);
+      const submission = await submitInspectionEntries({
+        entries,
+        online: navigator.onLine,
+        insertEntry: async entry => {
+          if (!entry.table) throw new Error(`Tabel untuk ${entry.label} tidak tersedia.`);
+          const { error } = await supabase.from(entry.table).insert([entry.payload]);
+          if (error) {
+            const submissionError = new Error(`Gagal menyimpan ${entry.label}: ${error.message}`);
+            submissionError.status = error.status;
+            submissionError.code = error.code;
+            submissionError.details = error.details;
+            submissionError.cause = error;
+            throw submissionError;
+          }
+          notifyDatabaseTablesChanged(entry.table);
+        },
+        queueEntry: entry => {
+          if (!entry.table) throw new Error(`Tabel untuk ${entry.label} tidak tersedia.`);
+          saveToOfflineQueue(entry.table, 'insert', entry.payload, entry.description);
+        },
+        isNetworkError,
+      });
 
-      if (!navigator.onLine) {
+      const accepted = [...submission.synced, ...submission.queued];
+
+      if (submission.failed.length > 0) {
+        const failedIds = new Set(submission.failed.map(entry => entry.formId));
+        const failedLabels = submission.failed.map(entry => entry.label).join(', ');
+        setSelectedForms(selected => selected.filter(formId => failedIds.has(formId)));
+        setFormDataState(current => Object.fromEntries(
+          Object.entries(current).filter(([key]) => (
+            [...failedIds].some(formId => key.startsWith(`${formId}_`))
+          ))
+        ));
+        setShowForm(true);
+
+        await MySwal.fire({
+          icon: accepted.length > 0 ? 'warning' : 'error',
+          title: accepted.length > 0 ? 'Sebagian Data Belum Tersimpan' : 'Data Belum Tersimpan',
+          text: `${accepted.length} formulir sudah aman. Formulir yang gagal (${failedLabels}) tetap terbuka dan tidak dibuang.`,
+          confirmButtonColor: '#dc2626',
+        });
+      } else if (submission.queued.length > 0 && submission.synced.length > 0) {
+        MySwal.fire({
+          icon: 'warning',
+          title: 'Tersimpan Sebagian sebagai Draft',
+          text: `${submission.synced.length} formulir tersimpan di server dan ${submission.queued.length} formulir aman di antrean offline.`,
+          confirmButtonColor: '#2563eb',
+        });
+      } else if (submission.queued.length > 0) {
         MySwal.fire({
           icon: 'info',
           title: 'Tersimpan Offline (Draft)',
-          text: 'Data inspeksi disimpan di HP. Akan otomatis di-sync ke server saat terhubung internet.',
+          text: `${submission.queued.length} formulir inspeksi disimpan di HP dan akan dikirim otomatis.`,
           confirmButtonColor: '#2563eb'
         });
       } else {
@@ -310,11 +290,10 @@ export default function Inspeksi({ user: propUser }) {
         });
       }
 
-      // Add to activities (top 4 only)
-      setActivities(prev => {
+      if (accepted.length > 0) setActivities(prev => {
         const newAct = {
           id: Date.now(),
-          forms: selectedCategoriesText,
+          forms: accepted.map(entry => entry.label).join(', '),
           lokasi,
           time: new Date(tanggal).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
           petugas: user.nama,
@@ -323,28 +302,16 @@ export default function Inspeksi({ user: propUser }) {
         return [newAct, ...prev].slice(0, 4);
       });
 
-      // Reset
-      setShowForm(false);
-      setSelectedForms([]);
-      setLokasi('');
-      setFormDataState({});
-
-    } catch (error) {
-      console.error(error);
-      if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
-        MySwal.fire({
-          icon: 'info',
-          title: 'Tersimpan Offline (Draft)',
-          text: 'Jaringan terputus. Data inspeksi disimpan di HP dan akan di-sync otomatis.',
-          confirmButtonColor: '#2563eb'
-        });
+      if (submission.failed.length === 0) {
         setShowForm(false);
         setSelectedForms([]);
         setLokasi('');
         setFormDataState({});
-      } else {
-        MySwal.fire('Gagal', error.message, 'error');
       }
+
+    } catch (error) {
+      console.error(error);
+      MySwal.fire('Gagal', `${error.message}. Isian tetap dipertahankan.`, 'error');
     } finally {
       setIsSubmitting(false);
     }

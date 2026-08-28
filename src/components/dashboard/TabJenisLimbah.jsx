@@ -1,16 +1,24 @@
-import React, { useState, useEffect } from 'react';
-import { supabase } from '../../lib/supabase';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, AreaChart, Area
 } from 'recharts';
 
+import { fetchWasteRows } from '../../lib/wasteQueries';
+import { fetchDatabaseAggregation } from '../../lib/databaseAggregations';
+
 export default function TabJenisLimbah() {
+  const currentYear = String(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
   const [dailyData, setDailyData] = useState([]);
   const [monthlyData, setMonthlyData] = useState([]);
   const [summary, setSummary] = useState({ infeksius: 0, jarum: 0, botol: 0, sito: 0 });
   const [chartReady, setChartReady] = useState(false);
+  const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const [availableYears, setAvailableYears] = useState([currentYear]);
+  const [averages, setAverages] = useState({ total: 0, daily: 0, monthly: 0, activeDays: 0, activeMonths: 0 });
+  const fetchIdRef = useRef(0);
 
   useEffect(() => {
     if (!loading) {
@@ -22,23 +30,78 @@ export default function TabJenisLimbah() {
   }, [loading]);
 
   useEffect(() => {
+    const currentFetchId = ++fetchIdRef.current;
     const fetchLimbah = async () => {
       setLoading(true);
       try {
-        // Ambil dari kedua sumber: input manual (limbah_padat) & akumulasi per ruangan (limbah_ruangan)
-        const [{ data: padatRows, error: errPadat }, { data: ruanganRows, error: errRuangan }] = await Promise.all([
-          supabase
-            .from('limbah_padat')
-            .select('tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
-            .order('tanggal', { ascending: true }),
-          supabase
-            .from('limbah_ruangan')
-            .select('tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik')
-            .order('tanggal', { ascending: true })
+        const aggregated = await fetchDatabaseAggregation('dashboard_jenis_limbah_summary', {
+          requested_year: Number(selectedYear),
+          requested_month: selectedMonth ? Number(selectedMonth) : null,
+        });
+
+        if (currentFetchId !== fetchIdRef.current) return;
+
+        if (aggregated) {
+          const resolvedYear = String(aggregated.selectedYear || selectedYear);
+          const years = [...new Set([
+            ...(aggregated.availableYears || []).map(String),
+            resolvedYear,
+          ])].sort((a, b) => b.localeCompare(a));
+
+          setAvailableYears(years);
+          setDailyData((aggregated.daily || []).map(row => ({
+            tanggal: new Date(row.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
+            rawDate: row.tanggal,
+            infeksius: Number(row.infeksius) || 0,
+            jarum_suntik: Number(row.jarum_suntik) || 0,
+            botol_obat: Number(row.botol_obat) || 0,
+            sitotoksik: Number(row.sitotoksik) || 0,
+            total: (Number(row.infeksius) || 0) + (Number(row.jarum_suntik) || 0)
+              + (Number(row.botol_obat) || 0) + (Number(row.sitotoksik) || 0),
+          })));
+          setMonthlyData((aggregated.monthly || []).map(row => ({
+            label: new Date(`${row.bulan}-01`).toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }),
+            key: row.bulan,
+            total: Number(row.total) || 0,
+          })));
+          setSummary({
+            infeksius: Math.round(Number(aggregated.summary?.infeksius) || 0),
+            jarum: Math.round(Number(aggregated.summary?.jarum_suntik) || 0),
+            botol: Math.round(Number(aggregated.summary?.botol_obat) || 0),
+            sito: Math.round(Number(aggregated.summary?.sitotoksik) || 0),
+          });
+          setAverages({
+            total: Number(aggregated.totalWaste) || 0,
+            daily: Number(aggregated.dailyAverage) || 0,
+            monthly: aggregated.monthlyAverage == null ? null : Number(aggregated.monthlyAverage) || 0,
+            activeDays: Number(aggregated.activeDays) || 0,
+            activeMonths: Number(aggregated.activeMonths) || 0,
+          });
+          if (resolvedYear !== selectedYear) setSelectedYear(resolvedYear);
+          return;
+        }
+
+        const targetYear = Number(selectedYear);
+        const monthNumber = selectedMonth ? Number(selectedMonth) : null;
+        const startDate = monthNumber
+          ? `${targetYear}-${String(monthNumber).padStart(2, '0')}-01`
+          : `${targetYear}-01-01`;
+        const nextMonth = monthNumber === 12 ? 1 : monthNumber + 1;
+        const endDate = monthNumber
+          ? `${monthNumber === 12 ? targetYear + 1 : targetYear}-${String(nextMonth).padStart(2, '0')}-01`
+          : `${targetYear + 1}-01-01`;
+        const [{ padatRows, ruanganRows }, yearlySummary] = await Promise.all([
+          fetchWasteRows({ startDate, endDate }),
+          fetchDatabaseAggregation('rekap_limbah_yearly_summary', {
+            requested_year: targetYear,
+          }),
         ]);
 
-        if (errPadat) throw errPadat;
-        if (errRuangan) throw errRuangan;
+        if (currentFetchId !== fetchIdRef.current) return;
+        setAvailableYears([...new Set([
+          ...(yearlySummary?.availableYears || []).map(String),
+          selectedYear,
+        ])].sort((a, b) => b.localeCompare(a)));
 
         const dailyMap = {};
         const monthlyMap = {};
@@ -88,9 +151,9 @@ export default function TabJenisLimbah() {
         setDailyData(sortedDaily.slice(-30)); // last 30 days
 
         const sortedMonthly = Object.values(monthlyMap).sort((a, b) => a.key.localeCompare(b.key));
-        setMonthlyData(sortedMonthly.slice(-12)); // last 12 months
+        setMonthlyData(sortedMonthly); // maksimal 12 bulan pada tahun terpilih
 
-        // Total summary keseluruhan (gabungan kedua sumber)
+        // Total ringkasan hanya untuk tahun yang sedang dipilih.
         let tInf = 0, tJar = 0, tBot = 0, tSit = 0;
         [...(padatRows || []), ...(ruanganRows || [])].forEach(r => {
           tInf += parseFloat(r.infeksius) || 0;
@@ -104,17 +167,45 @@ export default function TabJenisLimbah() {
           botol: Math.round(tBot),
           sito: Math.round(tSit)
         });
+        const total = tInf + tJar + tBot + tSit;
+        const activeDays = Object.keys(dailyMap).length;
+        const activeMonths = Object.keys(monthlyMap).length;
+        setAverages({
+          total,
+          daily: activeDays ? total / activeDays : 0,
+          monthly: monthNumber ? null : (activeMonths ? total / activeMonths : 0),
+          activeDays,
+          activeMonths,
+        });
 
       } catch (error) {
+        if (currentFetchId !== fetchIdRef.current) return;
         console.error("Error fetching limbah jenis:", error);
       } finally {
-        setLoading(false);
+        if (currentFetchId === fetchIdRef.current) setLoading(false);
       }
     };
     fetchLimbah();
-  }, []);
 
-  const types = React.useMemo(() => [
+    return () => {
+      fetchIdRef.current += 1;
+    };
+  }, [selectedYear, selectedMonth]);
+
+  const monthNames = useMemo(() => [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ], []);
+
+  const periodLabel = selectedMonth
+    ? `${monthNames[Number(selectedMonth) - 1]} ${selectedYear}`
+    : `Tahun ${selectedYear}`;
+
+  const formatKg = (value) => new Intl.NumberFormat('id-ID', {
+    maximumFractionDigits: 2,
+  }).format(Number(value) || 0);
+
+  const types = useMemo(() => [
     { key: 'infeksius', label: 'Infeksius', color: '#ef4444', icon: 'fa-viruses' },
     { key: 'jarum_suntik', label: 'Jarum Suntik', color: '#f59e0b', icon: 'fa-syringe' },
     { key: 'botol_obat', label: 'Botol Obat', color: '#3b82f6', icon: 'fa-pills' },
@@ -131,6 +222,58 @@ export default function TabJenisLimbah() {
 
   return (
     <div className="animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+            <i className="fas fa-layer-group mr-1.5 text-indigo-500" />
+            Jenis dan Tren Limbah
+          </p>
+          <p className="text-lg font-black text-gray-800 mt-0.5">{periodLabel}</p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <i className="fas fa-calendar-alt text-gray-400" />
+          </div>
+          <select
+            value={selectedYear}
+            onChange={(event) => {
+              setSelectedYear(event.target.value);
+              setSelectedMonth('');
+            }}
+            className="appearance-none w-full sm:w-40 pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-shadow text-gray-700 font-semibold shadow-sm text-sm"
+            aria-label="Pilih tahun jenis dan tren limbah"
+          >
+            {availableYears.map(year => (
+              <option key={year} value={year}>{year}</option>
+            ))}
+          </select>
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+            <i className="fas fa-chevron-down text-gray-400 text-xs" />
+          </div>
+        </div>
+        <div className="relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <i className="fas fa-calendar-day text-gray-400" />
+          </div>
+          <select
+            value={selectedMonth}
+            onChange={(event) => setSelectedMonth(event.target.value)}
+            className="appearance-none w-full sm:w-44 pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-shadow text-gray-700 font-semibold shadow-sm text-sm"
+            aria-label="Pilih bulan jenis dan tren limbah"
+          >
+            <option value="">Semua bulan</option>
+            {monthNames.map((month, index) => (
+              <option key={month} value={index + 1}>{month}</option>
+            ))}
+          </select>
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+            <i className="fas fa-chevron-down text-gray-400 text-xs" />
+          </div>
+        </div>
+        </div>
+      </div>
+
       {/* Summary per jenis limbah */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         {[
@@ -149,12 +292,31 @@ export default function TabJenisLimbah() {
         ))}
       </div>
 
+      <div className={`grid ${selectedMonth ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-3'} gap-4 mb-8`}>
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Total periode</p>
+          <p className="text-2xl font-black text-gray-800 mt-1">{formatKg(averages.total)} <span className="text-xs font-normal text-gray-400">Kg</span></p>
+        </div>
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Rata-rata per hari tercatat</p>
+          <p className="text-2xl font-black text-indigo-600 mt-1">{formatKg(averages.daily)} <span className="text-xs font-normal text-gray-400">Kg/hari</span></p>
+          <p className="text-xs text-gray-400 mt-1">Berdasarkan {averages.activeDays} hari dengan data</p>
+        </div>
+        {!selectedMonth && (
+          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Rata-rata per bulan tercatat</p>
+            <p className="text-2xl font-black text-emerald-600 mt-1">{formatKg(averages.monthly)} <span className="text-xs font-normal text-gray-400">Kg/bulan</span></p>
+            <p className="text-xs text-gray-400 mt-1">Berdasarkan {averages.activeMonths} bulan dengan data</p>
+          </div>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Grafik Limbah Harian Berdasarkan Jenis */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
           <h3 className="text-sm font-bold text-gray-700 mb-6 flex items-center">
             <span className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-500 flex items-center justify-center mr-3"><i className="fas fa-layer-group"></i></span>
-            Limbah Harian (Berdasarkan Jenis)
+            Limbah Harian {periodLabel}{selectedMonth ? '' : ' (30 Hari Terakhir)'}
           </h3>
           <div className="h-80">
             {dailyData.length === 0 ? (
@@ -186,7 +348,7 @@ export default function TabJenisLimbah() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-shadow">
           <h3 className="text-sm font-bold text-gray-700 mb-6 flex items-center">
             <span className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-500 flex items-center justify-center mr-3"><i className="fas fa-calendar-alt"></i></span>
-            Total Limbah Per Bulan
+            Total Limbah Per Bulan — {periodLabel}
           </h3>
           <div className="h-80">
             {monthlyData.length === 0 ? (

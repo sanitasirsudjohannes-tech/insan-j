@@ -8,5 +8,8 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  build: {
+    manifest: 'offline-assets.json',
+  },
   // base: '/' is default - cocok untuk Vercel
 })

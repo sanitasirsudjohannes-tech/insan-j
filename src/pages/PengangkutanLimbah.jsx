@@ -1,40 +1,107 @@
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import AppLayout from '../components/AppLayout';
 import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser } from '../lib/api';
-import { saveToOfflineQueue, getUnsyncedItemsForTable, syncOfflineQueue } from '../lib/offlineStorage';
-import * as XLSX from 'xlsx';
+import {
+    cacheServerRows,
+    getCachedServerRows,
+    getOfflineDeletedIds,
+    getOfflineQueue,
+    getSyncedServerId,
+    getUnsyncedItemsForTable,
+    removeCachedServerRow,
+    removeLocalRecordQueue,
+    saveToOfflineQueue,
+    syncOfflineQueue,
+} from '../lib/offlineStorage';
+import { loadExcelLibrary } from '../lib/excelLoader';
+import { formatDateFromExcel } from '../lib/excelDateHelpers';
+import {
+    escapeImportHTML,
+    insertImportRowsAtomically,
+    parseNonNegativeImportNumber,
+} from '../lib/excelImport';
+import { getLocalDateString, getLocalMonthString } from '../lib/localDate';
+import { fetchAllSupabaseRows } from '../lib/supabasePagination';
+import { notifyDatabaseTablesChanged } from '../lib/databaseAggregations';
+import { isNetworkError } from '../lib/networkErrors';
+import {
+    deleteRecordWithVersion,
+    getRecordBaseVersion,
+    isRecordConflictError,
+    resolveOfflineRecordConflict,
+    updateRecordWithVersion,
+} from '../lib/recordVersion';
+import PengangkutanForm from '../components/limbah/pengangkutan/PengangkutanForm';
+import PengangkutanImportExportToolbar from '../components/limbah/pengangkutan/PengangkutanImportExportToolbar';
+import PengangkutanTable from '../components/limbah/pengangkutan/PengangkutanTable';
 
 const MySwal = withReactContent(Swal);
+const ITEMS_PER_PAGE = 10;
+const FETCH_BATCH_SIZE = 500;
+
+const createEmptyForm = () => ({
+    id: null,
+    tanggal: getLocalDateString(),
+    jumlah_kg: '',
+    keterangan: '',
+});
+
+const comparePengangkutanRows = (a, b) => {
+    const dateComparison = String(b?.tanggal || '').localeCompare(String(a?.tanggal || ''));
+    if (dateComparison) return dateComparison;
+    return String(b?.waktu_input || '').localeCompare(String(a?.waktu_input || ''));
+};
 
 export default function PengangkutanLimbah() {
     const user = getCurrentUser();
     const [data, setData] = useState([]);
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [importing, setImporting] = useState(false);
     const [page, setPage] = useState(1);
     const [totalData, setTotalData] = useState(0);
+    const [offlineQueueCount, setOfflineQueueCount] = useState(0);
     const [filterMonth, setFilterMonth] = useState('');
-    const itemsPerPage = 10;
     const importRef = useRef(null);
+    const fetchIdRef = useRef(0);
+    const emptyForm = createEmptyForm();
+    const [form, setForm] = useState(createEmptyForm);
 
-    const emptyForm = {
-        id: null,
-        tanggal: new Date().toISOString().split('T')[0],
-        jumlah_kg: '',
-        keterangan: ''
-    };
-    const [form, setForm] = useState(emptyForm);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
+        const currentFetchId = ++fetchIdRef.current;
         setLoading(true);
         try {
-            let rows = [];
+            let dbData = [];
             let count = 0;
+            setOfflineQueueCount(
+                getOfflineQueue().filter(item => item.table === 'pengangkutan_limbah').length
+            );
 
+            const allUnsynced = getUnsyncedItemsForTable('pengangkutan_limbah');
+            let unsynced = allUnsynced;
+            if (filterMonth) {
+                unsynced = unsynced.filter(item => item.tanggal?.startsWith(filterMonth));
+            }
+
+            const deletedIds = new Set(getOfflineDeletedIds('pengangkutan_limbah'));
+            const hiddenServerIds = new Set([
+                ...allUnsynced
+                    .filter(item => item.offlineAction === 'update')
+                    .map(item => String(item.id)),
+                ...deletedIds,
+            ]);
+            const excludedIds = hiddenServerIds.size > 0
+                ? `(${Array.from(hiddenServerIds).join(',')})`
+                : null;
+
+            let dbFetchSucceeded = false;
+            let dbStartIndex = 0;
             try {
+                if (!navigator.onLine) throw new Error('Perangkat sedang offline.');
+
                 let queryCount = supabase
                     .from('pengangkutan_limbah')
                     .select('id', { count: 'exact', head: true });
@@ -46,64 +113,104 @@ export default function PengangkutanLimbah() {
                     const endOfMonth = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
                     queryCount = queryCount.gte('tanggal', startOfMonth).lte('tanggal', endOfMonth);
                 }
+                if (excludedIds) queryCount = queryCount.not('id', 'in', excludedIds);
 
-                const { count: c } = await queryCount;
+                const { count: c, error: countError } = await queryCount;
+                if (countError) throw countError;
                 count = c || 0;
 
-                const from = (page - 1) * itemsPerPage;
-                let queryData = supabase
-                    .from('pengangkutan_limbah')
-                    .select('id, tanggal, jumlah_kg, keterangan, petugas')
-                    .order('tanggal', { ascending: false })
-                    .range(from, from + itemsPerPage - 1);
+                const pageStartIndex = (page - 1) * ITEMS_PER_PAGE;
+                dbStartIndex = Math.max(0, pageStartIndex - unsynced.length);
+                const dbEndIndex = pageStartIndex + ITEMS_PER_PAGE - 1;
 
-                if (filterMonth) {
-                    const [year, month] = filterMonth.split('-');
-                    const startOfMonth = `${year}-${month}-01`;
-                    const lastDay = new Date(year, month, 0).getDate();
-                    const endOfMonth = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
-                    queryData = queryData.gte('tanggal', startOfMonth).lte('tanggal', endOfMonth);
+                for (let from = dbStartIndex; from <= dbEndIndex; from += FETCH_BATCH_SIZE) {
+                    const to = Math.min(from + FETCH_BATCH_SIZE - 1, dbEndIndex);
+                    let queryData = supabase
+                        .from('pengangkutan_limbah')
+                        .select('id, tanggal, jumlah_kg, keterangan, petugas, waktu_input')
+                        .order('tanggal', { ascending: false })
+                        .order('waktu_input', { ascending: false })
+                        .range(from, to);
+
+                    if (filterMonth) {
+                        const [year, month] = filterMonth.split('-');
+                        const startOfMonth = `${year}-${month}-01`;
+                        const lastDay = new Date(year, month, 0).getDate();
+                        const endOfMonth = `${year}-${month}-${String(lastDay).padStart(2, '0')}`;
+                        queryData = queryData.gte('tanggal', startOfMonth).lte('tanggal', endOfMonth);
+                    }
+                    if (excludedIds) queryData = queryData.not('id', 'in', excludedIds);
+
+                    const { data: result, error } = await queryData;
+                    if (error) throw error;
+                    const batch = result || [];
+                    dbData.push(...batch);
+                    if (batch.length < to - from + 1) break;
                 }
 
-                const { data: result, error } = await queryData;
-                if (!error) rows = result || [];
+                cacheServerRows('pengangkutan_limbah', dbData);
+                dbFetchSucceeded = true;
             } catch (e) {
                 console.warn('Handling offline DB error in PengangkutanLimbah:', e);
+                dbData = getCachedServerRows('pengangkutan_limbah').filter(item => {
+                    if (hiddenServerIds.has(String(item.id))) return false;
+                    return !filterMonth || item.tanggal?.startsWith(filterMonth);
+                });
+                count = dbData.length;
             }
 
-            let unsynced = getUnsyncedItemsForTable('pengangkutan_limbah');
+            if (currentFetchId !== fetchIdRef.current) return;
 
-            if (filterMonth) {
-                unsynced = unsynced.filter(item => item.tanggal && item.tanggal.startsWith(filterMonth));
+            const mergedData = [
+                ...unsynced,
+                ...dbData.filter(item => !hiddenServerIds.has(String(item.id))),
+            ].sort(comparePengangkutanRows);
+            const adjustedTotal = Math.max(0, count + unsynced.length);
+            setTotalData(adjustedTotal);
+
+            const lastAvailablePage = Math.max(1, Math.ceil(adjustedTotal / ITEMS_PER_PAGE));
+            if (page > lastAvailablePage) {
+                setPage(lastAvailablePage);
+                return;
             }
 
-            const unsyncedIds = new Set(unsynced.map(u => u.id));
-            const filteredDbData = rows.filter(d => !unsyncedIds.has(d.id));
-
-            const combined = [...unsynced, ...filteredDbData];
-            setData(combined);
-            setTotalData((count || 0) + unsynced.length);
+            const fromIndex = (page - 1) * ITEMS_PER_PAGE;
+            const localStartIndex = dbFetchSucceeded ? fromIndex - dbStartIndex : fromIndex;
+            setData(mergedData.slice(localStartIndex, localStartIndex + ITEMS_PER_PAGE));
         } catch (e) {
-            console.error(e);
+            console.error('Gagal mengambil data pengangkutan:', e);
         } finally {
-            setLoading(false);
+            if (currentFetchId === fetchIdRef.current) setLoading(false);
         }
-    };
+    }, [filterMonth, page]);
 
     useEffect(() => {
         fetchData();
 
-        const handleQueueChange = () => fetchData();
+        let queueRefreshTimer;
+        const handleQueueChange = (event) => {
+            if (event.syncInProgress) return;
+            const changedTables = event.changedTables || event.detail?.changedTables;
+            if (changedTables?.length && !changedTables.includes('pengangkutan_limbah')) return;
+            window.clearTimeout(queueRefreshTimer);
+            queueRefreshTimer = window.setTimeout(fetchData, 180);
+        };
+        const handleVisibility = () => {
+            if (document.visibilityState === 'visible') fetchData();
+        };
         window.addEventListener('offline-queue-changed', handleQueueChange);
-        window.addEventListener('online', handleQueueChange);
+        window.addEventListener('offline-sync-finished', handleQueueChange);
         window.addEventListener('offline', handleQueueChange);
+        document.addEventListener('visibilitychange', handleVisibility);
 
         return () => {
+            window.clearTimeout(queueRefreshTimer);
             window.removeEventListener('offline-queue-changed', handleQueueChange);
-            window.removeEventListener('online', handleQueueChange);
+            window.removeEventListener('offline-sync-finished', handleQueueChange);
             window.removeEventListener('offline', handleQueueChange);
+            document.removeEventListener('visibilitychange', handleVisibility);
         };
-    }, [page, filterMonth]);
+    }, [fetchData]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -121,39 +228,89 @@ export default function PengangkutanLimbah() {
             petugas: user?.nama || 'Petugas',
             waktu_input: new Date().toISOString()
         };
+        let recordId = form.id;
+        let baseUpdatedAt = form.baseUpdatedAt || null;
+        let isLocalDraft = Boolean(recordId) && String(recordId).startsWith('off_');
 
         try {
-            if (!navigator.onLine) {
-                saveToOfflineQueue('pengangkutan_limbah', form.id ? 'update' : 'insert', form.id ? { ...payload, id: form.id } : payload, 'Pengangkutan Limbah');
+            if (isLocalDraft) {
+                recordId = getSyncedServerId(form.id) || form.id;
+                if (navigator.onLine && String(recordId).startsWith('off_')) {
+                    await syncOfflineQueue(false, true);
+                    recordId = getSyncedServerId(form.id) || form.id;
+                }
+                isLocalDraft = String(recordId).startsWith('off_');
+            }
+
+            if (!navigator.onLine || isLocalDraft) {
+                saveToOfflineQueue(
+                    'pengangkutan_limbah',
+                    form.id ? 'update' : 'insert',
+                    form.id ? { ...payload, id: recordId } : payload,
+                    'Pengangkutan Limbah',
+                    { baseUpdatedAt }
+                );
                 MySwal.fire({
                     icon: 'info',
                     title: 'Tersimpan Offline',
-                    text: 'Data telah disimpan di HP (Draft). Akan otomatis dikirim saat terhubung internet.',
+                    text: isLocalDraft && navigator.onLine
+                        ? 'Perubahan draft tersimpan dan menunggu sinkronisasi.'
+                        : 'Data telah disimpan di HP (Draft). Akan otomatis dikirim saat terhubung internet.',
                     confirmButtonColor: '#ea580c'
                 });
-            } else {
-                if (form.id) {
-                    const { error } = await supabase.from('pengangkutan_limbah').update(payload).eq('id', form.id);
-                    if (error) throw error;
-                    MySwal.fire('Berhasil', 'Data diperbarui', 'success');
-                } else {
-                    const { error } = await supabase.from('pengangkutan_limbah').insert([payload]);
-                    if (error) throw error;
-                    MySwal.fire('Berhasil', 'Data pengangkutan ditambahkan', 'success');
+            } else if (form.id) {
+                const pendingRecordUpdate = getOfflineQueue().find(item => {
+                    if (item.table !== 'pengangkutan_limbah') return false;
+                    return [item.serverId, item.payload?.id, item.payload?.serverId]
+                        .some(reference => reference != null && String(reference) === String(recordId));
+                });
+
+                // Kirim perubahan lama lebih dulu agar tidak datang belakangan
+                // dan menimpa nilai terbaru yang sedang disimpan.
+                if (pendingRecordUpdate) {
+                    await syncOfflineQueue(false, true);
+                    const stillPending = getOfflineQueue().some(item => item.id === pendingRecordUpdate.id);
+                    if (!stillPending && pendingRecordUpdate.action === 'update') {
+                        baseUpdatedAt = pendingRecordUpdate.payload?.waktu_input || baseUpdatedAt;
+                    }
                 }
+
+                await updateRecordWithVersion('pengangkutan_limbah', recordId, payload, baseUpdatedAt);
+                cacheServerRows('pengangkutan_limbah', [{ ...payload, id: recordId }]);
+                if (pendingRecordUpdate) removeLocalRecordQueue({ id: recordId });
+                MySwal.fire('Berhasil', 'Data diperbarui', 'success');
+            } else {
+                const { data: insertedRow, error } = await supabase
+                    .from('pengangkutan_limbah')
+                    .insert([payload])
+                    .select()
+                    .single();
+                if (error) throw error;
+                if (insertedRow?.id) cacheServerRows('pengangkutan_limbah', [insertedRow]);
+                notifyDatabaseTablesChanged('pengangkutan_limbah');
+                MySwal.fire('Berhasil', 'Data pengangkutan ditambahkan', 'success');
             }
-            setForm(emptyForm);
+            setForm(createEmptyForm());
             fetchData();
         } catch (e) {
-            if (!navigator.onLine || e.message?.includes('Failed to fetch') || e.message?.includes('network')) {
-                saveToOfflineQueue('pengangkutan_limbah', form.id ? 'update' : 'insert', form.id ? { ...payload, id: form.id } : payload, 'Pengangkutan Limbah');
+            if (isNetworkError(e)) {
+                saveToOfflineQueue(
+                    'pengangkutan_limbah',
+                    form.id ? 'update' : 'insert',
+                    form.id ? { ...payload, id: recordId } : payload,
+                    'Pengangkutan Limbah',
+                    { baseUpdatedAt }
+                );
                 MySwal.fire({
                     icon: 'info',
                     title: 'Tersimpan Offline',
                     text: 'Jaringan terputus. Data telah disimpan di HP (Draft) dan akan dikirim otomatis.',
                     confirmButtonColor: '#ea580c'
                 });
-                setForm(emptyForm);
+                setForm(createEmptyForm());
+            } else if (isRecordConflictError(e)) {
+                MySwal.fire('Data Sudah Berubah', e.message, 'warning');
+                fetchData();
             } else {
                 MySwal.fire('Gagal', e.message, 'error');
             }
@@ -162,24 +319,87 @@ export default function PengangkutanLimbah() {
         }
     };
 
-    const handleEdit = (item) => {
-        setForm({ id: item.id, tanggal: item.tanggal, jumlah_kg: item.jumlah_kg, keterangan: item.keterangan || '' });
+    const handleEdit = async (item) => {
+        try {
+            const resolution = await resolveOfflineRecordConflict('pengangkutan_limbah', item, MySwal);
+            if (!resolution) return;
+            if (resolution.discardDraft) removeLocalRecordQueue({ id: item.id });
+            if (!resolution.record) { fetchData(); return; }
+            item = resolution.record;
+            if (resolution.discardDraft) cacheServerRows('pengangkutan_limbah', [item]);
+        } catch (error) {
+            MySwal.fire('Gagal', error.message, 'error');
+            return;
+        }
+
+        setForm({
+            id: item.id,
+            tanggal: item.tanggal,
+            jumlah_kg: item.jumlah_kg,
+            keterangan: item.keterangan || '',
+            baseUpdatedAt: getRecordBaseVersion(item),
+        });
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    const handleDelete = async (id) => {
+    const handleDelete = async (item) => {
         const { isConfirmed } = await MySwal.fire({
             title: 'Hapus Data?', text: 'Data tidak dapat dikembalikan!', icon: 'warning',
             showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Ya, Hapus!'
         });
         if (!isConfirmed) return;
         try {
-            const { error } = await supabase.from('pengangkutan_limbah').delete().eq('id', id);
-            if (error) throw error;
+            if (item.isOffline && item.offlineAction === 'insert') {
+                let syncedServerId = getSyncedServerId(item.id);
+                if (!syncedServerId && navigator.onLine) {
+                    await syncOfflineQueue(false, true);
+                    syncedServerId = getSyncedServerId(item.id);
+                }
+                if (syncedServerId) {
+                    item = { ...item, id: syncedServerId };
+                } else {
+                    removeLocalRecordQueue(item);
+                    MySwal.fire('Terhapus!', 'Draft offline berhasil dihapus', 'success');
+                    fetchData();
+                    return;
+                }
+            }
+
+            if (!navigator.onLine) {
+                saveToOfflineQueue(
+                    'pengangkutan_limbah',
+                    'delete',
+                    item,
+                    `Hapus Pengangkutan ${item.tanggal}`,
+                    { baseUpdatedAt: getRecordBaseVersion(item) }
+                );
+                MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Perintah hapus disimpan di HP dan akan diproses otomatis.', confirmButtonColor: '#ea580c' });
+                fetchData();
+                return;
+            }
+
+            await deleteRecordWithVersion('pengangkutan_limbah', item.id, getRecordBaseVersion(item));
+            removeLocalRecordQueue(item);
+            removeCachedServerRow('pengangkutan_limbah', item.id);
             MySwal.fire('Terhapus!', 'Data berhasil dihapus', 'success');
             fetchData();
         } catch (e) {
-            MySwal.fire('Gagal', e.message, 'error');
+            if (isNetworkError(e)) {
+                saveToOfflineQueue(
+                    'pengangkutan_limbah',
+                    'delete',
+                    item,
+                    `Hapus Pengangkutan ${item.tanggal}`,
+                    { baseUpdatedAt: getRecordBaseVersion(item) }
+                );
+                MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Jaringan terputus. Perintah hapus disimpan dan akan diproses otomatis.', confirmButtonColor: '#ea580c' });
+                fetchData();
+            } else if (isRecordConflictError(e)) {
+                MySwal.fire('Data Sudah Berubah', e.message, 'warning');
+                fetchData();
+            } else {
+                MySwal.fire('Gagal', e.message, 'error');
+            }
         }
     };
 
@@ -187,7 +407,7 @@ export default function PengangkutanLimbah() {
     const handleExport = async () => {
         const { value: month } = await MySwal.fire({
             title: 'Pilih Bulan',
-            html: `<input id="m" type="month" class="swal2-input" value="${new Date().toISOString().slice(0, 7)}">`,
+            html: `<input id="m" type="month" class="swal2-input" value="${getLocalMonthString()}">`,
             focusConfirm: false,
             showCancelButton: true,
             confirmButtonText: 'Export',
@@ -201,11 +421,21 @@ export default function PengangkutanLimbah() {
         const start = `${y}-${mo}-01`;
         const lastDay = new Date(y, mo, 0).getDate();
         const end = `${y}-${mo}-${String(lastDay).padStart(2, '0')}`;
-        const { data: rows, error } = await supabase
-            .from('pengangkutan_limbah')
-            .select('tanggal, jumlah_kg, keterangan, petugas').gte('tanggal', start).lte('tanggal', end).order('tanggal', { ascending: true });
+        let rows;
+        try {
+            rows = await fetchAllSupabaseRows(() => supabase
+                .from('pengangkutan_limbah')
+                .select('tanggal, jumlah_kg, keterangan, petugas')
+                .gte('tanggal', start)
+                .lte('tanggal', end)
+                .order('tanggal', { ascending: true })
+                .order('id', { ascending: true }));
+        } catch (error) {
+            MySwal.fire('Gagal', error.message || 'Data pengangkutan tidak dapat dimuat.', 'error');
+            return;
+        }
 
-        if (error || !rows?.length) {
+        if (!rows.length) {
             MySwal.fire('Info', 'Tidak ada data bulan ini.', 'info'); return;
         }
 
@@ -224,6 +454,7 @@ export default function PengangkutanLimbah() {
             ['', 'TOTAL', total, '', '']
         ];
 
+        const XLSX = await loadExcelLibrary();
         const ws = XLSX.utils.aoa_to_sheet(wsData);
         ws['!cols'] = [{ wch: 5 }, { wch: 14 }, { wch: 22 }, { wch: 30 }, { wch: 18 }];
         ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }, { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } }];
@@ -242,67 +473,83 @@ export default function PengangkutanLimbah() {
         const reader = new FileReader();
         reader.onload = async (evt) => {
             try {
+                const XLSX = await loadExcelLibrary();
                 const wb = XLSX.read(evt.target.result, { type: 'binary', cellDates: false });
                 const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, defval: '' });
 
                 let hIdx = rows.findIndex(r => r.join('').toLowerCase().includes('tanggal'));
                 if (hIdx === -1) { MySwal.fire('Format Salah', 'Header Tanggal tidak ditemukan.', 'error'); return; }
 
-                const dataRows = rows.slice(hIdx + 1).filter(r => r[1] && !String(r[1]).toLowerCase().includes('total'));
+                const dataRows = rows.slice(hIdx + 1)
+                    .map((row, index) => ({ row, rowNumber: hIdx + index + 2 }))
+                    .filter(({ row }) => {
+                        const dateText = String(row[1] ?? '').trim().toLowerCase();
+                        const hasAnyData = row.slice(1, 4).some(value => String(value ?? '').trim() !== '');
+                        return hasAnyData && !dateText.includes('format') && !dateText.includes('total');
+                    });
                 if (!dataRows.length) { MySwal.fire('Kosong', 'Tidak ada data ditemukan.', 'warning'); return; }
+
+                const payloads = [];
+                const validationErrors = [];
+                const importTime = new Date().toISOString();
+
+                dataRows.forEach(({ row, rowNumber }) => {
+                    const tanggal = formatDateFromExcel(row[1], XLSX);
+                    const parsedWeight = parseNonNegativeImportNumber(row[2]);
+                    const rowErrors = [];
+                    if (!tanggal) rowErrors.push(`tanggal "${String(row[1] ?? '').trim()}" tidak valid`);
+                    if (parsedWeight.error) rowErrors.push(`Jumlah Diangkut ${parsedWeight.error}`);
+
+                    if (rowErrors.length > 0) {
+                        validationErrors.push(`Baris ${rowNumber}: ${rowErrors.join('; ')}`);
+                        return;
+                    }
+
+                    payloads.push({
+                        tanggal,
+                        jumlah_kg: parsedWeight.value,
+                        keterangan: String(row[3] || '').trim(),
+                        petugas: user?.nama || 'Petugas',
+                        waktu_input: importTime,
+                    });
+                });
+
+                if (validationErrors.length > 0) {
+                    const shownErrors = validationErrors.slice(0, 10);
+                    const remaining = validationErrors.length - shownErrors.length;
+                    MySwal.fire({
+                        icon: 'error',
+                        title: 'Data Excel Belum Valid',
+                        html: `<div class="text-left text-sm"><p class="mb-3">Perbaiki data berikut, lalu impor kembali. Tidak ada data yang disimpan.</p><ul class="list-disc pl-5 space-y-1 max-h-64 overflow-y-auto">${shownErrors.map(error => `<li>${escapeImportHTML(error)}</li>`).join('')}</ul>${remaining > 0 ? `<p class="mt-3 font-semibold">Dan ${remaining} kesalahan lainnya.</p>` : ''}</div>`,
+                        confirmButtonColor: '#dc2626',
+                    });
+                    return;
+                }
 
                 const { isConfirmed } = await MySwal.fire({
                     title: 'Konfirmasi Import',
-                    html: `<p>Ditemukan <strong>${dataRows.length} baris</strong> data. Lanjutkan import?</p>`,
+                    html: `<p>Ditemukan <strong>${payloads.length} baris</strong> data. Lanjutkan import?</p>`,
                     icon: 'question', showCancelButton: true, confirmButtonText: 'Ya, Import!'
                 });
                 if (!isConfirmed) return;
 
-                const parseDate = (val) => {
-                    if (!val) return '';
-                    if (typeof val === 'number') {
-                        const date = XLSX.SSF.parse_date_code(val);
-                        if (date) {
-                            return `${date.y}-${String(date.m).padStart(2, '0')}-${String(date.d).padStart(2, '0')}`;
-                        }
-                    }
-                    const str = String(val).trim();
-                    const matchId = str.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})$/);
-                    if (matchId) {
-                        const [, day, month, year] = matchId;
-                        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-                    }
-                    const matchIso = str.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/);
-                    if (matchIso) {
-                        const [, year, month, day] = matchIso;
-                        return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-                    }
-                    return '';
-                };
-
-                const payloads = dataRows.map(r => ({
-                    tanggal: parseDate(r[1]),
-                    jumlah_kg: parseFloat(r[2]) || 0,
-                    keterangan: r[3] || '',
-                    petugas: user?.nama || 'Petugas',
-                    waktu_input: new Date().toISOString()
-                })).filter(p => p.tanggal);
-
-                for (let i = 0; i < payloads.length; i += 50) {
-                    const { error } = await supabase.from('pengangkutan_limbah').insert(payloads.slice(i, i + 50));
-                    if (error) throw error;
-                }
+                setImporting(true);
+                MySwal.fire({ title: 'Mengimport Data...', allowOutsideClick: false, didOpen: () => MySwal.showLoading() });
+                const inserted = await insertImportRowsAtomically(supabase, 'pengangkutan_limbah', payloads);
 
                 fetchData();
-                MySwal.fire({ icon: 'success', title: `${payloads.length} data berhasil diimport!`, timer: 2000, showConfirmButton: false });
+                MySwal.fire({ icon: 'success', title: `${inserted} data berhasil diimport!`, timer: 2000, showConfirmButton: false });
             } catch (err) {
                 MySwal.fire('Gagal Import', err.message, 'error');
+            } finally {
+                setImporting(false);
             }
         };
         reader.readAsBinaryString(file);
     };
 
-    const handleDownloadTemplate = () => {
+    const handleDownloadTemplate = async () => {
+        const XLSX = await loadExcelLibrary();
         const ws = XLSX.utils.aoa_to_sheet([
             ['No.', 'Tanggal', 'Jumlah Diangkut (Kg)', 'Keterangan'],
             ['', 'Format: YYYY-MM-DD, contoh: 2025-01-15', '', ''],
@@ -315,205 +562,43 @@ export default function PengangkutanLimbah() {
         XLSX.writeFile(wb, 'Template_Pengangkutan_Limbah.xlsx');
     };
 
-    const totalPages = Math.ceil(totalData / itemsPerPage);
+    const totalPages = Math.ceil(totalData / ITEMS_PER_PAGE);
 
     return (
         <AppLayout title="Pengangkutan Limbah Padat">
             <div className="container mx-auto px-4 py-8 max-w-5xl">
+                <PengangkutanForm
+                    form={form}
+                    handleChange={handleChange}
+                    handleSubmit={handleSubmit}
+                    submitting={submitting}
+                    emptyForm={emptyForm}
+                    setForm={setForm}
+                />
 
-                {/* ── Form ── */}
-                <div className="bg-white rounded-xl shadow-lg mb-6 overflow-hidden">
-                    <div className="bg-orange-600 text-white px-6 py-4 flex items-center gap-3">
-                        <i className="fas fa-truck text-xl"></i>
-                        <h2 className="text-lg font-bold">Form Input Pengangkutan Limbah</h2>
-                    </div>
-                    <form onSubmit={handleSubmit} className="p-6">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-1">Tanggal Pengangkutan</label>
-                                <input type="date" name="tanggal" value={form.tanggal} onChange={handleChange} required
-                                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-400 outline-none" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-1">Jumlah Diangkut (Kg)</label>
-                                <input type="number" step="0.01" min="0" name="jumlah_kg" value={form.jumlah_kg} onChange={handleChange} required
-                                    placeholder="0.00"
-                                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-400 outline-none" />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 font-medium mb-1">Keterangan</label>
-                                <input type="text" name="keterangan" value={form.keterangan} onChange={handleChange}
-                                    placeholder="Pengangkutan rutin, dll."
-                                    className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-orange-400 outline-none" />
-                            </div>
-                        </div>
-                        <div className="flex justify-end gap-3">
-                            {form.id && (
-                                <button type="button" onClick={() => setForm(emptyForm)}
-                                    className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition">
-                                    Batal Edit
-                                </button>
-                            )}
-                            <button type="submit" disabled={submitting}
-                                className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-lg font-medium transition disabled:opacity-50 flex items-center gap-2">
-                                {submitting ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-save"></i>}
-                                {form.id ? 'Update Data' : 'Simpan Data'}
-                            </button>
-                        </div>
-                    </form>
-                </div>
+                <PengangkutanImportExportToolbar
+                    handleDownloadTemplate={handleDownloadTemplate}
+                    handleImportFile={handleImportFile}
+                    handleExport={handleExport}
+                    importRef={importRef}
+                    importing={importing}
+                />
 
-                {/* ── Import/Export Toolbar ── */}
-                <div className="bg-white rounded-xl shadow-lg mb-6 overflow-hidden">
-                    <div className="bg-teal-700 text-white px-6 py-4">
-                        <h2 className="text-lg font-bold"><i className="fas fa-file-excel mr-2"></i>Import / Export Excel</h2>
-                    </div>
-                    <div className="p-5 flex flex-wrap gap-3 items-center">
-                        <button onClick={handleDownloadTemplate}
-                            className="flex items-center gap-2 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-4 py-2.5 rounded-lg font-semibold text-sm transition">
-                            <i className="fas fa-download"></i> Download Template
-                        </button>
-                        <div>
-                            <input ref={importRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFile} />
-                            <button onClick={() => importRef.current?.click()}
-                                className="flex items-center gap-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2.5 rounded-lg font-semibold text-sm transition">
-                                <i className="fas fa-upload"></i> Import Excel
-                            </button>
-                        </div>
-                        <button onClick={handleExport}
-                            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-4 py-2.5 rounded-lg font-semibold text-sm transition">
-                            <i className="fas fa-file-excel"></i> Export Excel
-                        </button>
-                        <div className="hidden sm:block w-px h-8 bg-gray-200 mx-1"></div>
-                        <div className="text-xs text-gray-500 w-full sm:w-auto sm:flex-1 min-w-0">
-                            <p><i className="fas fa-info-circle text-teal-400 mr-1"></i>
-                            <strong>Format:</strong> Tanggal, Jumlah Diangkut (Kg), Keterangan</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* ── Tabel ── */}
-                <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-                    {/* Banner Peringatan Data Offline Belum Sinkron */}
-                    {data.some(i => i.isOffline) && (
-                        <div className="bg-amber-50 border-b border-amber-200 text-amber-900 px-6 py-3 text-xs sm:text-sm font-medium flex flex-col sm:flex-row items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                                <i className="fas fa-exclamation-triangle text-amber-600 text-base animate-pulse"></i>
-                                <span>Terdapat <strong>{data.filter(i => i.isOffline).length} data offline</strong> yang tersimpan di HP dan <strong>belum tersinkronisasi</strong> ke server.</span>
-                            </div>
-                            {navigator.onLine && (
-                                <button
-                                    onClick={() => syncOfflineQueue(true)}
-                                    className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
-                                >
-                                    <i className="fas fa-cloud-upload-alt"></i> Sinkronkan Sekarang
-                                </button>
-                            )}
-                        </div>
-                    )}
-
-                    <div className="bg-gray-800 text-white px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
-                        <h2 className="text-lg font-bold">
-                            <i className="fas fa-table mr-2"></i> Riwayat Pengangkutan
-                            <span className="ml-2 text-sm font-normal text-gray-400">({totalData} data)</span>
-                        </h2>
-                        <div className="flex items-center">
-                            <input
-                                type="month"
-                                value={filterMonth}
-                                onChange={(e) => {
-                                    setFilterMonth(e.target.value);
-                                    setPage(1);
-                                }}
-                                className="bg-white text-gray-800 px-3 py-1.5 rounded-lg text-sm border focus:ring-2 focus:ring-blue-500 outline-none"
-                            />
-                        </div>
-                    </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-gray-50 text-gray-600 text-sm border-b">
-                                    <th className="px-4 py-3">No.</th>
-                                    <th className="px-4 py-3">Tanggal</th>
-                                    <th className="px-4 py-3 text-right">Jumlah Diangkut (Kg)</th>
-                                    <th className="px-4 py-3">Keterangan</th>
-                                    <th className="px-4 py-3">Petugas</th>
-                                    <th className="px-4 py-3 text-center">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {loading ? (
-                                    <tr><td colSpan="6" className="text-center py-10">
-                                        <i className="fas fa-spinner fa-spin text-orange-500 text-2xl"></i>
-                                    </td></tr>
-                                ) : data.length === 0 ? (
-                                    <tr><td colSpan="6" className="text-center py-10 text-gray-400">
-                                        <i className="fas fa-truck text-4xl block mb-2 opacity-30"></i>
-                                        Belum ada data pengangkutan.
-                                    </td></tr>
-                                ) : data.map((item, idx) => (
-                                    <tr
-                                        key={item.id}
-                                        className={item.isOffline ? "bg-amber-50/70 hover:bg-amber-100/70 border-l-4 border-l-amber-500 border-b transition-colors" : "border-b hover:bg-orange-50 transition-colors"}
-                                    >
-                                        <td className="px-4 py-3 text-gray-500 text-sm">{(page - 1) * itemsPerPage + idx + 1}</td>
-                                        <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">
-                                            {new Date(item.tanggal).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                                            {item.isOffline && (
-                                                <span className="ml-2 inline-flex items-center gap-1 text-[10px] font-extrabold bg-amber-200 text-amber-900 border border-amber-400 px-2 py-0.5 rounded-full shadow-2xs animate-pulse whitespace-nowrap">
-                                                    <i className="fas fa-wifi-slash text-amber-700"></i> Belum Sinkron
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="px-4 py-3 text-right">
-                                            <span className="font-bold text-orange-600">{parseFloat(item.jumlah_kg || 0).toFixed(2)} Kg</span>
-                                        </td>
-                                        <td className="px-4 py-3 text-gray-600 text-sm">{item.keterangan || '-'}</td>
-                                        <td className="px-4 py-3 text-gray-600 text-sm">{item.petugas}</td>
-                                        <td className="px-4 py-3 text-center">
-                                            <button onClick={() => handleEdit(item)}
-                                                className="bg-blue-100 text-blue-600 hover:bg-blue-200 px-2 py-1 rounded mx-1 transition">
-                                                <i className="fas fa-edit"></i>
-                                            </button>
-                                            <button onClick={() => handleDelete(item.id)}
-                                                className="bg-red-100 text-red-600 hover:bg-red-200 px-2 py-1 rounded mx-1 transition">
-                                                <i className="fas fa-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                    {totalPages > 0 && (
-                        <div className="flex justify-between items-center px-6 py-4 bg-gray-50 border-t text-sm">
-                            <div className="flex items-center space-x-2 text-gray-600">
-                                <span>Hal.</span>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    max={totalPages}
-                                    value={page}
-                                    onChange={(e) => {
-                                        let val = parseInt(e.target.value);
-                                        if (isNaN(val) || val < 1) val = 1;
-                                        if (val > totalPages) val = totalPages;
-                                        setPage(val);
-                                    }}
-                                    className="w-16 px-2 py-1 border rounded text-center outline-none focus:ring-2 focus:ring-blue-500"
-                                />
-                                <span>/ {totalPages}</span>
-                            </div>
-                            <div className="flex gap-2">
-                                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                                    className="px-3 py-1 bg-white border rounded hover:bg-gray-100 disabled:opacity-50">Sebelumnya</button>
-                                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                                    className="px-3 py-1 bg-white border rounded hover:bg-gray-100 disabled:opacity-50">Selanjutnya</button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-
+                <PengangkutanTable
+                    data={data}
+                    loading={loading}
+                    totalData={totalData}
+                    filterMonth={filterMonth}
+                    setFilterMonth={setFilterMonth}
+                    page={page}
+                    setPage={setPage}
+                    itemsPerPage={ITEMS_PER_PAGE}
+                    totalPages={totalPages}
+                    totalOfflineCount={offlineQueueCount}
+                    handleEdit={handleEdit}
+                    handleDelete={handleDelete}
+                    syncOfflineQueue={syncOfflineQueue}
+                />
             </div>
         </AppLayout>
     );

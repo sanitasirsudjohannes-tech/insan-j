@@ -1,9 +1,9 @@
 export const AVAILABLE_FORMS = [
-  { id: 'ruang_bangunan', name: 'Ruang Bangunan', icon: '🏢', color: 'blue' },
-  { id: 'pengolahan_limbah', name: 'Pengolahan Limbah', icon: '🗑️', color: 'green' },
-  { id: 'toilet', name: 'Kebersihan Toilet', icon: '🚽', color: 'purple' },
-  { id: 'reservoir', name: 'Kebersihan Bak Reservoir', icon: '💧', color: 'yellow' },
-  { id: 'gizi', name: 'Ceklist Gizi', icon: '🍽️', color: 'gray' }
+  { id: 'ruang_bangunan', name: 'Ruang Bangunan', icon: '🏢', color: 'blue', table: 'ruang_bangunan' },
+  { id: 'pengolahan_limbah', name: 'Pengolahan Limbah', icon: '🗑️', color: 'green', table: 'limbah_medis' },
+  { id: 'toilet', name: 'Kebersihan Toilet', icon: '🚽', color: 'purple', table: 'pemeriksaan_toilet' },
+  { id: 'reservoir', name: 'Kebersihan Bak Reservoir', icon: '💧', color: 'yellow', table: 'pemeriksaan_reservoir' },
+  { id: 'gizi', name: 'Ceklist Gizi', icon: '🍽️', color: 'gray', table: 'pemeriksaan_gizi' }
 ];
 
 export const CHECKLIST_ITEMS = {

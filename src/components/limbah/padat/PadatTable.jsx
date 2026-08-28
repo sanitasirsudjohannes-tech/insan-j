@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+
 /**
  * PadatTable – tabel data limbah padat (akumulasi harian) + mobile card.
  *
@@ -19,6 +21,23 @@ export default function PadatTable({
   onDelete,
   onPrint,
 }) {
+  const [showFilter, setShowFilter] = useState(false);
+  const activeFilterCount = filterMonth ? 1 : 0;
+
+  useEffect(() => {
+    if (!showFilter) return undefined;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [showFilter]);
+
+  const handleClearFilters = () => {
+    setFilterMonth('');
+    setPage(1);
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden">
       {/* Info banner: keterangan warna baris */}
@@ -47,26 +66,117 @@ export default function PadatTable({
       </div>
 
       {/* Header bar */}
-      <div className="bg-gray-800 text-white px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
-        <h2 className="text-lg font-bold">
-          <i className="fas fa-table mr-2" /> Data Limbah Padat
-          <span className="ml-3 text-sm font-normal text-gray-300">({totalData} total data)</span>
+      <div className="bg-slate-800 text-white px-4 py-3 flex items-center justify-between gap-3">
+        <h2 className="text-base font-bold flex items-center gap-2 min-w-0">
+          <i className="fas fa-table shrink-0" />
+          <span className="truncate">Data Limbah Padat</span>
+          <span className="text-[11px] font-normal text-slate-300 shrink-0">({totalData})</span>
         </h2>
-        <div className="flex items-center gap-3">
-          <input
-            type="month"
-            value={filterMonth}
-            onChange={(e) => { setFilterMonth(e.target.value); setPage(1); }}
-            className="bg-white text-gray-800 px-3 py-1.5 rounded-lg text-sm border focus:ring-2 focus:ring-blue-500 outline-none"
-          />
+
+        <div className="flex items-center gap-2 shrink-0">
           <button
-            onClick={onPrint}
-            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition font-medium text-sm"
+            type="button"
+            onClick={() => setShowFilter(true)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition ${
+              activeFilterCount > 0
+                ? 'bg-blue-500 hover:bg-blue-600 text-white'
+                : 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
+            }`}
           >
-            <i className="fas fa-print mr-2" /> Cetak PDF
+            <i className="fas fa-filter" />
+            Filter
+            {activeFilterCount > 0 && (
+              <span className="bg-white text-blue-700 text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
           </button>
+
+          {onPrint && (
+            <button
+              type="button"
+              onClick={onPrint}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl transition text-xs font-semibold flex items-center gap-1.5 shadow-sm"
+            >
+              <i className="fas fa-print" /> Cetak
+            </button>
+          )}
         </div>
       </div>
+
+      {showFilter && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={() => setShowFilter(false)}>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div
+            className="relative bg-white w-full sm:max-w-sm sm:mx-4 rounded-t-3xl sm:rounded-2xl shadow-2xl z-10"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex justify-center pt-3 pb-1 sm:hidden">
+              <div className="w-10 h-1.5 bg-gray-300 rounded-full" />
+            </div>
+            <div className="flex justify-between items-center px-5 pt-4 pb-3 border-b border-gray-100">
+              <span className="text-base font-bold text-gray-800">
+                <i className="fas fa-filter mr-2 text-blue-500" />Filter Data
+              </span>
+              <div className="flex items-center gap-2">
+                {activeFilterCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearFilters}
+                    className="text-xs text-red-500 hover:text-red-700 font-semibold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition flex items-center gap-1"
+                  >
+                    <i className="fas fa-times" /> Reset
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowFilter(false)}
+                  className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 flex items-center justify-center transition"
+                  aria-label="Tutup filter"
+                >
+                  <i className="fas fa-times text-xs" />
+                </button>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
+                  <i className="fas fa-calendar mr-1.5 text-blue-500" />Periode
+                </label>
+                <input
+                  type="month"
+                  value={filterMonth}
+                  onChange={(event) => {
+                    setFilterMonth(event.target.value);
+                    setPage(1);
+                  }}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                />
+              </div>
+
+              {filterMonth && (
+                <div className="pt-3 border-t border-gray-100">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase mb-1.5">Filter Aktif</p>
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full font-semibold">
+                    📅 {filterMonth}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 pb-6 sm:pb-4">
+              <button
+                type="button"
+                onClick={() => setShowFilter(false)}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold text-sm transition shadow-sm"
+              >
+                Terapkan Filter
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Desktop table */}
       <div className="hidden md:block overflow-x-auto">

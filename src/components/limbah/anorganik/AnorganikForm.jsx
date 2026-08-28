@@ -1,12 +1,12 @@
 import SearchableBottomSheet from '../../SearchableBottomSheet';
 
 const JENIS_FIELDS = [
-  { name: 'infus', label: 'Infus', color: 'text-blue-600', ring: 'focus:ring-blue-400' },
-  { name: 'jerigen', label: 'Jerigen', color: 'text-amber-600', ring: 'focus:ring-amber-400' },
-  { name: 'kertas', label: 'Kertas', color: 'text-slate-600', ring: 'focus:ring-slate-400' },
-  { name: 'kardus', label: 'Kardus', color: 'text-orange-700', ring: 'focus:ring-orange-400' },
-  { name: 'botol_mineral', label: 'Botol Mineral', color: 'text-cyan-600', ring: 'focus:ring-cyan-400' },
-  { name: 'bayclin_dll', label: 'Bayclin dll', color: 'text-purple-600', ring: 'focus:ring-purple-400' },
+  { name: 'infus',         label: 'Infus',         satuan: 'Kg',   color: 'text-blue-600',   ring: 'focus:ring-blue-400' },
+  { name: 'jerigen',      label: 'Jerigen',       satuan: 'Buah', color: 'text-amber-600',  ring: 'focus:ring-amber-400' },
+  { name: 'kertas',       label: 'Kertas',        satuan: 'Kg',   color: 'text-slate-600',  ring: 'focus:ring-slate-400' },
+  { name: 'kardus',       label: 'Kardus',        satuan: 'Kg',   color: 'text-orange-700', ring: 'focus:ring-orange-400' },
+  { name: 'botol_mineral',label: 'Botol Mineral', satuan: 'Kg',   color: 'text-cyan-600',   ring: 'focus:ring-cyan-400' },
+  { name: 'bayclin_dll',  label: 'Bayclin dll',   satuan: 'Kg',   color: 'text-purple-600', ring: 'focus:ring-purple-400' },
 ];
 
 export { JENIS_FIELDS };
@@ -88,21 +88,21 @@ export default function AnorganikForm({
 
             <div className="mb-4">
               <label className="block text-gray-800 font-bold text-sm mb-2">
-                Jumlah Timbulan Limbah Anorganik (Kg)
+                Jumlah Timbulan Limbah Anorganik
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {JENIS_FIELDS.map(f => (
                   <div key={f.name}>
-                    <label className={`block text-sm font-semibold ${f.color} mb-1`}>{f.label} (Kg)</label>
+                    <label className={`block text-sm font-semibold ${f.color} mb-1`}>{f.label} ({f.satuan})</label>
                     <input
                       type="number"
-                      step="0.01"
+                      step={f.satuan === 'Buah' ? '1' : '0.01'}
                       min="0"
                       name={f.name}
                       value={formData[f.name]}
                       onChange={handleInputChange}
                       required
-                      placeholder="0.0"
+                      placeholder={f.satuan === 'Buah' ? '0' : '0.0'}
                       className={`w-full border border-gray-300 rounded-xl px-3 py-2 focus:ring-2 ${f.ring} outline-none text-sm`}
                     />
                   </div>

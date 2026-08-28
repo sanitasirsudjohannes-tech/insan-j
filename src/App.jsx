@@ -13,6 +13,7 @@ const LimbahPadat = lazy(() => import('./pages/LimbahPadat'));
 const LimbahRuangan = lazy(() => import('./pages/LimbahRuangan'));
 const LimbahDihasilkan = lazy(() => import('./pages/LimbahDihasilkan'));
 const PengangkutanLimbah = lazy(() => import('./pages/PengangkutanLimbah'));
+const RekapLimbah = lazy(() => import('./pages/RekapLimbah'));
 
 // Loading component
 const LoadingScreen = () => (
@@ -43,25 +44,25 @@ function App() {
           } />
 
           <Route path="/riwayat" element={
-            <ProtectedRoute>
+            <ProtectedRoute deniedRoles={['mahasiswa']}>
               <Riwayat />
             </ProtectedRoute>
           } />
 
           <Route path="/kelola-admin" element={
-            <ProtectedRoute>
+            <ProtectedRoute requiredRole="admin">
               <KelolaAdmin />
             </ProtectedRoute>
           } />
 
           <Route path="/inspeksi" element={
-            <ProtectedRoute>
+            <ProtectedRoute deniedRoles={['mahasiswa']}>
               <Inspeksi />
             </ProtectedRoute>
           } />
 
           <Route path="/limbah-dihasilkan" element={
-            <ProtectedRoute>
+            <ProtectedRoute allowedRoles={['petugas', 'mahasiswa', 'user']}>
               <LimbahDihasilkan />
             </ProtectedRoute>
           } />
@@ -71,8 +72,14 @@ function App() {
           <Route path="/limbah-ruangan" element={<Navigate to="/limbah-dihasilkan" replace />} />
 
           <Route path="/pengangkutan" element={
-            <ProtectedRoute>
+            <ProtectedRoute deniedRoles={['mahasiswa']}>
               <PengangkutanLimbah />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/rekap-limbah" element={
+            <ProtectedRoute deniedRoles={['mahasiswa']}>
+              <RekapLimbah />
             </ProtectedRoute>
           } />
 

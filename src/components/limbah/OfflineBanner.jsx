@@ -4,9 +4,12 @@ import { syncOfflineQueue } from '../../lib/offlineStorage';
  * OfflineBanner – ditampilkan ketika ada data offline yang belum tersinkronisasi.
  *
  * @param {Array}   data - Array data yang sedang ditampilkan di tabel.
+ * @param {number}  totalOfflineCount - Seluruh antrean tabel, tanpa terpengaruh filter/halaman.
  */
-export default function OfflineBanner({ data }) {
-  const offlineCount = data.filter(i => i.isOffline).length;
+export default function OfflineBanner({ data, totalOfflineCount }) {
+  const offlineCount = typeof totalOfflineCount === 'number'
+    ? totalOfflineCount
+    : data.filter(i => i.isOffline).length;
   if (offlineCount === 0) return null;
 
   return (
@@ -20,7 +23,7 @@ export default function OfflineBanner({ data }) {
       </div>
       {navigator.onLine && (
         <button
-          onClick={() => syncOfflineQueue(true)}
+          onClick={() => syncOfflineQueue(true, true)}
           className="bg-amber-600 hover:bg-amber-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
         >
           <i className="fas fa-cloud-upload-alt" /> Sinkronkan Sekarang

@@ -1,3 +1,5 @@
+import { getLocalDateString } from '../../../lib/localDate';
+
 /**
  * PadatForm – form input / edit data limbah padat.
  *
@@ -8,7 +10,7 @@
 
 const EMPTY_FORM = {
   id: null,
-  tanggal: new Date().toISOString().split('T')[0],
+  tanggal: getLocalDateString(),
   infeksius: '',
   jarum_suntik: '',
   botol_obat: '',

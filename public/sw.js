@@ -1,4 +1,4 @@
-const CACHE_NAME = 'insan-j-cache-v1';
+const CACHE_NAME = 'insan-j-cache-v2';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -9,30 +9,60 @@ const ASSETS_TO_CACHE = [
   '/img/logo_provinsi.png'
 ];
 
+const getAppShellAssets = async () => {
+  const [response, manifestResponse] = await Promise.all([
+    fetch('/index.html', { cache: 'no-store' }),
+    fetch('/offline-assets.json', { cache: 'no-store' }),
+  ]);
+  if (!response.ok || !manifestResponse.ok) {
+    throw new Error(`Gagal memuat aset aplikasi untuk cache offline: ${response.status}/${manifestResponse.status}`);
+  }
+
+  const [html, manifest] = await Promise.all([response.text(), manifestResponse.json()]);
+  const assets = new Set(ASSETS_TO_CACHE);
+  const assetPattern = /<(?:script|link)\b[^>]*?\b(?:src|href)\s*=\s*["']([^"']+)["'][^>]*>/gi;
+
+  for (const match of html.matchAll(assetPattern)) {
+    const assetUrl = new URL(match[1], self.location.origin);
+    if (assetUrl.origin === self.location.origin && assetUrl.pathname.startsWith('/assets/')) {
+      assets.add(`${assetUrl.pathname}${assetUrl.search}`);
+    }
+  }
+
+  for (const entry of Object.values(manifest)) {
+    const entryAssets = [entry.file, ...(entry.css || [])].filter(Boolean);
+    for (const asset of entryAssets) {
+      const assetUrl = new URL(asset, `${self.location.origin}/`);
+      if (assetUrl.origin === self.location.origin && assetUrl.pathname.startsWith('/assets/')) {
+        assets.add(`${assetUrl.pathname}${assetUrl.search}`);
+      }
+    }
+  }
+
+  return [...assets];
+};
+
 // Install Event
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
-  );
-  self.skipWaiting();
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    const assets = await getAppShellAssets();
+    await cache.addAll(assets);
+    await self.skipWaiting();
+  })());
 });
 
 // Activate Event
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            return caches.delete(cache);
-          }
-        })
-      );
-    })
-  );
-  self.clients.claim();
+  event.waitUntil((async () => {
+    const cacheNames = await caches.keys();
+    await Promise.all(
+      cacheNames
+        .filter((cache) => cache !== CACHE_NAME)
+        .map((cache) => caches.delete(cache))
+    );
+    await self.clients.claim();
+  })());
 });
 
 // Fetch Event (Network First, Fallback to Cache)

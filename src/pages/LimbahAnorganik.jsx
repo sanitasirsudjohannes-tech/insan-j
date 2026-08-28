@@ -1,19 +1,39 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import AppLayout from '../components/AppLayout';
 import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
-import { getCurrentUser, fetchDaftarRuangan } from '../lib/api';
+import { getCurrentUser, fetchDaftarRuangan, getSetting } from '../lib/api';
 import {
   saveToOfflineQueue,
+  getOfflineQueue,
   getUnsyncedItemsForTable,
   removeLocalRecordQueue,
+  getOfflineDeletedIds,
+  getSyncedServerId,
+  syncOfflineQueue,
+  getCachedServerRows,
+  cacheServerRows,
+  removeCachedServerRow,
 } from '../lib/offlineStorage';
 
-import AnorganikForm, { JENIS_FIELDS } from '../components/limbah/anorganik/AnorganikForm';
+import AnorganikForm from '../components/limbah/anorganik/AnorganikForm';
 import AnorganikTable from '../components/limbah/anorganik/AnorganikTable';
 import OfflineBanner from '../components/limbah/OfflineBanner';
 import Pagination from '../components/limbah/Pagination';
+import { buildAnorganikPrintHTML } from '../components/limbah/anorganik/anorganikPrintTemplate';
+import { printViaHiddenIframe } from '../lib/printHelpers';
+import { getLocalDateString, getLocalMonthString } from '../lib/localDate';
+import { isNetworkError } from '../lib/networkErrors';
+import { fetchAllSupabaseRows } from '../lib/supabasePagination';
+import { notifyDatabaseTablesChanged } from '../lib/databaseAggregations';
+import {
+  deleteRecordWithVersion,
+  getRecordBaseVersion,
+  isRecordConflictError,
+  resolveOfflineRecordConflict,
+  updateRecordWithVersion,
+} from '../lib/recordVersion';
 
 const MySwal = withReactContent(Swal);
 
@@ -25,22 +45,38 @@ function FullWrapper({ children }) {
 }
 
 const ITEMS_PER_PAGE = 10;
+const FETCH_BATCH_SIZE = 500;
+
+// Keep the same ordering as the Supabase query so offline drafts/updates are
+// merged into the correct global position before slicing the current page.
+const compareAnorganikRows = (a, b) => {
+  const dateA = a?.tanggal || '';
+  const dateB = b?.tanggal || '';
+  if (dateA !== dateB) return dateB.localeCompare(dateA);
+
+  const waktuA = a?.waktu_input || '';
+  const waktuB = b?.waktu_input || '';
+  return waktuB.localeCompare(waktuA);
+};
 
 export default function LimbahAnorganik({ embedded = false }) {
   const user = getCurrentUser();
+  const isMahasiswa = user?.role?.toLowerCase() === 'mahasiswa';
   const [data, setData] = useState([]);
   const [ruanganList, setRuanganList] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [page, setPage] = useState(1);
   const [totalData, setTotalData] = useState(0);
+  const [offlineQueueCount, setOfflineQueueCount] = useState(0);
   const [filterMonth, setFilterMonth] = useState('');
   const [filterRuangan, setFilterRuangan] = useState('');
   const [showRuanganSheet, setShowRuanganSheet] = useState(false);
+  const fetchIdRef = useRef(0);
 
   const emptyForm = {
     id: null,
-    tanggal: new Date().toISOString().split('T')[0],
+    tanggal: getLocalDateString(),
     ruangan: '',
     infus: '',
     jerigen: '',
@@ -52,19 +88,39 @@ export default function LimbahAnorganik({ embedded = false }) {
   };
   const [formData, setFormData] = useState(emptyForm);
 
-  // ── Fetch ruangan ────────────────────────────────────────────────────────────
   useEffect(() => {
     fetchDaftarRuangan().then(setRuanganList);
   }, []);
 
-  // ── Fetch data ───────────────────────────────────────────────────────────────
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    const currentFetchId = ++fetchIdRef.current;
     setLoading(true);
     try {
       let dbData = [];
       let count = 0;
+      setOfflineQueueCount(getOfflineQueue().filter(item => item.table === 'limbah_anorganik').length);
+
+      // Hide every stale server version, even when its offline replacement
+      // moved to a different room or month and no longer matches this filter.
+      const allUnsynced = getUnsyncedItemsForTable('limbah_anorganik');
+      let unsynced = allUnsynced;
+      if (filterMonth) unsynced = unsynced.filter(i => i.tanggal?.startsWith(filterMonth));
+      if (filterRuangan) unsynced = unsynced.filter(i => i.ruangan === filterRuangan);
+
+      const delIds = new Set(getOfflineDeletedIds('limbah_anorganik'));
+      const hiddenServerIds = new Set([
+        ...allUnsynced.filter(item => item.offlineAction === 'update').map(item => String(item.id)),
+        ...delIds,
+      ]);
+      const excludedIds = hiddenServerIds.size > 0
+        ? `(${Array.from(hiddenServerIds).join(',')})`
+        : null;
+
+      let dbFetchSucceeded = false;
+      let dbStartIndex = 0;
 
       try {
+        if (!navigator.onLine) throw new Error('Perangkat sedang offline.');
         let queryCount = supabase
           .from('limbah_anorganik')
           .select('id', { count: 'exact', head: true });
@@ -76,62 +132,108 @@ export default function LimbahAnorganik({ embedded = false }) {
           queryCount = queryCount.gte('tanggal', start).lte('tanggal', end);
         }
         if (filterRuangan) queryCount = queryCount.eq('ruangan', filterRuangan);
+        if (excludedIds) queryCount = queryCount.not('id', 'in', excludedIds);
 
-        const { count: c } = await queryCount;
+        const { count: c, error: countError } = await queryCount;
+        if (countError) throw countError;
         count = c || 0;
 
-        const from = (page - 1) * ITEMS_PER_PAGE;
-        let queryData = supabase
-          .from('limbah_anorganik')
-          .select('id, tanggal, ruangan, infus, jerigen, kertas, kardus, botol_mineral, bayclin_dll, keterangan, petugas, waktu_input')
-          .order('tanggal', { ascending: false })
-          .order('waktu_input', { ascending: false })
-          .range(from, from + ITEMS_PER_PAGE - 1);
+        const pageStartIndex = (page - 1) * ITEMS_PER_PAGE;
+        dbStartIndex = Math.max(0, pageStartIndex - unsynced.length);
+        const dbEndIndex = pageStartIndex + ITEMS_PER_PAGE - 1;
 
-        if (filterMonth) {
-          const [year, month] = filterMonth.split('-');
-          const start = `${year}-${month}-01`;
-          const end = `${year}-${month}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`;
-          queryData = queryData.gte('tanggal', start).lte('tanggal', end);
+        for (let from = dbStartIndex; from <= dbEndIndex; from += FETCH_BATCH_SIZE) {
+          const to = Math.min(from + FETCH_BATCH_SIZE - 1, dbEndIndex);
+          let queryData = supabase
+            .from('limbah_anorganik')
+            .select('id, tanggal, ruangan, infus, jerigen, kertas, kardus, botol_mineral, bayclin_dll, keterangan, petugas, waktu_input, created_by')
+            .order('tanggal', { ascending: false })
+            .order('waktu_input', { ascending: false })
+            .range(from, to);
+
+          if (filterMonth) {
+            const [year, month] = filterMonth.split('-');
+            const start = `${year}-${month}-01`;
+            const end = `${year}-${month}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`;
+            queryData = queryData.gte('tanggal', start).lte('tanggal', end);
+          }
+          if (filterRuangan) queryData = queryData.eq('ruangan', filterRuangan);
+          if (excludedIds) queryData = queryData.not('id', 'in', excludedIds);
+
+          const { data: result, error } = await queryData;
+          if (error) throw error;
+
+          const batch = result || [];
+          dbData.push(...batch);
+          if (batch.length < to - from + 1) break;
         }
-        if (filterRuangan) queryData = queryData.eq('ruangan', filterRuangan);
 
-        const { data: result, error } = await queryData;
-        if (!error) dbData = result || [];
+        cacheServerRows('limbah_anorganik', dbData);
+        dbFetchSucceeded = true;
       } catch (e) {
         console.warn('Handling offline/network error fetching limbah anorganik:', e);
+        dbData = getCachedServerRows('limbah_anorganik').filter(item => {
+          if (hiddenServerIds.has(String(item.id))) return false;
+          if (filterMonth && !item.tanggal?.startsWith(filterMonth)) return false;
+          if (filterRuangan && item.ruangan !== filterRuangan) return false;
+          return true;
+        });
+        count = dbData.length;
       }
 
-      let unsynced = getUnsyncedItemsForTable('limbah_anorganik');
-      if (filterMonth) unsynced = unsynced.filter(i => i.tanggal?.startsWith(filterMonth));
-      if (filterRuangan) unsynced = unsynced.filter(i => i.ruangan === filterRuangan);
+      if (currentFetchId !== fetchIdRef.current) return;
 
-      const unsyncedIds = new Set(unsynced.map(u => String(u.id)));
-      const filteredDb = dbData.filter(d => !unsyncedIds.has(String(d.id)));
+      const filteredDb = dbData.filter(item => !hiddenServerIds.has(String(item.id)));
+      const mergedData = [...unsynced, ...filteredDb].sort(compareAnorganikRows);
+      const adjustedTotal = Math.max(0, count + unsynced.length);
+      setTotalData(adjustedTotal);
 
-      setData([...unsynced, ...filteredDb]);
-      setTotalData((count || 0) + unsynced.length);
+      const lastAvailablePage = Math.max(1, Math.ceil(adjustedTotal / ITEMS_PER_PAGE));
+      if (page > lastAvailablePage) {
+        setPage(lastAvailablePage);
+        return;
+      }
+
+      const fromIndex = (page - 1) * ITEMS_PER_PAGE;
+      const localStartIndex = dbFetchSucceeded ? fromIndex - dbStartIndex : fromIndex;
+      setData(mergedData.slice(localStartIndex, localStartIndex + ITEMS_PER_PAGE));
     } catch (error) {
       console.error('Error fetching limbah anorganik:', error);
     } finally {
-      setLoading(false);
+      if (currentFetchId === fetchIdRef.current) setLoading(false);
     }
-  };
+  }, [filterMonth, filterRuangan, page]);
 
   useEffect(() => {
     fetchData();
-    const handleQueueChange = () => fetchData();
+    let queueRefreshTimer;
+    const handleQueueChange = (event) => {
+      if (event.syncInProgress) return;
+      const changedTables = event.changedTables || event.detail?.changedTables;
+      if (changedTables?.length && !changedTables.includes('limbah_anorganik')) {
+        return;
+      }
+
+      window.clearTimeout(queueRefreshTimer);
+      queueRefreshTimer = window.setTimeout(fetchData, 180);
+    };
     window.addEventListener('offline-queue-changed', handleQueueChange);
-    window.addEventListener('online', handleQueueChange);
+    window.addEventListener('offline-sync-finished', handleQueueChange);
     window.addEventListener('offline', handleQueueChange);
     return () => {
+      window.clearTimeout(queueRefreshTimer);
       window.removeEventListener('offline-queue-changed', handleQueueChange);
-      window.removeEventListener('online', handleQueueChange);
+      window.removeEventListener('offline-sync-finished', handleQueueChange);
       window.removeEventListener('offline', handleQueueChange);
     };
-  }, [page, filterMonth, filterRuangan]);
+  }, [fetchData]);
 
-  // ── Handlers ─────────────────────────────────────────────────────────────────
+  // Reset to the first page whenever a filter changes so a previously selected
+  // page cannot become empty after the result set shrinks.
+  useEffect(() => {
+    setPage(1);
+  }, [filterMonth, filterRuangan]);
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -141,6 +243,10 @@ export default function LimbahAnorganik({ embedded = false }) {
     e.preventDefault();
     if (!formData.ruangan) {
       MySwal.fire('Peringatan', 'Silakan pilih ruangan terlebih dahulu!', 'warning');
+      return;
+    }
+    if (!Number.isInteger(Number(formData.jerigen)) || Number(formData.jerigen) < 0) {
+      MySwal.fire('Peringatan', 'Jumlah jerigen harus berupa bilangan bulat karena dihitung per buah.', 'warning');
       return;
     }
     setSubmitting(true);
@@ -158,33 +264,76 @@ export default function LimbahAnorganik({ embedded = false }) {
       keterangan: formData.keterangan || '',
       waktu_input: new Date().toISOString(),
     };
+    const insertPayload = { ...payload, created_by: user?.id };
+    let recordId = formData.id;
+    let baseUpdatedAt = formData.baseUpdatedAt || null;
+    let isLocalDraft = Boolean(recordId) && String(recordId).startsWith('off_');
 
     try {
-      if (!navigator.onLine) {
+      if (isLocalDraft) {
+        recordId = getSyncedServerId(formData.id) || formData.id;
+
+        if (navigator.onLine && String(recordId).startsWith('off_')) {
+          await syncOfflineQueue(false, true);
+          recordId = getSyncedServerId(formData.id) || formData.id;
+        }
+
+        isLocalDraft = String(recordId).startsWith('off_');
+      }
+
+      if (!navigator.onLine || isLocalDraft) {
         saveToOfflineQueue('limbah_anorganik', formData.id ? 'update' : 'insert',
-          formData.id ? { ...payload, id: formData.id } : payload,
-          `Input Limbah Anorganik ${formData.ruangan}`);
-        MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Data telah disimpan di HP (Draft). Akan otomatis dikirim saat terhubung internet.', confirmButtonColor: '#0891b2' });
+          formData.id ? { ...payload, id: recordId } : insertPayload,
+          `Input Limbah Anorganik ${formData.ruangan}`,
+          { baseUpdatedAt });
+        MySwal.fire({
+          icon: 'info',
+          title: 'Tersimpan Offline',
+          text: isLocalDraft && navigator.onLine
+            ? 'Perubahan draft tersimpan dan menunggu sinkronisasi.'
+            : 'Data telah disimpan di HP (Draft). Akan otomatis dikirim saat terhubung internet.',
+          confirmButtonColor: '#0891b2',
+        });
       } else {
         if (formData.id) {
-          const { error } = await supabase.from('limbah_anorganik').update(payload).eq('id', formData.id);
-          if (error) throw error;
+          const pendingRecordUpdate = getOfflineQueue().find(item => {
+            if (item.table !== 'limbah_anorganik') return false;
+            const references = [item.serverId, item.payload?.id, item.payload?.serverId];
+            return references.some(reference => reference != null && String(reference) === String(recordId));
+          });
+
+          if (pendingRecordUpdate) {
+            await syncOfflineQueue(false, true);
+            const stillPending = getOfflineQueue().some(item => item.id === pendingRecordUpdate.id);
+            if (!stillPending && pendingRecordUpdate.action === 'update') {
+              baseUpdatedAt = pendingRecordUpdate.payload?.waktu_input || baseUpdatedAt;
+            }
+          }
+
+          await updateRecordWithVersion('limbah_anorganik', recordId, payload, baseUpdatedAt);
+          cacheServerRows('limbah_anorganik', [{ ...payload, id: recordId }]);
+          if (pendingRecordUpdate) removeLocalRecordQueue({ id: recordId });
           MySwal.fire('Berhasil', 'Data limbah anorganik berhasil diubah', 'success');
         } else {
-          const { error } = await supabase.from('limbah_anorganik').insert([payload]);
+          const { error } = await supabase.from('limbah_anorganik').insert([insertPayload]);
           if (error) throw error;
+          notifyDatabaseTablesChanged('limbah_anorganik');
           MySwal.fire('Berhasil', 'Data limbah anorganik berhasil ditambahkan', 'success');
         }
       }
       setFormData(emptyForm);
       fetchData();
     } catch (error) {
-      if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
+      if (isNetworkError(error)) {
         saveToOfflineQueue('limbah_anorganik', formData.id ? 'update' : 'insert',
-          formData.id ? { ...payload, id: formData.id } : payload,
-          `Input Limbah Anorganik ${formData.ruangan}`);
+          formData.id ? { ...payload, id: recordId } : insertPayload,
+          `Input Limbah Anorganik ${formData.ruangan}`,
+          { baseUpdatedAt });
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Jaringan terputus. Data telah disimpan di HP (Draft) dan akan dikirim otomatis.', confirmButtonColor: '#0891b2' });
         setFormData(emptyForm);
+      } else if (isRecordConflictError(error)) {
+        MySwal.fire('Data Sudah Berubah', error.message, 'warning');
+        fetchData();
       } else {
         MySwal.fire('Gagal', error.message, 'error');
       }
@@ -193,7 +342,19 @@ export default function LimbahAnorganik({ embedded = false }) {
     }
   };
 
-  const handleEdit = (item) => {
+  const handleEdit = async (item) => {
+    try {
+      const resolution = await resolveOfflineRecordConflict('limbah_anorganik', item, MySwal);
+      if (!resolution) return;
+      if (resolution.discardDraft) removeLocalRecordQueue({ id: item.id });
+      if (!resolution.record) { fetchData(); return; }
+      item = resolution.record;
+      if (resolution.discardDraft) cacheServerRows('limbah_anorganik', [item]);
+    } catch (error) {
+      MySwal.fire('Gagal', error.message, 'error');
+      return;
+    }
+
     setFormData({
       id: item.id,
       tanggal: item.tanggal,
@@ -205,6 +366,7 @@ export default function LimbahAnorganik({ embedded = false }) {
       botol_mineral: item.botol_mineral,
       bayclin_dll: item.bayclin_dll,
       keterangan: item.keterangan || '',
+      baseUpdatedAt: getRecordBaseVersion(item),
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -223,32 +385,112 @@ export default function LimbahAnorganik({ embedded = false }) {
 
     try {
       if (item.isOffline && item.offlineAction === 'insert') {
-        removeLocalRecordQueue(item);
-        MySwal.fire('Terhapus', 'Draft offline berhasil dihapus', 'success');
-        fetchData();
-        return;
+        let syncedServerId = getSyncedServerId(item.id);
+        if (!syncedServerId && navigator.onLine) {
+          await syncOfflineQueue(false, true);
+          syncedServerId = getSyncedServerId(item.id);
+        }
+        if (syncedServerId) {
+          item = { ...item, id: syncedServerId };
+        } else {
+          removeLocalRecordQueue(item);
+          MySwal.fire('Terhapus', 'Draft offline berhasil dihapus', 'success');
+          fetchData();
+          return;
+        }
       }
-      removeLocalRecordQueue(item);
 
       if (!navigator.onLine) {
-        saveToOfflineQueue('limbah_anorganik', 'delete', { id: item.id }, `Hapus Limbah Anorganik ${item.ruangan || ''}`);
+        saveToOfflineQueue(
+          'limbah_anorganik',
+          'delete',
+          item,
+          `Hapus Limbah Anorganik ${item.ruangan || ''}`,
+          { baseUpdatedAt: getRecordBaseVersion(item) }
+        );
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Perintah hapus disimpan di HP. Akan diproses otomatis saat terhubung internet.', confirmButtonColor: '#0891b2' });
         fetchData();
         return;
       }
 
-      const { error } = await supabase.from('limbah_anorganik').delete().eq('id', item.id);
-      if (error) throw error;
+      await deleteRecordWithVersion('limbah_anorganik', item.id, getRecordBaseVersion(item));
+
+      removeLocalRecordQueue(item);
+      removeCachedServerRow('limbah_anorganik', item.id);
       MySwal.fire('Terhapus', 'Data berhasil dihapus', 'success');
       fetchData();
     } catch (error) {
-      if (!navigator.onLine || error.message?.includes('Failed to fetch') || error.message?.includes('network')) {
-        saveToOfflineQueue('limbah_anorganik', 'delete', { id: item.id }, `Hapus Limbah Anorganik ${item.ruangan || ''}`);
+      if (isNetworkError(error)) {
+        saveToOfflineQueue(
+          'limbah_anorganik',
+          'delete',
+          item,
+          `Hapus Limbah Anorganik ${item.ruangan || ''}`,
+          { baseUpdatedAt: getRecordBaseVersion(item) }
+        );
         MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Jaringan terputus. Perintah hapus disimpan dan akan diproses otomatis.', confirmButtonColor: '#0891b2' });
+        fetchData();
+      } else if (isRecordConflictError(error)) {
+        MySwal.fire('Data Sudah Berubah', error.message, 'warning');
         fetchData();
       } else {
         MySwal.fire('Gagal', error.message, 'error');
       }
+    }
+  };
+
+  // ── Print ─────────────────────────────────────────────────────────────────
+  const handlePrint = async () => {
+    const currentMonth = filterMonth || getLocalMonthString();
+    const { value: fv } = await MySwal.fire({
+      title: 'Cetak Laporan Limbah Anorganik',
+      html: `<div class="text-left mt-4 space-y-4"><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Bulan &amp; Tahun</label><input id="swal-print-month" type="month" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 outline-none text-sm bg-gray-50" value="${currentMonth}"/></div><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Ruangan (Opsional)</label><select id="swal-print-ruangan" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 outline-none text-sm bg-gray-50 appearance-none"><option value="">-- Semua Ruangan --</option>${ruanganList.map(r => `<option value="${r}">${r}</option>`).join('')}</select></div></div>`,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: '<i class="fas fa-print mr-2"></i>Cetak',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#2563eb',
+      preConfirm: () => {
+        const mi = document.getElementById('swal-print-month');
+        if (!mi?.value) { Swal.showValidationMessage('Silakan pilih bulan terlebih dahulu.'); return false; }
+        return { month: mi.value, ruangan: document.getElementById('swal-print-ruangan')?.value || '' };
+      },
+    });
+    if (!fv) return;
+    const { month: sel, ruangan: selR } = fv;
+    const [y, m] = sel.split('-');
+    const s = `${y}-${m}-01`;
+    const en = `${y}-${m}-${String(new Date(+y, +m, 0).getDate()).padStart(2, '0')}`;
+    const MONTH_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    const periodeText = `${MONTH_NAMES[+m - 1]} ${y}`;
+    const ruanganText = selR ? `Ruangan: ${selR}` : 'Semua Ruangan';
+    const printedDate = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    try {
+      MySwal.fire({ title: 'Menyiapkan Laporan...', html: 'Mohon tunggu, data sedang diproses.', allowOutsideClick: false, allowEscapeKey: false, didOpen: () => MySwal.showLoading() });
+      const printData = await fetchAllSupabaseRows(() => {
+        let query = supabase.from('limbah_anorganik')
+          .select('tanggal, ruangan, infus, jerigen, kertas, kardus, botol_mineral, bayclin_dll, petugas, keterangan')
+          .gte('tanggal', s)
+          .lte('tanggal', en)
+          .order('tanggal', { ascending: true })
+          .order('ruangan', { ascending: true })
+          .order('id', { ascending: true });
+        if (selR) query = query.eq('ruangan', selR);
+        return query;
+      });
+      if (!printData?.length) {
+        MySwal.fire({ icon: 'info', title: 'Tidak Ada Data', text: 'Tidak ada data limbah anorganik untuk periode dan ruangan yang dipilih.', confirmButtonColor: '#2563eb' });
+        return;
+      }
+      const kepalaUnit = await getSetting('kepala_unit_sanitasi', null);
+      const html = buildAnorganikPrintHTML(printData, periodeText, ruanganText, printedDate, kepalaUnit);
+      MySwal.close();
+      const printed = await printViaHiddenIframe(html);
+      if (!printed) {
+        MySwal.fire('Gagal', 'Browser tidak dapat membuka dialog cetak.', 'error');
+      }
+    } catch (error) {
+      MySwal.fire({ icon: 'error', title: 'Gagal Mencetak', text: 'Terjadi kesalahan: ' + error.message, confirmButtonColor: '#dc2626' });
     }
   };
 
@@ -258,8 +500,6 @@ export default function LimbahAnorganik({ embedded = false }) {
   return (
     <Wrapper>
       <div className="container mx-auto px-4 py-8">
-
-        {/* Header */}
         <div className="bg-linear-to-r from-cyan-600 via-sky-600 to-blue-700 text-white rounded-2xl shadow-xl p-6 mb-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
@@ -280,7 +520,6 @@ export default function LimbahAnorganik({ embedded = false }) {
           </div>
         </div>
 
-        {/* Form */}
         <AnorganikForm
           formData={formData}
           emptyForm={emptyForm}
@@ -294,9 +533,8 @@ export default function LimbahAnorganik({ embedded = false }) {
           setShowRuanganSheet={setShowRuanganSheet}
         />
 
-        {/* Tabel */}
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-          <OfflineBanner data={data} />
+          <OfflineBanner data={data} totalOfflineCount={offlineQueueCount} />
           <AnorganikTable
             data={data}
             loading={loading}
@@ -311,6 +549,7 @@ export default function LimbahAnorganik({ embedded = false }) {
             setPage={setPage}
             onEdit={handleEdit}
             onDelete={handleDelete}
+            onPrint={isMahasiswa ? undefined : handlePrint}
           />
           <Pagination
             page={page}
@@ -319,7 +558,6 @@ export default function LimbahAnorganik({ embedded = false }) {
             accentColor="cyan"
           />
         </div>
-
       </div>
     </Wrapper>
   );

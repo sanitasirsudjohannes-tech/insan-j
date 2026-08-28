@@ -1,9 +1,14 @@
-import { useState, Suspense, lazy } from 'react';
+import { useEffect, useState, Suspense, lazy } from 'react';
 import AppLayout from '../components/AppLayout';
+import { getCurrentUser } from '../lib/api';
 
-const LimbahPadat = lazy(() => import('./LimbahPadat'));
-const LimbahRuangan = lazy(() => import('./LimbahRuangan'));
-const LimbahAnorganik = lazy(() => import('./LimbahAnorganik'));
+const loadLimbahPadat = () => import('./LimbahPadat');
+const loadLimbahRuangan = () => import('./LimbahRuangan');
+const loadLimbahAnorganik = () => import('./LimbahAnorganik');
+
+const LimbahPadat = lazy(loadLimbahPadat);
+const LimbahRuangan = lazy(loadLimbahRuangan);
+const LimbahAnorganik = lazy(loadLimbahAnorganik);
 
 const LoadingTab = () => (
   <div className="flex flex-col items-center justify-center py-24">
@@ -37,7 +42,55 @@ const COLOR = {
 };
 
 export default function LimbahDihasilkan() {
+  const user = getCurrentUser();
+  const isMahasiswa = user?.role?.toLowerCase() === 'mahasiswa';
   const [activeTab, setActiveTab] = useState('ruangan');
+  const [visitedTabs, setVisitedTabs] = useState(() => new Set(['ruangan']));
+  const visibleTabs = isMahasiswa ? TABS.filter((tab) => tab.id !== 'padat') : TABS;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const warmOfflineTabs = async () => {
+      if (!navigator.onLine) return;
+
+      if ('serviceWorker' in navigator) {
+        try {
+          await navigator.serviceWorker.ready;
+        } catch (error) {
+          console.warn('Service worker belum siap untuk cache tab offline:', error);
+        }
+      }
+
+      if (cancelled || !navigator.onLine) return;
+      const loaders = [loadLimbahRuangan, loadLimbahAnorganik];
+      if (!isMahasiswa) loaders.push(loadLimbahPadat);
+      await Promise.allSettled(loaders.map(load => load()));
+    };
+
+    const idleHandle = typeof window.requestIdleCallback === 'function'
+      ? window.requestIdleCallback(warmOfflineTabs, { timeout: 2000 })
+      : window.setTimeout(warmOfflineTabs, 1000);
+
+    window.addEventListener('online', warmOfflineTabs);
+    return () => {
+      cancelled = true;
+      if (typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(idleHandle);
+      else window.clearTimeout(idleHandle);
+      window.removeEventListener('online', warmOfflineTabs);
+    };
+  }, [isMahasiswa]);
+
+  const handleTabChange = (tabId) => {
+    setActiveTab(tabId);
+    setVisitedTabs((previousTabs) => {
+      if (previousTabs.has(tabId)) return previousTabs;
+
+      const nextTabs = new Set(previousTabs);
+      nextTabs.add(tabId);
+      return nextTabs;
+    });
+  };
 
   return (
     <AppLayout title="Limbah Dihasilkan">
@@ -47,13 +100,13 @@ export default function LimbahDihasilkan() {
             <i className="fas fa-biohazard text-amber-400 text-[10px]" />
           </div>
           <div className="flex gap-1.5 overflow-x-auto">
-            {TABS.map(tab => {
+            {visibleTabs.map(tab => {
               const isActive = activeTab === tab.id;
               const c = COLOR[tab.color];
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => handleTabChange(tab.id)}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold
                     transition-all duration-150 whitespace-nowrap
                     ${isActive ? c.active : c.inactive}`}
@@ -69,21 +122,27 @@ export default function LimbahDihasilkan() {
         </div>
       </div>
 
-      <div className={activeTab === 'padat' ? 'block' : 'hidden'}>
-        <Suspense fallback={<LoadingTab />}>
-          <LimbahPadat embedded />
-        </Suspense>
-      </div>
-      <div className={activeTab === 'ruangan' ? 'block' : 'hidden'}>
-        <Suspense fallback={<LoadingTab />}>
-          <LimbahRuangan embedded />
-        </Suspense>
-      </div>
-      <div className={activeTab === 'anorganik' ? 'block' : 'hidden'}>
-        <Suspense fallback={<LoadingTab />}>
-          <LimbahAnorganik embedded />
-        </Suspense>
-      </div>
+      {!isMahasiswa && visitedTabs.has('padat') && (
+        <div className={activeTab === 'padat' ? 'block' : 'hidden'}>
+          <Suspense fallback={<LoadingTab />}>
+            <LimbahPadat embedded />
+          </Suspense>
+        </div>
+      )}
+      {visitedTabs.has('ruangan') && (
+        <div className={activeTab === 'ruangan' ? 'block' : 'hidden'}>
+          <Suspense fallback={<LoadingTab />}>
+            <LimbahRuangan embedded />
+          </Suspense>
+        </div>
+      )}
+      {visitedTabs.has('anorganik') && (
+        <div className={activeTab === 'anorganik' ? 'block' : 'hidden'}>
+          <Suspense fallback={<LoadingTab />}>
+            <LimbahAnorganik embedded />
+          </Suspense>
+        </div>
+      )}
     </AppLayout>
   );
 }

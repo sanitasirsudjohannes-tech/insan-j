@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import AppLayout from '../AppLayout';
 import { supabase } from '../../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
+import DashboardNotification from './DashboardNotification';
+import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
+import { fetchDatabaseAggregation } from '../../lib/databaseAggregations';
 
 export default function DashboardAdmin() {
   const [loading, setLoading] = useState(true);
@@ -12,6 +15,32 @@ export default function DashboardAdmin() {
   const [chartData, setChartData] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [chartReady, setChartReady] = useState(false);
+  const [dataRevision, setDataRevision] = useState(0);
+
+  useEffect(() => {
+    const relevantTables = new Set([
+      'ruang_bangunan', 'limbah_medis', 'pemeriksaan_toilet',
+      'pemeriksaan_reservoir', 'pemeriksaan_gizi', 'limbah_padat', 'limbah_ruangan',
+    ]);
+    let refreshTimer;
+
+    const refreshDashboard = event => {
+      const changedTables = event.detail?.changedTables || [];
+      if (changedTables.length > 0 && !changedTables.some(table => relevantTables.has(table))) return;
+
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => setDataRevision(value => value + 1), 120);
+    };
+
+    window.addEventListener('offline-sync-finished', refreshDashboard);
+    window.addEventListener('insan-j-data-changed', refreshDashboard);
+
+    return () => {
+      window.clearTimeout(refreshTimer);
+      window.removeEventListener('offline-sync-finished', refreshDashboard);
+      window.removeEventListener('insan-j-data-changed', refreshDashboard);
+    };
+  }, []);
 
   useEffect(() => {
     if (!loading) {
@@ -33,6 +62,29 @@ export default function DashboardAdmin() {
     const fetchData = async () => {
       setLoading(true);
       try {
+        const aggregated = await fetchDatabaseAggregation('dashboard_admin_inspeksi_summary', {
+          requested_month: selectedMonth || null,
+        });
+
+        if (aggregated) {
+          const totalInspeksi = Number(aggregated.totalInspeksi) || 0;
+          setStats({
+            totalInspeksi,
+            rataKebersihan: totalInspeksi > 0
+              ? Math.round((Number(aggregated.totalPersen) || 0) / totalInspeksi)
+              : 0,
+          });
+          setChartData((aggregated.categories || []).map(category => {
+            const jumlah = Number(category.jumlah) || 0;
+            return {
+              name: category.label,
+              nilai: jumlah > 0 ? Math.round((Number(category.total) || 0) / jumlah) : 0,
+              jumlah,
+            };
+          }));
+          return;
+        }
+
         const tables = [
           { name: 'ruang_bangunan', label: 'Bangunan' },
           { name: 'limbah_medis', label: 'Limbah' },
@@ -50,16 +102,19 @@ export default function DashboardAdmin() {
         }
 
         const promises = tables.map(async (table) => {
-          let query = supabase.from(table.name).select('persen');
+          const data = await fetchAllSupabaseRows(() => {
+            let query = supabase.from(table.name)
+              .select('persen')
+              .order('id', { ascending: true });
 
-          if (selectedMonth) {
-            query = query.gte('tanggal_pemeriksaan', startDate).lt('tanggal_pemeriksaan', endDate);
-          }
+            if (selectedMonth) {
+              query = query.gte('tanggal_pemeriksaan', startDate).lt('tanggal_pemeriksaan', endDate);
+            }
 
-          const { data, error } = await query;
+            return query;
+          });
 
-          if (error) throw new Error(error.message);
-          return { label: table.label, data: data || [] };
+          return { label: table.label, data };
         });
 
         const results = await Promise.all(promises);
@@ -107,13 +162,14 @@ export default function DashboardAdmin() {
     };
 
     fetchData();
-  }, [selectedMonth]);
+  }, [selectedMonth, dataRevision]);
 
-  const colors = React.useMemo(() => ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#6366f1'], []);
+  const colors = useMemo(() => ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#6366f1'], []);
 
   return (
     <AppLayout title="Dashboard Admin">
       <div className="container mx-auto px-4 py-8">
+        <DashboardNotification key={`notification-${dataRevision}`} />
         <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between border-b border-gray-100 pb-6">
           <div>
             <h2 className="text-3xl font-extrabold text-gray-800">Dashboard Statistik</h2>

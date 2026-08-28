@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react';
+import SearchableBottomSheet from '../../SearchableBottomSheet';
 import { JENIS_FIELDS } from './AnorganikForm';
 
 /**
@@ -24,34 +26,180 @@ export default function AnorganikTable({
   setPage,
   onEdit,
   onDelete,
+  onPrint,
 }) {
+  const [showFilter, setShowFilter] = useState(false);
+  const [showRuanganFilterSheet, setShowRuanganFilterSheet] = useState(false);
+  const activeFilterCount = [filterMonth, filterRuangan].filter(Boolean).length;
+
+  useEffect(() => {
+    if (!showFilter) return undefined;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = originalOverflow;
+    };
+  }, [showFilter]);
+
+  const handleClearFilters = () => {
+    setFilterMonth('');
+    setFilterRuangan('');
+    setPage(1);
+  };
+
   return (
     <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
       {/* Header bar */}
-      <div className="bg-slate-800 text-white px-6 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
-        <h2 className="text-lg font-bold flex items-center gap-2">
-          <i className="fas fa-table" /> Data Limbah Anorganik
-          <span className="ml-2 text-xs font-normal text-slate-300">({totalData} total data)</span>
+      <div className="bg-slate-800 text-white px-4 py-3 flex items-center justify-between gap-3">
+        <h2 className="text-base font-bold flex items-center gap-2 min-w-0">
+          <i className="fas fa-table shrink-0" />
+          <span className="truncate">Data Limbah Anorganik</span>
+          <span className="text-[11px] font-normal text-slate-300 shrink-0">({totalData})</span>
         </h2>
 
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          <select
-            value={filterRuangan}
-            onChange={(e) => { setFilterRuangan(e.target.value); setPage(1); }}
-            className="bg-white text-gray-800 px-3 py-2 rounded-xl text-xs sm:text-sm border outline-none font-medium max-w-[180px] truncate"
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowFilter(true)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition ${
+              activeFilterCount > 0
+                ? 'bg-cyan-500 hover:bg-cyan-600 text-white'
+                : 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
+            }`}
           >
-            <option value="">Semua Ruangan</option>
-            {ruanganList.map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
+            <i className="fas fa-filter" />
+            Filter
+            {activeFilterCount > 0 && (
+              <span className="bg-white text-cyan-700 text-[10px] font-black w-4 h-4 rounded-full flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
 
-          <input
-            type="month"
-            value={filterMonth}
-            onChange={(e) => { setFilterMonth(e.target.value); setPage(1); }}
-            className="bg-white text-gray-800 px-3 py-2 rounded-xl text-xs sm:text-sm border outline-none font-medium"
-          />
+          {onPrint && (
+            <button
+              type="button"
+              onClick={onPrint}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-xl transition text-xs font-semibold flex items-center gap-1.5 shadow-sm"
+            >
+              <i className="fas fa-print" /> Cetak
+            </button>
+          )}
         </div>
       </div>
+
+      {showFilter && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={() => setShowFilter(false)}>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div
+            className="relative bg-white w-full sm:max-w-sm sm:mx-4 rounded-t-3xl sm:rounded-2xl shadow-2xl z-10"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex justify-center pt-3 pb-1 sm:hidden">
+              <div className="w-10 h-1.5 bg-gray-300 rounded-full" />
+            </div>
+            <div className="flex justify-between items-center px-5 pt-4 pb-3 border-b border-gray-100">
+              <span className="text-base font-bold text-gray-800">
+                <i className="fas fa-filter mr-2 text-cyan-500" />Filter Data
+              </span>
+              <div className="flex items-center gap-2">
+                {activeFilterCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearFilters}
+                    className="text-xs text-red-500 hover:text-red-700 font-semibold px-2.5 py-1.5 rounded-lg hover:bg-red-50 transition flex items-center gap-1"
+                  >
+                    <i className="fas fa-times" /> Reset
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowFilter(false)}
+                  className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 flex items-center justify-center transition"
+                  aria-label="Tutup filter"
+                >
+                  <i className="fas fa-times text-xs" />
+                </button>
+              </div>
+            </div>
+
+            <div className="px-5 py-4 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
+                  <i className="fas fa-door-open mr-1.5 text-cyan-500" />Ruangan
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowRuanganFilterSheet(true)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-cyan-500 bg-gray-50 flex items-center justify-between gap-2 text-left"
+                >
+                  <span className={filterRuangan ? 'text-gray-800' : 'text-gray-500'}>
+                    {filterRuangan || 'Semua Ruangan'}
+                  </span>
+                  <i className="fas fa-chevron-down text-xs text-gray-400" />
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
+                  <i className="fas fa-calendar mr-1.5 text-blue-500" />Periode
+                </label>
+                <input
+                  type="month"
+                  value={filterMonth}
+                  onChange={(event) => {
+                    setFilterMonth(event.target.value);
+                    setPage(1);
+                  }}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                />
+              </div>
+
+              {activeFilterCount > 0 && (
+                <div className="pt-3 border-t border-gray-100">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase mb-1.5">Filter Aktif</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {filterMonth && (
+                      <span className="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full font-semibold">
+                        📅 {filterMonth}
+                      </span>
+                    )}
+                    {filterRuangan && (
+                      <span className="text-xs bg-cyan-100 text-cyan-700 px-2.5 py-1 rounded-full font-semibold">
+                        🚪 {filterRuangan}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 pb-6 sm:pb-4">
+              <button
+                type="button"
+                onClick={() => setShowFilter(false)}
+                className="w-full bg-cyan-600 hover:bg-cyan-700 text-white py-3 rounded-xl font-bold text-sm transition shadow-sm"
+              >
+                Terapkan Filter
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <SearchableBottomSheet
+        isOpen={showRuanganFilterSheet}
+        onClose={() => setShowRuanganFilterSheet(false)}
+        options={['Semua Ruangan', ...ruanganList]}
+        value={filterRuangan || 'Semua Ruangan'}
+        onChange={(room) => {
+          setFilterRuangan(room === 'Semua Ruangan' ? '' : room);
+          setPage(1);
+        }}
+        placeholder="Cari ruangan atau unit..."
+        label="Filter Ruangan / Unit"
+        accentColor="blue"
+      />
 
       {/* Desktop table */}
       <div className="hidden md:block overflow-x-auto">
@@ -62,9 +210,11 @@ export default function AnorganikTable({
               <th className="px-3 py-2.5 font-bold">Tanggal</th>
               <th className="px-3 py-2.5 font-bold">Ruangan</th>
               {JENIS_FIELDS.map(f => (
-                <th key={f.name} className="px-3 py-2.5 font-bold text-right">{f.label}</th>
+                <th key={f.name} className="px-3 py-2.5 font-bold text-right">
+                  {f.label}<br /><span className="normal-case text-gray-500">({f.satuan})</span>
+                </th>
               ))}
-              <th className="px-3 py-2.5 font-bold text-right">Total</th>
+              <th className="px-3 py-2.5 font-bold text-right">Total<br /><span className="normal-case text-gray-500">(Kg)</span></th>
               <th className="px-3 py-2.5 font-bold">Petugas</th>
               <th className="px-3 py-2.5 font-bold text-center">Aksi</th>
             </tr>
@@ -82,7 +232,9 @@ export default function AnorganikTable({
             ) : (
               data.map((item, idx) => {
                 const rowNo = (page - 1) * itemsPerPage + idx + 1;
-                const total = JENIS_FIELDS.reduce((sum, f) => sum + (parseFloat(item[f.name]) || 0), 0);
+                const total = JENIS_FIELDS.reduce((sum, f) => (
+                  f.satuan === 'Kg' ? sum + (parseFloat(item[f.name]) || 0) : sum
+                ), 0);
                 return (
                   <tr key={item.id} className={item.isOffline ? "bg-amber-50/70 hover:bg-amber-100/70 border-l-4 border-l-amber-500 transition-colors" : "hover:bg-cyan-50/40 transition-colors"}>
                     <td className="px-3 py-2 text-gray-400 font-medium">{rowNo}</td>
@@ -94,7 +246,11 @@ export default function AnorganikTable({
                       <span className="inline-block bg-cyan-100 text-cyan-800 text-[10px] px-2 py-0.5 rounded-lg">{item.ruangan || '-'}</span>
                     </td>
                     {JENIS_FIELDS.map(f => (
-                      <td key={f.name} className="px-3 py-2 text-right font-semibold text-gray-700">{(parseFloat(item[f.name]) || 0).toFixed(2)}</td>
+                      <td key={f.name} className="px-3 py-2 text-right font-semibold text-gray-700">
+                        {f.satuan === 'Buah'
+                          ? (parseFloat(item[f.name]) || 0).toLocaleString('id-ID')
+                          : (parseFloat(item[f.name]) || 0).toFixed(2)}
+                      </td>
                     ))}
                     <td className="px-3 py-2 text-right font-black text-slate-800">{total.toFixed(2)} Kg</td>
                     <td className="px-3 py-2 text-gray-600">{item.petugas || '-'}</td>
@@ -125,7 +281,9 @@ export default function AnorganikTable({
         ) : (
           data.map((item, idx) => {
             const rowNo = (page - 1) * itemsPerPage + idx + 1;
-            const total = JENIS_FIELDS.reduce((sum, f) => sum + (parseFloat(item[f.name]) || 0), 0);
+            const total = JENIS_FIELDS.reduce((sum, f) => (
+              f.satuan === 'Kg' ? sum + (parseFloat(item[f.name]) || 0) : sum
+            ), 0);
             return (
               <div key={item.id} className={`flex items-start gap-3 px-4 py-3 border-l-4 ${item.isOffline ? 'border-l-amber-500 bg-amber-50/60' : 'border-l-cyan-400'}`}>
                 <span className="text-[10px] text-gray-400 font-bold pt-0.5 w-5 shrink-0">{rowNo}</span>
@@ -137,9 +295,16 @@ export default function AnorganikTable({
                   </div>
                   <div className="grid grid-cols-3 gap-x-1 gap-y-0.5 text-[10px]">
                     {JENIS_FIELDS.map(f => (
-                      <div key={f.name}><span className="text-gray-400">{f.label}</span><br /><span className="font-bold text-gray-700">{(parseFloat(item[f.name]) || 0).toFixed(2)}</span></div>
+                      <div key={f.name}>
+                        <span className="text-gray-400">{f.label} ({f.satuan})</span><br />
+                        <span className="font-bold text-gray-700">
+                          {f.satuan === 'Buah'
+                            ? (parseFloat(item[f.name]) || 0).toLocaleString('id-ID')
+                            : (parseFloat(item[f.name]) || 0).toFixed(2)}
+                        </span>
+                      </div>
                     ))}
-                    <div><span className="text-gray-400">Total</span><br /><span className="font-black text-slate-800">{total.toFixed(2)}</span></div>
+                    <div><span className="text-gray-400">Total (Kg)</span><br /><span className="font-black text-slate-800">{total.toFixed(2)}</span></div>
                   </div>
                 </div>
                 <div className="flex gap-1 shrink-0">

@@ -5,16 +5,38 @@ import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { useNavigate } from 'react-router-dom';
+import PenggunaTab from '../components/kelola-admin/PenggunaTab';
+import TambahPenggunaTab from '../components/kelola-admin/TambahPenggunaTab';
+import RuanganTab from '../components/kelola-admin/RuanganTab';
+import PengaturanTab from '../components/kelola-admin/PengaturanTab';
+import AdminHeader from '../components/kelola-admin/AdminHeader';
+import {
+  escapeAdminHTML,
+  generateSecureTemporaryPassword,
+  isVerifiedAdminProfile,
+} from '../lib/adminSecurity';
+import {
+  buildUserNipState,
+  createUserNipSettingValue,
+  findActiveKepalaUnit,
+  findDuplicateNipUserId,
+  getUpdatedKepalaUnit,
+  getUserNipSettingKey,
+  getUserNipSettingKeys,
+  KEPALA_UNIT_SETTING_KEY,
+  parseUserNipSetting,
+} from '../lib/userNipSettings';
 
 const MySwal = withReactContent(Swal);
-const DEFAULT_PASSWORD = '12345678';
 
 export default function KelolaAdmin() {
   const user = getCurrentUser();
   const navigate = useNavigate();
-  const isAdmin = user?.role?.toLowerCase() === 'admin';
+  const claimsAdmin = user?.role?.toLowerCase() === 'admin';
+  const [adminVerified, setAdminVerified] = useState(null);
+  const isAdmin = claimsAdmin && adminVerified === true;
 
-  const [activeTab, setActiveTab] = useState('pengguna'); // 'pengguna' | 'ruangan' | 'pengaturan'
+  const [activeTab, setActiveTab] = useState('pengguna'); // 'pengguna' | 'tambah-pengguna' | 'ruangan' | 'pengaturan'
 
   // User Management State
   const [users, setUsers] = useState([]);
@@ -22,6 +44,14 @@ export default function KelolaAdmin() {
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [resettingId, setResettingId] = useState(null);
+  const [deletingUserId, setDeletingUserId] = useState(null);
+  const [kepalaUnit, setKepalaUnit] = useState(null);
+  const [savingKepalaUnit, setSavingKepalaUnit] = useState(false);
+  const [userNips, setUserNips] = useState({});
+  const [verifiedNips, setVerifiedNips] = useState({});
+  const [savingNipId, setSavingNipId] = useState(null);
+  const [settingsReady, setSettingsReady] = useState(false);
+  const [creatingUser, setCreatingUser] = useState(false);
 
   // Ruangan Management State
   const [ruanganList, setRuanganList] = useState([]);
@@ -34,26 +64,138 @@ export default function KelolaAdmin() {
   const [formLimbahPadatEnabled, setFormLimbahPadatEnabled] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
 
-  // Guard: redirect non-admin
+  // Verifikasi sesi dan role dari Supabase; jangan percaya role pada localStorage saja.
   useEffect(() => {
-    if (!isAdmin) {
+    let active = true;
+
+    if (!claimsAdmin || !user?.id) {
+      setAdminVerified(false);
       navigate('/dashboard', { replace: true });
+      return undefined;
     }
-  }, [isAdmin, navigate]);
+
+    const verifyAdmin = async () => {
+      try {
+        const { data: authData, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !authData?.user?.id) {
+          throw new Error('Sesi administrator tidak valid.');
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, role')
+          .eq('id', authData.user.id)
+          .single();
+
+        if (profileError || !isVerifiedAdminProfile(profile, authData.user.id, user.id)) {
+          throw new Error('Akun ini tidak memiliki hak administrator.');
+        }
+
+        if (active) setAdminVerified(true);
+      } catch (err) {
+        if (!active) return;
+        console.warn('Verifikasi administrator gagal:', err.message);
+        setAdminVerified(false);
+        navigate('/dashboard', { replace: true });
+      }
+    };
+
+    verifyAdmin();
+
+    return () => {
+      active = false;
+    };
+  }, [claimsAdmin, navigate, user?.id]);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setSettingsReady(false);
     try {
       const { data, error: err } = await supabase
         .from('profiles')
         .select('id, username, nama, role')
         .order('nama', { ascending: true });
 
-      if (err) throw new Error(err.message);
-      setUsers(data || []);
+      if (err) throw new Error(`Gagal memuat daftar pengguna: ${err.message}`);
+
+      const profiles = data || [];
+      setUsers(profiles);
+
+      const settingKeys = getUserNipSettingKeys(profiles);
+      const { data: storedSettings, error: readError } = await supabase
+        .from('app_settings')
+        .select('key, value')
+        .in('key', settingKeys);
+
+      if (readError) {
+        throw new Error(`Pengaturan NIP gagal dibaca dari database: ${readError.message}`);
+      }
+
+      let currentState = buildUserNipState(profiles, storedSettings || []);
+
+      if (currentState.migrationSettings.length > 0) {
+        const { error: migrationError } = await supabase
+          .from('app_settings')
+          .upsert(currentState.migrationSettings, {
+            onConflict: 'key',
+            ignoreDuplicates: true,
+          });
+
+        if (migrationError) {
+          throw new Error(`Migrasi NIP lama gagal disimpan: ${migrationError.message}`);
+        }
+
+        const { data: migratedSettings, error: rereadError } = await supabase
+          .from('app_settings')
+          .select('key, value')
+          .in('key', settingKeys);
+
+        if (rereadError) {
+          throw new Error(`Pengaturan NIP gagal diverifikasi: ${rereadError.message}`);
+        }
+
+        currentState = buildUserNipState(profiles, migratedSettings || []);
+      }
+
+      const activeKepalaProfile = findActiveKepalaUnit(currentState.kepalaUnit, profiles);
+      const updatedKepalaUnit = activeKepalaProfile
+        ? getUpdatedKepalaUnit(
+            { ...currentState.kepalaUnit, nama: activeKepalaProfile.nama },
+            currentState.nips,
+            currentState.verifiedNips
+          )
+        : null;
+      const kepalaChanged = JSON.stringify(updatedKepalaUnit)
+        !== JSON.stringify(currentState.kepalaUnit || null);
+
+      if (kepalaChanged) {
+        const { error: settingError } = await supabase
+          .from('app_settings')
+          .upsert({ key: KEPALA_UNIT_SETTING_KEY, value: updatedKepalaUnit }, { onConflict: 'key' });
+
+        if (settingError) {
+          throw new Error(`Validasi Kepala Unit gagal disimpan: ${settingError.message}`);
+        }
+      }
+
+      Object.entries(currentState.nips).forEach(([userId, nip]) => {
+        localStorage.setItem(
+          `insan_j_setting_${getUserNipSettingKey(userId)}`,
+          JSON.stringify(createUserNipSettingValue(nip, currentState.verifiedNips[userId]))
+        );
+      });
+      localStorage.setItem(
+        `insan_j_setting_${KEPALA_UNIT_SETTING_KEY}`,
+        JSON.stringify(updatedKepalaUnit)
+      );
+      setUserNips(currentState.nips);
+      setVerifiedNips(currentState.verifiedNips);
+      setKepalaUnit(updatedKepalaUnit);
+      setSettingsReady(true);
     } catch (err) {
-      setError('Gagal memuat data pengguna: ' + err.message);
+      setError(err.message || 'Gagal memuat data pengguna dan pengaturan NIP.');
     } finally {
       setLoading(false);
     }
@@ -86,6 +228,227 @@ export default function KelolaAdmin() {
     }
   }, [isAdmin, fetchUsers, fetchRuangan]);
 
+  const handleSetKepalaUnit = async (userId) => {
+    if (!settingsReady || savingNipId) return;
+
+    const selectedUser = users.find((item) => item.id === userId);
+    setSavingKepalaUnit(true);
+
+    try {
+      let nextKepalaUnit = null;
+
+      if (selectedUser) {
+        const { data: nipSetting, error: nipReadError } = await supabase
+          .from('app_settings')
+          .select('value')
+          .eq('key', getUserNipSettingKey(selectedUser.id))
+          .maybeSingle();
+
+        if (nipReadError) {
+          throw new Error(`NIP Kepala Unit gagal dibaca: ${nipReadError.message}`);
+        }
+
+        const nipData = parseUserNipSetting(nipSetting?.value);
+        nextKepalaUnit = {
+          userId: selectedUser.id,
+          nama: selectedUser.nama,
+          nip: nipData.nip || '',
+          nipVerified: nipData.verified,
+        };
+      }
+
+      const { error: settingError } = await supabase
+        .from('app_settings')
+        .upsert({ key: KEPALA_UNIT_SETTING_KEY, value: nextKepalaUnit }, { onConflict: 'key' });
+
+      if (settingError) throw settingError;
+
+      localStorage.setItem(`insan_j_setting_${KEPALA_UNIT_SETTING_KEY}`, JSON.stringify(nextKepalaUnit));
+      setKepalaUnit(nextKepalaUnit);
+
+      window.dispatchEvent(new CustomEvent('app-setting-changed', {
+        detail: { key: KEPALA_UNIT_SETTING_KEY, value: nextKepalaUnit },
+      }));
+
+      MySwal.fire({
+        icon: 'success',
+        title: nextKepalaUnit ? 'Kepala Unit Diperbarui!' : 'Kepala Unit Dikosongkan!',
+        text: nextKepalaUnit
+          ? `${nextKepalaUnit.nama} akan tercantum pada tanda tangan seluruh laporan.`
+          : 'Nama penandatangan tidak akan ditampilkan sampai Kepala Unit dipilih kembali.',
+        timer: 2200,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end',
+      });
+    } catch (err) {
+      MySwal.fire({
+        icon: 'error',
+        title: 'Gagal Menyimpan Kepala Unit',
+        text: err.message || 'Pengaturan Kepala Unit belum berhasil disimpan ke database.',
+      });
+    } finally {
+      setSavingKepalaUnit(false);
+    }
+  };
+
+  const persistUserNip = async (targetUser, nip, verified = Boolean(nip)) => {
+    if (!settingsReady || savingNipId || savingKepalaUnit) return;
+
+    setSavingNipId(targetUser.id);
+
+    try {
+      const { data: currentSettings, error: readError } = await supabase
+        .from('app_settings')
+        .select('key, value')
+        .in('key', getUserNipSettingKeys(users));
+
+      if (readError) {
+        throw new Error(`NIP terbaru gagal dibaca dari database: ${readError.message}`);
+      }
+
+      const currentState = buildUserNipState(users, currentSettings || []);
+      const duplicateUserId = findDuplicateNipUserId(currentState.nips, targetUser.id, nip);
+
+      if (duplicateUserId) {
+        const duplicateUser = users.find((item) => item.id === duplicateUserId);
+        throw new Error(`NIP tersebut sudah digunakan oleh ${duplicateUser?.nama || 'petugas lain'}.`);
+      }
+
+      const nextNips = { ...currentState.nips, [targetUser.id]: nip || null };
+      const nextVerifiedNips = {
+        ...currentState.verifiedNips,
+        [targetUser.id]: Boolean(nip && verified),
+      };
+      const isKepalaUnit = currentState.kepalaUnit?.userId === targetUser.id;
+      const nextKepalaUnit = isKepalaUnit
+        ? getUpdatedKepalaUnit(currentState.kepalaUnit, nextNips, nextVerifiedNips)
+        : currentState.kepalaUnit;
+      const nextNipValue = createUserNipSettingValue(nip, verified);
+      const settings = [{ key: getUserNipSettingKey(targetUser.id), value: nextNipValue }];
+
+      if (isKepalaUnit) {
+        settings.push({ key: KEPALA_UNIT_SETTING_KEY, value: nextKepalaUnit });
+      }
+
+      const { error: settingError } = await supabase
+        .from('app_settings')
+        .upsert(settings, { onConflict: 'key' });
+
+      if (settingError) throw settingError;
+
+      localStorage.setItem(
+        `insan_j_setting_${getUserNipSettingKey(targetUser.id)}`,
+        JSON.stringify(nextNipValue)
+      );
+      setUserNips(nextNips);
+      setVerifiedNips(nextVerifiedNips);
+
+      if (isKepalaUnit) {
+        localStorage.setItem(
+          `insan_j_setting_${KEPALA_UNIT_SETTING_KEY}`,
+          JSON.stringify(nextKepalaUnit)
+        );
+        setKepalaUnit(nextKepalaUnit);
+        window.dispatchEvent(new CustomEvent('app-setting-changed', {
+          detail: { key: KEPALA_UNIT_SETTING_KEY, value: nextKepalaUnit },
+        }));
+      }
+
+      MySwal.fire({
+        icon: 'success',
+        title: nip ? 'NIP Berhasil Diverifikasi!' : 'NIP Berhasil Dihapus!',
+        text: nip
+          ? `NIP ${targetUser.nama} telah diperbarui.`
+          : `NIP ${targetUser.nama} telah dikosongkan.`,
+        timer: 1800,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end',
+      });
+    } catch (err) {
+      MySwal.fire({
+        icon: 'error',
+        title: 'Gagal Menyimpan NIP',
+        text: err.message || 'NIP belum berhasil disimpan ke pengaturan aplikasi.',
+      });
+    } finally {
+      setSavingNipId(null);
+    }
+  };
+
+  const handleVerifyNip = async (targetUser) => {
+    const nip = userNips[targetUser.id];
+    if (!nip || verifiedNips[targetUser.id]) return;
+
+    const { isConfirmed } = await MySwal.fire({
+      title: 'Verifikasi NIP Petugas?',
+      text: `Pastikan NIP ${nip} benar-benar milik ${targetUser.nama}.`,
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonText: 'Ya, NIP Sudah Benar',
+      cancelButtonText: 'Periksa Lagi',
+      confirmButtonColor: '#16a34a',
+    });
+
+    if (!isConfirmed) return;
+    await persistUserNip(targetUser, nip, true);
+  };
+
+  const handleEditNip = async (targetUser) => {
+    const currentNip = userNips[targetUser.id] || '';
+    const { isConfirmed, value } = await MySwal.fire({
+      title: currentNip ? 'Ubah NIP Petugas' : 'Tambah NIP Petugas',
+      text: targetUser.nama,
+      input: 'text',
+      inputValue: currentNip,
+      inputPlaceholder: 'Masukkan NIP 18 digit',
+      inputAttributes: {
+        maxlength: '18',
+        inputmode: 'numeric',
+        autocomplete: 'off',
+      },
+      showCancelButton: true,
+      confirmButtonText: '<i class="fas fa-save mr-2"></i>Simpan NIP',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#4f46e5',
+      inputValidator: (input) => {
+        const normalizedNip = String(input || '').trim();
+
+        if (!/^\d{18}$/.test(normalizedNip)) {
+          return 'NIP harus terdiri dari tepat 18 angka.';
+        }
+
+        const duplicateUserId = findDuplicateNipUserId(userNips, targetUser.id, normalizedNip);
+
+        if (duplicateUserId) {
+          const duplicateUser = users.find((item) => item.id === duplicateUserId);
+          return `NIP sudah digunakan oleh ${duplicateUser?.nama || 'petugas lain'}.`;
+        }
+
+        return undefined;
+      },
+    });
+
+    if (!isConfirmed) return;
+    await persistUserNip(targetUser, String(value).trim());
+  };
+
+  const handleDeleteNip = async (targetUser) => {
+    const { isConfirmed } = await MySwal.fire({
+      title: 'Hapus NIP Petugas?',
+      text: `NIP ${targetUser.nama} akan dikosongkan dan dapat ditambahkan kembali.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Ya, Hapus NIP',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#dc2626',
+    });
+
+    if (!isConfirmed) return;
+    await persistUserNip(targetUser, null);
+  };
+
   const handleToggleFormLimbahPadat = async (enabled) => {
     setSavingSettings(true);
     setFormLimbahPadatEnabled(enabled);
@@ -111,12 +474,18 @@ export default function KelolaAdmin() {
   };
 
   const handleResetPassword = async (targetUser) => {
+    if (targetUser.id === user?.id) {
+      MySwal.fire({
+        icon: 'info',
+        title: 'Gunakan Menu Akun',
+        text: 'Untuk mengubah password Anda sendiri, gunakan fitur Ganti Password pada menu Akun.',
+      });
+      return;
+    }
+
     const { isConfirmed } = await MySwal.fire({
       title: 'Reset Password?',
-      html: `Password akun <strong>${targetUser.nama}</strong> akan direset ke password bawaan.<br/><br/>
-             <div class="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
-               <i class="fas fa-key mr-2"></i>Password baru: <strong class="font-mono text-base">${DEFAULT_PASSWORD}</strong>
-             </div>`,
+      text: `Password ${targetUser.nama} akan diganti dengan password sementara yang unik dan aman.`,
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#f59e0b',
@@ -135,9 +504,10 @@ export default function KelolaAdmin() {
     });
 
     try {
+      const temporaryPassword = generateSecureTemporaryPassword();
       const { error: rpcError } = await supabase.rpc('admin_reset_user_password', {
         target_user_id: targetUser.id,
-        new_password: DEFAULT_PASSWORD,
+        new_password: temporaryPassword,
       });
 
       if (rpcError) throw new Error(rpcError.message);
@@ -145,8 +515,9 @@ export default function KelolaAdmin() {
       await MySwal.fire({
         icon: 'success',
         title: 'Password Berhasil Direset!',
-        html: `Password <strong>${targetUser.nama}</strong> telah direset ke:<br/>
-               <span class="font-mono text-xl font-bold text-emerald-600 mt-2 block">${DEFAULT_PASSWORD}</span>`,
+        html: `Password sementara untuk <strong>${escapeAdminHTML(targetUser.nama)}</strong>:<br/>
+               <span class="font-mono text-xl font-bold text-emerald-600 mt-2 block">${escapeAdminHTML(temporaryPassword)}</span>
+               <p class="mt-3 text-xs text-gray-500">Sampaikan secara aman dan minta petugas menggantinya melalui menu Akun.</p>`,
         confirmButtonColor: '#10b981',
       });
     } catch (err) {
@@ -158,6 +529,119 @@ export default function KelolaAdmin() {
       });
     } finally {
       setResettingId(null);
+    }
+  };
+
+  const handleDeleteUser = async (targetUser) => {
+    if (targetUser.id === user?.id || targetUser.role?.toLowerCase() === 'admin') {
+      MySwal.fire('Akun Dilindungi', 'Akun administrator tidak dapat dihapus melalui fitur ini.', 'info');
+      return;
+    }
+
+    const { isConfirmed } = await MySwal.fire({
+      icon: 'warning',
+      title: 'Hapus Pengguna?',
+      html: `Akun <strong>${escapeAdminHTML(targetUser.nama)}</strong> akan dihapus permanen dan tidak dapat login lagi.<br/><span class="mt-2 block text-sm text-gray-500">Data limbah yang pernah dibuat tetap dipertahankan.</span>`,
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: '<i class="fas fa-trash-alt mr-2"></i>Ya, Hapus Akun',
+      cancelButtonText: 'Batal',
+    });
+    if (!isConfirmed) return;
+
+    setDeletingUserId(targetUser.id);
+    try {
+      const { data, error: functionError } = await supabase.functions.invoke('admin-delete-user', {
+        body: { userId: targetUser.id },
+      });
+      if (functionError) throw functionError;
+      if (!data?.success) throw new Error(data?.error || 'Akun tidak berhasil dihapus.');
+
+      await fetchUsers();
+      MySwal.fire('Akun Dihapus', `Akun ${targetUser.nama} berhasil dihapus.`, 'success');
+    } catch (err) {
+      let errorMessage = err.message || 'Terjadi kesalahan saat menghapus akun.';
+      if (err.context instanceof Response) {
+        try {
+          const responseBody = await err.context.clone().json();
+          errorMessage = responseBody?.error || errorMessage;
+        } catch {
+          // Pertahankan pesan bawaan jika respons bukan JSON.
+        }
+      }
+      MySwal.fire('Gagal Menghapus Akun', errorMessage, 'error');
+    } finally {
+      setDeletingUserId(null);
+    }
+  };
+
+  const handleCreateUser = async (form) => {
+    const username = form.username.trim().toLowerCase();
+    const nama = form.nama.trim();
+    const password = form.password;
+    const role = form.role?.toLowerCase();
+
+    if (!/^[a-z0-9._-]{3,32}$/.test(username)) {
+      MySwal.fire('Data Belum Valid', 'Username harus terdiri dari 3–32 karakter: huruf kecil, angka, titik, garis bawah, atau tanda hubung.', 'warning');
+      return false;
+    }
+
+    if (!['user', 'mahasiswa'].includes(role)) {
+      MySwal.fire('Data Belum Valid', 'Role pengguna tidak dikenali.', 'warning');
+      return false;
+    }
+
+    if (
+      password.length < 12
+      || !/[A-Z]/.test(password)
+      || !/[a-z]/.test(password)
+      || !/[0-9]/.test(password)
+      || !/[^a-zA-Z0-9]/.test(password)
+    ) {
+      MySwal.fire('Password Belum Aman', 'Gunakan minimal 12 karakter yang berisi huruf besar, huruf kecil, angka, dan simbol.', 'warning');
+      return false;
+    }
+
+    setCreatingUser(true);
+    try {
+      const { data, error: functionError } = await supabase.functions.invoke('admin-create-user', {
+        body: { nama, username, password, role },
+      });
+
+      if (functionError) throw functionError;
+      if (!data?.success) throw new Error(data?.error || 'Akun tidak berhasil dibuat.');
+
+      await fetchUsers();
+      await MySwal.fire({
+        icon: 'success',
+        title: 'Akun Berhasil Dibuat',
+        html: `Akun <strong>${escapeAdminHTML(nama)}</strong> dibuat sebagai <strong>${role === 'mahasiswa' ? 'Mahasiswa Praktik' : 'Petugas'}</strong>.<br/><span class="mt-2 block text-sm text-gray-500">Sampaikan password sementara secara langsung kepada pengguna.</span>`,
+        confirmButtonColor: '#4f46e5',
+      });
+      setActiveTab('pengguna');
+      return true;
+    } catch (err) {
+      let errorMessage = err.message || 'Terjadi kesalahan saat membuat akun.';
+
+      if (err.context instanceof Response) {
+        try {
+          const responseBody = await err.context.clone().json();
+          errorMessage = responseBody?.error || errorMessage;
+        } catch {
+          // Pertahankan pesan bawaan jika respons bukan JSON.
+        }
+      }
+
+      MySwal.fire({
+        icon: 'error',
+        title: 'Gagal Membuat Akun',
+        text: errorMessage,
+        confirmButtonColor: '#dc2626',
+      });
+      return false;
+    } finally {
+      setCreatingUser(false);
     }
   };
 
@@ -218,7 +702,8 @@ export default function KelolaAdmin() {
     return (
       u.nama?.toLowerCase().includes(q) ||
       u.username?.toLowerCase().includes(q) ||
-      u.role?.toLowerCase().includes(q)
+      u.role?.toLowerCase().includes(q) ||
+      userNips[u.id]?.includes(q)
     );
   });
 
@@ -226,397 +711,78 @@ export default function KelolaAdmin() {
     r.nama_ruangan?.toLowerCase().includes(searchRuangan.toLowerCase())
   );
 
-  const getRoleBadge = (role) => {
-    const r = role?.toLowerCase();
-    if (r === 'admin') {
-      return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-700 border border-purple-200">
-          <i className="fas fa-user-shield text-[10px]"></i> Admin
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700 border border-blue-200">
-        <i className="fas fa-user text-[10px]"></i> Petugas
-      </span>
-    );
-  };
-
   if (!isAdmin) return null;
 
   return (
     <AppLayout title="Kelola Admin & Master Ruangan" showBackButton={false}>
       <div className="container mx-auto px-4 py-8 max-w-4xl">
-        {/* Header Card */}
-        <div className="bg-linear-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 mb-6 shadow-lg text-white">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-extrabold tracking-tight flex items-center gap-3">
-                <span className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
-                  <i className="fas fa-sliders-h text-lg"></i>
-                </span>
-                Kelola Admin & Master Data
-              </h1>
-              <p className="text-indigo-200 text-sm mt-1">
-                Kelola akun pengguna dan master data ruangan rumah sakit.
-              </p>
-            </div>
-            <div className="flex gap-2 bg-white/10 rounded-xl p-1.5 border border-white/20 flex-wrap">
-              <button
-                onClick={() => setActiveTab('pengguna')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${activeTab === 'pengguna' ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-100 hover:text-white'}`}
-              >
-                <i className="fas fa-users"></i> Pengguna ({users.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('ruangan')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${activeTab === 'ruangan' ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-100 hover:text-white'}`}
-              >
-                <i className="fas fa-door-open"></i> Ruangan ({ruanganList.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('pengaturan')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 ${activeTab === 'pengaturan' ? 'bg-white text-indigo-700 shadow-sm' : 'text-indigo-100 hover:text-white'}`}
-              >
-                <i className="fas fa-sliders-h"></i> Pengaturan
-              </button>
-            </div>
-          </div>
-        </div>
+        <AdminHeader
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          userCount={users.length}
+          roomCount={ruanganList.length}
+        />
 
         {/* TAB 1: KELOLA PENGGUNA */}
         {activeTab === 'pengguna' && (
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-            {/* Search Bar */}
-            <div className="p-5 border-b border-gray-100">
-              <div className="relative">
-                <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                <input
-                  type="text"
-                  placeholder="Cari nama, username, atau role..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition text-sm"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    <i className="fas fa-times-circle"></i>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {error && (
-              <div className="m-5 bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
-                <i className="fas fa-exclamation-circle text-red-500"></i>
-                <p className="text-sm text-red-700">{error}</p>
-                <button
-                  onClick={fetchUsers}
-                  className="ml-auto text-xs bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1 rounded-lg font-semibold transition"
-                >
-                  <i className="fas fa-sync-alt mr-1"></i>Coba Lagi
-                </button>
-              </div>
-            )}
-
-            {loading ? (
-              <div className="flex flex-col items-center justify-center py-20">
-                <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                <p className="text-gray-500 font-semibold text-sm tracking-wider">
-                  MEMUAT DATA PENGGUNA...
-                </p>
-              </div>
-            ) : filteredUsers.length === 0 ? (
-              <div className="text-center py-16">
-                <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <i className="fas fa-user-slash text-3xl text-gray-400"></i>
-                </div>
-                <p className="text-gray-500 font-semibold">
-                  {searchQuery
-                    ? `Tidak ada pengguna dengan kata kunci "${searchQuery}"`
-                    : 'Belum ada data pengguna.'}
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className="hidden md:block overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-gray-50 border-b border-gray-100">
-                        <th className="text-left px-6 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">#</th>
-                        <th className="text-left px-6 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Nama</th>
-                        <th className="text-left px-6 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Username</th>
-                        <th className="text-left px-6 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Role</th>
-                        <th className="text-center px-6 py-3.5 font-semibold text-gray-500 text-xs uppercase tracking-wider">Aksi</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {filteredUsers.map((u, idx) => (
-                        <tr key={u.id} className="hover:bg-indigo-50/30 transition-colors group">
-                          <td className="px-6 py-4 text-gray-400 font-medium">{idx + 1}</td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-full bg-linear-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-white text-sm font-bold shadow-sm shrink-0">
-                                {(u.nama || 'U').charAt(0).toUpperCase()}
-                              </div>
-                              <span className="font-semibold text-gray-800">{u.nama}</span>
-                              {u.id === user?.id && (
-                                <span className="text-[10px] bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-bold border border-emerald-200">
-                                  Anda
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="font-mono text-gray-600 text-xs bg-gray-100 px-2.5 py-1 rounded-lg">
-                              {u.username}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">{getRoleBadge(u.role)}</td>
-                          <td className="px-6 py-4 text-center">
-                            <button
-                              onClick={() => handleResetPassword(u)}
-                              disabled={resettingId === u.id}
-                              title="Reset password ke bawaan"
-                              className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-all shadow-sm active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-                            >
-                              {resettingId === u.id ? (
-                                <><i className="fas fa-spinner fa-spin"></i>Mereset...</>
-                              ) : (
-                                <><i className="fas fa-key"></i>Reset Password</>
-                              )}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div className="md:hidden divide-y divide-gray-100">
-                  {filteredUsers.map((u) => (
-                    <div key={u.id} className="p-4 hover:bg-indigo-50/20 transition-colors">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="w-11 h-11 rounded-full bg-linear-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold shadow-sm shrink-0">
-                          {(u.nama || 'U').charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-semibold text-gray-800 truncate">{u.nama}</p>
-                            {u.id === user?.id && (
-                              <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded-full font-bold border border-emerald-200">
-                                Anda
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-gray-500 font-mono mt-0.5">{u.username}</p>
-                        </div>
-                        {getRoleBadge(u.role)}
-                      </div>
-                      <button
-                        onClick={() => handleResetPassword(u)}
-                        disabled={resettingId === u.id}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white text-sm font-bold rounded-xl transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed shadow-sm"
-                      >
-                        {resettingId === u.id ? (
-                          <><i className="fas fa-spinner fa-spin"></i>Mereset Password...</>
-                        ) : (
-                          <><i className="fas fa-key"></i>Reset Password ke Bawaan</>
-                        )}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-                  <p className="text-xs text-gray-500">
-                    Menampilkan <strong>{filteredUsers.length}</strong> dari <strong>{users.length}</strong> pengguna
-                  </p>
-                  <button
-                    onClick={fetchUsers}
-                    className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold flex items-center gap-1 transition-colors"
-                  >
-                    <i className="fas fa-sync-alt text-[10px]"></i>Segarkan
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          <PenggunaTab
+            users={users}
+            filteredUsers={filteredUsers}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
+            loading={loading}
+            error={error}
+            resettingId={resettingId}
+            deletingUserId={deletingUserId}
+            user={user}
+            fetchUsers={fetchUsers}
+            handleResetPassword={handleResetPassword}
+            handleDeleteUser={handleDeleteUser}
+            kepalaUnit={kepalaUnit}
+            savingKepalaUnit={savingKepalaUnit}
+            handleSetKepalaUnit={handleSetKepalaUnit}
+            userNips={userNips}
+            verifiedNips={verifiedNips}
+            savingNipId={savingNipId}
+            settingsReady={settingsReady}
+            handleEditNip={handleEditNip}
+            handleDeleteNip={handleDeleteNip}
+            handleVerifyNip={handleVerifyNip}
+          />
         )}
 
-        {/* TAB 2: MASTER RUANGAN */}
+        {/* TAB 2: TAMBAH PENGGUNA */}
+        {activeTab === 'tambah-pengguna' && (
+          <TambahPenggunaTab
+            onSubmit={handleCreateUser}
+            submitting={creatingUser}
+          />
+        )}
+
+        {/* TAB 3: MASTER RUANGAN */}
         {activeTab === 'ruangan' && (
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-            {/* Form Tambah Ruangan */}
-            <div className="p-5 border-b border-gray-100 bg-slate-50">
-              <form onSubmit={handleAddRuangan} className="flex flex-col sm:flex-row gap-3">
-                <input
-                  type="text"
-                  placeholder="Tambah nama ruangan baru (contoh: Poli Mata)..."
-                  value={newRuanganName}
-                  onChange={(e) => setNewRuanganName(e.target.value)}
-                  className="flex-1 px-4 py-2.5 bg-white border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm font-medium"
-                />
-                <button
-                  type="submit"
-                  disabled={addingRuangan || !newRuanganName.trim()}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition shadow-sm disabled:opacity-50 flex items-center justify-center gap-2 whitespace-nowrap"
-                >
-                  {addingRuangan ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-plus"></i>}
-                  Tambah Ruangan
-                </button>
-              </form>
-            </div>
-
-            {/* Filter Ruangan */}
-            <div className="p-4 border-b border-gray-100">
-              <div className="relative">
-                <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
-                <input
-                  type="text"
-                  placeholder="Filter nama ruangan..."
-                  value={searchRuangan}
-                  onChange={(e) => setSearchRuangan(e.target.value)}
-                  className="w-full pl-11 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-xs sm:text-sm"
-                />
-              </div>
-            </div>
-
-            {loadingRuangan ? (
-              <div className="flex flex-col items-center justify-center py-16">
-                <i className="fas fa-spinner fa-spin text-emerald-500 text-2xl mb-2"></i>
-                <p className="text-gray-500 text-xs font-semibold">Memuat master ruangan...</p>
-              </div>
-            ) : filteredRuangan.length === 0 ? (
-              <div className="text-center py-12 text-gray-400">
-                <i className="fas fa-door-closed text-3xl mb-2 block opacity-40"></i>
-                Tidak ada ruangan ditemukan.
-              </div>
-            ) : (
-              <div className="p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-125 overflow-y-auto">
-                {filteredRuangan.map((item, idx) => (
-                  <div key={item.id || idx} className="bg-gray-50 border border-gray-200 hover:border-emerald-300 p-3 rounded-xl flex items-center justify-between transition group">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="w-7 h-7 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center text-xs font-bold shrink-0">
-                        {idx + 1}
-                      </span>
-                      <span className="text-xs sm:text-sm font-bold text-gray-800 truncate">{item.nama_ruangan}</span>
-                    </div>
-                    <button
-                      onClick={() => handleDeleteRuangan(item)}
-                      className="text-gray-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition"
-                      title="Hapus Ruangan"
-                    >
-                      <i className="fas fa-trash-alt text-xs"></i>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="px-6 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-              <p className="text-xs text-gray-500">
-                Total <strong>{filteredRuangan.length}</strong> ruangan terdaftar
-              </p>
-              <button
-                onClick={fetchRuangan}
-                className="text-xs text-emerald-600 hover:text-emerald-800 font-semibold flex items-center gap-1 transition-colors"
-              >
-                <i className="fas fa-sync-alt text-[10px]"></i>Segarkan Data
-              </button>
-            </div>
-          </div>
+          <RuanganTab
+            filteredRuangan={filteredRuangan}
+            searchRuangan={searchRuangan}
+            setSearchRuangan={setSearchRuangan}
+            newRuanganName={newRuanganName}
+            setNewRuanganName={setNewRuanganName}
+            addingRuangan={addingRuangan}
+            loadingRuangan={loadingRuangan}
+            handleAddRuangan={handleAddRuangan}
+            handleDeleteRuangan={handleDeleteRuangan}
+            fetchRuangan={fetchRuangan}
+          />
         )}
-        {/* TAB 3: PENGATURAN */}
+
+        {/* TAB 4: PENGATURAN */}
         {activeTab === 'pengaturan' && (
-          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 bg-slate-50 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-indigo-100 flex items-center justify-center">
-                <i className="fas fa-sliders-h text-indigo-600"></i>
-              </div>
-              <div>
-                <h2 className="font-bold text-gray-800 text-sm">Pengaturan Modul</h2>
-                <p className="text-xs text-gray-500">Aktifkan atau nonaktifkan fitur input data untuk petugas</p>
-              </div>
-            </div>
-
-            <div className="p-6 space-y-4">
-              {/* Toggle Form Limbah Padat */}
-              <div className={`rounded-2xl border-2 p-5 transition-all ${
-                formLimbahPadatEnabled
-                  ? 'border-green-200 bg-green-50'
-                  : 'border-red-200 bg-red-50'
-              }`}>
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-start gap-4">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${
-                      formLimbahPadatEnabled ? 'bg-green-100' : 'bg-red-100'
-                    }`}>
-                      <i className={`fas fa-trash-alt text-xl ${
-                        formLimbahPadatEnabled ? 'text-green-600' : 'text-red-500'
-                      }`}></i>
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-gray-800 text-sm">Form Input Limbah Padat</h3>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        Kontrol akses petugas untuk menginput data limbah padat secara manual.
-                        Tabel data & export tetap bisa diakses meski form dimatikan.
-                      </p>
-                      <span className={`mt-2 inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full ${
-                        formLimbahPadatEnabled
-                          ? 'bg-green-200 text-green-800'
-                          : 'bg-red-200 text-red-800'
-                      }`}>
-                        <i className={`fas ${ formLimbahPadatEnabled ? 'fa-check-circle' : 'fa-ban' } text-[10px]`}></i>
-                        {formLimbahPadatEnabled ? 'Aktif' : 'Nonaktif'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Toggle Switch */}
-                  <button
-                    onClick={() => handleToggleFormLimbahPadat(!formLimbahPadatEnabled)}
-                    disabled={savingSettings}
-                    className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors duration-300 focus:outline-none shrink-0 ${
-                      formLimbahPadatEnabled ? 'bg-green-500' : 'bg-gray-300'
-                    } disabled:opacity-60`}
-                    title={formLimbahPadatEnabled ? 'Klik untuk menonaktifkan' : 'Klik untuk mengaktifkan'}
-                  >
-                    <span className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-md transition-transform duration-300 ${
-                      formLimbahPadatEnabled ? 'translate-x-7' : 'translate-x-1'
-                    }`} />
-                  </button>
-                </div>
-
-                <div className={`mt-4 flex gap-2 ${ formLimbahPadatEnabled ? '' : '' }`}>
-                  <button
-                    onClick={() => handleToggleFormLimbahPadat(true)}
-                    disabled={formLimbahPadatEnabled || savingSettings}
-                    className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold bg-green-600 hover:bg-green-700 text-white transition disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <i className="fas fa-power-off"></i> Aktifkan Form
-                  </button>
-                  <button
-                    onClick={() => handleToggleFormLimbahPadat(false)}
-                    disabled={!formLimbahPadatEnabled || savingSettings}
-                    className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold bg-red-500 hover:bg-red-600 text-white transition disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    <i className="fas fa-ban"></i> Nonaktifkan Form
-                  </button>
-                </div>
-              </div>
-
-              <p className="text-xs text-gray-400 px-1">
-                <i className="fas fa-info-circle mr-1"></i>
-                Pengaturan disimpan ke database dan berlaku untuk semua petugas yang login.
-              </p>
-            </div>
-          </div>
+          <PengaturanTab
+            formLimbahPadatEnabled={formLimbahPadatEnabled}
+            savingSettings={savingSettings}
+            handleToggleFormLimbahPadat={handleToggleFormLimbahPadat}
+          />
         )}
-
       </div>
     </AppLayout>
   );

@@ -1,13 +1,25 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import AppLayout from '../components/AppLayout';
 import { getCurrentUser } from '../lib/api';
-import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import EditRiwayatModal from '../components/riwayat/EditRiwayatModal';
 import RekapPengisianTable from '../components/riwayat/RekapPengisianTable';
 import RekapRuanganTable from '../components/riwayat/RekapRuanganTable';
 import DetailRiwayatTable from '../components/riwayat/DetailRiwayatTable';
+import { useRiwayat } from '../hooks/useRiwayat';
+import {
+  getSyncedServerId,
+  removeLocalRecordQueue,
+  saveToOfflineQueue,
+} from '../lib/offlineStorage';
+import { isNetworkError } from '../lib/networkErrors';
+import {
+  deleteRecordWithVersion,
+  getRecordBaseVersion,
+  isRecordConflictError,
+  resolveOfflineRecordConflict,
+} from '../lib/recordVersion';
 
 const MySwal = withReactContent(Swal);
 
@@ -15,9 +27,6 @@ export default function Riwayat() {
   const user = getCurrentUser();
   const isAdmin = user?.role?.toLowerCase() === 'admin' || user?.role === 'Admin';
 
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState(isAdmin ? 'rekap' : 'detail');
 
   // Modal State
@@ -28,6 +37,8 @@ export default function Riwayat() {
   const currentMonth = new Date().toISOString().slice(0, 7);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
 
+  const { data, loading, error, fetchRiwayat, setData } = useRiwayat({ user, isAdmin, selectedMonth });
+
   const formatMonthYear = (yyyy_mm) => {
     if (!yyyy_mm) return '';
     const [year, month] = yyyy_mm.split('-');
@@ -35,85 +46,99 @@ export default function Riwayat() {
     return `${months[parseInt(month, 10) - 1]} ${year}`;
   };
 
-  const fetchRiwayat = async () => {
-    setLoading(true);
-    setError(null);
+  const handleEditClick = async (item) => {
+    let editableItem = item;
+
     try {
-      const tables = [
-        { name: 'ruang_bangunan', formName: 'Ruang Bangunan', formId: 'ruang_bangunan' },
-        { name: 'limbah_medis', formName: 'Pengolahan Limbah', formId: 'pengolahan_limbah' },
-        { name: 'pemeriksaan_toilet', formName: 'Kebersihan Toilet', formId: 'toilet' },
-        { name: 'pemeriksaan_reservoir', formName: 'Kebersihan Bak Reservoir', formId: 'reservoir' },
-        { name: 'pemeriksaan_gizi', formName: 'Ceklist Gizi', formId: 'gizi' }
-      ];
+      if (item.offlineHasConflict) {
+        const resolution = await resolveOfflineRecordConflict(
+          item.tableName,
+          { ...item, id: item.originalId },
+          MySwal
+        );
+        if (!resolution) return;
 
-      const promises = tables.map(async (table) => {
-        let query = supabase
-          .from(table.name)
-          .select('id, tanggal_pemeriksaan, ruangan, total, nilai_maks, persen, petugas, waktu_input');
-
-        if (!isAdmin) {
-          query = query.eq('petugas', user?.nama);
+        if (resolution.discardDraft) removeLocalRecordQueue(item);
+        if (!resolution.record) {
+          fetchRiwayat();
+          return;
         }
 
-        // Optimasi: Filter berdasarkan bulan langsung di server database
-        if (selectedMonth) {
-          const startDate = `${selectedMonth}-01`;
-          const dateObj = new Date(startDate);
-          dateObj.setMonth(dateObj.getMonth() + 1);
-          const endDate = dateObj.toISOString().split('T')[0];
-          query = query.gte('tanggal_pemeriksaan', startDate).lt('tanggal_pemeriksaan', endDate);
-        }
-
-        const { data, error } = await query;
-        if (error) throw new Error(error.message);
-
-        return data.map(item => ({
-          id: `${table.name}_${item.id}`,
-          originalId: item.id,
-          tanggal: item.tanggal_pemeriksaan,
-          formName: table.formName,
-          formId: table.formId,
-          tableName: table.name,
-          lokasi: item.ruangan,
-          nilai: item.total,
-          maksimal: item.nilai_maks,
-          persentase: item.persen ? parseFloat(item.persen) : 0,
-          petugas: item.petugas,
-          waktu_input: item.waktu_input
-        }));
-      });
-
-      const results = await Promise.all(promises);
-      const allData = results.flat().sort((a, b) => {
-        const dateA = new Date(a.tanggal).getTime();
-        const dateB = new Date(b.tanggal).getTime();
-        if (dateB !== dateA) return dateB - dateA;
-
-        const timeA = new Date(a.waktu_input || 0).getTime();
-        const timeB = new Date(b.waktu_input || 0).getTime();
-        return timeB - timeA;
-      });
-
-      setData(allData);
-    } catch (err) {
-      console.error(err);
-      setError('Gagal memuat data dari server Supabase. ' + err.message);
-    } finally {
-      setLoading(false);
+        const record = resolution.record;
+        editableItem = {
+          ...item,
+          ...record,
+          id: `${item.tableName}_${record.id}`,
+          originalId: record.id,
+          tanggal: record.tanggal_pemeriksaan,
+          lokasi: record.ruangan,
+          nilai: record.total,
+          maksimal: record.nilai_maks,
+          persentase: Number(record.persen) || 0,
+          isOffline: !resolution.discardDraft,
+          offlineAction: resolution.discardDraft ? null : item.offlineAction,
+          offlineId: resolution.discardDraft ? null : item.offlineId,
+          offlineHasConflict: false,
+          offlineBaseUpdatedAt: resolution.discardDraft
+            ? null
+            : record.offlineBaseUpdatedAt,
+        };
+      }
+    } catch (error) {
+      MySwal.fire('Gagal', error.message, 'error');
+      return;
     }
-  };
 
-  useEffect(() => {
-    fetchRiwayat();
-  }, [selectedMonth]);
-
-  const handleEditClick = (item) => {
-    setEditingItem(item);
+    setEditingItem(editableItem);
     setIsEditModalOpen(true);
   };
 
-  const handleDelete = async (item) => {
+  const handleDelete = async (initialItem) => {
+    let item = initialItem;
+
+    if (item.offlineHasConflict) {
+      if (!navigator.onLine) {
+        MySwal.fire({
+          icon: 'warning',
+          title: 'Draft Bertentangan',
+          text: 'Hubungkan internet dan buka kembali data ini untuk meninjau versi server sebelum menghapusnya.',
+          confirmButtonColor: '#d97706',
+        });
+        return;
+      }
+
+      try {
+        const resolution = await resolveOfflineRecordConflict(
+          item.tableName,
+          { ...item, id: item.originalId },
+          MySwal
+        );
+        if (!resolution) return;
+        if (resolution.discardDraft) removeLocalRecordQueue(item);
+        if (!resolution.record) {
+          fetchRiwayat();
+          return;
+        }
+
+        const record = resolution.record;
+        item = {
+          ...item,
+          ...record,
+          originalId: record.id,
+          isOffline: !resolution.discardDraft,
+          offlineAction: resolution.discardDraft ? null : item.offlineAction,
+          offlineId: resolution.discardDraft ? null : item.offlineId,
+          offlineHasConflict: false,
+          offlineBaseUpdatedAt: resolution.discardDraft
+            ? null
+            : record.offlineBaseUpdatedAt,
+        };
+      } catch (error) {
+        MySwal.fire('Gagal', error.message, 'error');
+        return;
+      }
+    }
+
     const confirm = await MySwal.fire({
       title: 'Hapus Data Riwayat?',
       text: `Data riwayat ${item.formName} akan dihapus secara permanen.`,
@@ -135,19 +160,64 @@ export default function Riwayat() {
         }
       });
 
-      const { error } = await supabase
-        .from(item.tableName)
-        .delete()
-        .eq('id', item.originalId);
+      const localReference = item.offlineId || item.originalId;
+      const syncedServerId = getSyncedServerId(localReference);
 
-      if (error) throw new Error(error.message);
+      if (item.isOffline && item.offlineAction === 'insert' && !syncedServerId) {
+        removeLocalRecordQueue(item);
+        MySwal.fire('Terhapus!', 'Draft offline berhasil dihapus.', 'success');
+        setData(prev => prev.filter(d => d.id !== initialItem.id));
+        return;
+      }
 
+      const recordId = syncedServerId || item.originalId;
+      const baseUpdatedAt = getRecordBaseVersion(item);
+
+      if (String(recordId).startsWith('off_')) {
+        removeLocalRecordQueue(item);
+        MySwal.fire('Terhapus!', 'Draft offline berhasil dihapus.', 'success');
+        setData(prev => prev.filter(d => d.id !== initialItem.id));
+        return;
+      }
+
+      if (!navigator.onLine) {
+        saveToOfflineQueue(
+          item.tableName,
+          'delete',
+          { id: recordId },
+          `Hapus Riwayat ${item.formName}`,
+          { baseUpdatedAt }
+        );
+        MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Perintah hapus disimpan di HP dan akan diproses otomatis.', confirmButtonColor: '#2563eb' });
+        setData(prev => prev.filter(d => d.id !== initialItem.id));
+        return;
+      }
+
+      await deleteRecordWithVersion(item.tableName, recordId, baseUpdatedAt);
+
+      removeLocalRecordQueue(item);
       MySwal.fire('Terhapus!', 'Data riwayat berhasil dihapus.', 'success');
-      setData(prev => prev.filter(d => d.id !== item.id));
+      setData(prev => prev.filter(d => d.id !== initialItem.id));
 
     } catch (error) {
       console.error(error);
-      MySwal.fire('Error', 'Gagal menghapus data. ' + error.message, 'error');
+      if (isNetworkError(error)) {
+        const recordId = getSyncedServerId(item.offlineId || item.originalId) || item.originalId;
+        saveToOfflineQueue(
+          item.tableName,
+          'delete',
+          { id: recordId },
+          `Hapus Riwayat ${item.formName}`,
+          { baseUpdatedAt: getRecordBaseVersion(item) }
+        );
+        MySwal.fire({ icon: 'info', title: 'Tersimpan Offline', text: 'Jaringan terputus. Perintah hapus disimpan dan akan diproses otomatis.', confirmButtonColor: '#2563eb' });
+        setData(prev => prev.filter(d => d.id !== initialItem.id));
+      } else if (isRecordConflictError(error)) {
+        MySwal.fire('Data Sudah Berubah', error.message, 'warning');
+        fetchRiwayat();
+      } else {
+        MySwal.fire('Error', 'Gagal menghapus data. ' + error.message, 'error');
+      }
     }
   };
 
