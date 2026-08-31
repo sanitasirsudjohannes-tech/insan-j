@@ -3,6 +3,7 @@ const TABS = [
   { id: 'tambah-pengguna', icon: 'fas fa-user-plus', label: 'Tambah Pengguna' },
   { id: 'ruangan', icon: 'fas fa-door-open', label: 'Ruangan' },
   { id: 'pengaturan', icon: 'fas fa-sliders-h', label: 'Pengaturan' },
+  { id: 'backup-arsip', icon: 'fas fa-file-archive', label: 'Backup & Arsip' },
 ];
 
 export default function AdminHeader({
@@ -28,7 +29,7 @@ export default function AdminHeader({
             Kelola Admin & Master Data
           </h1>
           <p className="text-indigo-200 text-sm mt-1">
-            Kelola akun pengguna dan master data ruangan rumah sakit.
+            Kelola akun, master data, pengaturan, serta arsip aplikasi.
           </p>
         </div>
 

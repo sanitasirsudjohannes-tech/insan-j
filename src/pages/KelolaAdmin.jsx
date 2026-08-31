@@ -10,6 +10,7 @@ import TambahPenggunaTab from '../components/kelola-admin/TambahPenggunaTab';
 import RuanganTab from '../components/kelola-admin/RuanganTab';
 import PengaturanTab from '../components/kelola-admin/PengaturanTab';
 import AdminHeader from '../components/kelola-admin/AdminHeader';
+import BackupArsipTab from '../components/kelola-admin/BackupArsipTab';
 import {
   escapeAdminHTML,
   generateSecureTemporaryPassword,
@@ -36,7 +37,7 @@ export default function KelolaAdmin() {
   const [adminVerified, setAdminVerified] = useState(null);
   const isAdmin = claimsAdmin && adminVerified === true;
 
-  const [activeTab, setActiveTab] = useState('pengguna'); // 'pengguna' | 'tambah-pengguna' | 'ruangan' | 'pengaturan'
+  const [activeTab, setActiveTab] = useState('pengguna'); // pengguna | tambah-pengguna | ruangan | pengaturan | backup-arsip
 
   // User Management State
   const [users, setUsers] = useState([]);
@@ -783,6 +784,9 @@ export default function KelolaAdmin() {
             handleToggleFormLimbahPadat={handleToggleFormLimbahPadat}
           />
         )}
+
+        {/* TAB 5: BACKUP & ARSIP */}
+        {activeTab === 'backup-arsip' && <BackupArsipTab />}
       </div>
     </AppLayout>
   );

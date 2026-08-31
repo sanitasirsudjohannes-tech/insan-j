@@ -10,6 +10,7 @@ const QUEUE_KEY = 'insan_j_offline_queue';
 const SYNCED_IDS_KEY = 'insan_j_offline_synced_ids';
 const RECORD_CACHE_KEY = 'insan_j_offline_record_cache';
 const SYNC_LOCK_KEY = 'insan_j_offline_sync_lock';
+const MAINTENANCE_CACHE_KEY = 'insan_j_setting_operational_maintenance_mode';
 const MAX_SYNCED_IDS_PER_USER = 200;
 const MAX_CACHED_ROWS_PER_TABLE = 500;
 const SYNC_LOCK_TTL_MS = 45000;
@@ -115,6 +116,32 @@ export const removeCachedServerRow = (tableName, id) => {
     localStorage.setItem(RECORD_CACHE_KEY, JSON.stringify(cache));
   } catch (error) {
     console.warn('Gagal memperbarui cadangan data offline:', error);
+  }
+};
+
+// Hanya cache hasil query server yang dibersihkan. Antrean draft offline tidak
+// pernah disentuh oleh proses purge/restore.
+export const clearCachedServerRows = (tableNames = []) => {
+  const ownerId = getCurrentQueueOwnerId();
+  if (!ownerId) return;
+
+  try {
+    const cache = readRecordCache();
+    const ownerCache = cache[ownerId];
+    if (!ownerCache) return;
+
+    const selectedTables = new Set(
+      (Array.isArray(tableNames) ? tableNames : [tableNames]).filter(Boolean)
+    );
+    if (selectedTables.size === 0) {
+      delete cache[ownerId];
+    } else {
+      selectedTables.forEach(table => delete ownerCache[table]);
+      cache[ownerId] = ownerCache;
+    }
+    localStorage.setItem(RECORD_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.warn('Gagal membersihkan cache setelah arsip diperbarui:', error);
   }
 };
 
@@ -678,6 +705,28 @@ const syncOfflineInsertBatch = async (items) => {
 
 const performOfflineSync = async (showNotification = true, force = false) => {
   if (!navigator.onLine) return { success: 0, failed: 0, total: 0 };
+
+  try {
+    const maintenanceEnabled = JSON.parse(localStorage.getItem(MAINTENANCE_CACHE_KEY) || 'false') === true;
+    if (maintenanceEnabled) {
+      const total = getOfflineQueue().length;
+      if (showNotification && total > 0) {
+        Swal.fire({
+          icon: 'info',
+          title: 'Sinkronisasi Ditunda',
+          text: 'Admin sedang menjalankan backup atau pemulihan. Draft tetap aman di HP.',
+          toast: true,
+          position: 'top-end',
+          showConfirmButton: false,
+          timer: 3500,
+        });
+      }
+      return { success: 0, failed: 0, total, skipped: total, maintenance: true };
+    }
+  } catch {
+    // Cache rusak tidak boleh menghentikan sinkronisasi normal; trigger server
+    // tetap menjadi pengaman utama selama pemeliharaan.
+  }
 
   const allQueue = getOfflineQueue();
   const initialQueue = allQueue.filter(item => isQueueItemReady(item, force));
