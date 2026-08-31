@@ -101,7 +101,6 @@ export default function AnorganikForm({
                       name={f.name}
                       value={formData[f.name]}
                       onChange={handleInputChange}
-                      required
                       placeholder={f.satuan === 'Buah' ? '0' : '0.0'}
                       className={`w-full border border-gray-300 rounded-xl px-3 py-2 focus:ring-2 ${f.ring} outline-none text-sm`}
                     />

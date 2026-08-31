@@ -77,7 +77,6 @@ export default function PadatForm({
                   name={field.name}
                   value={formData[field.name]}
                   onChange={handleInputChange}
-                  required
                   className="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
                   placeholder="0.0"
                 />
