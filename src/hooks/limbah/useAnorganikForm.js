@@ -124,7 +124,10 @@ export default function useAnorganikForm({
           MySwal.fire('Berhasil', 'Data limbah anorganik berhasil ditambahkan', 'success');
         }
       }
-      setFormData(emptyForm);
+      setFormData({
+        ...emptyForm,
+        tanggal: formData.tanggal
+      });
       fetchData();
     } catch (error) {
       if (isNetworkError(error)) {
@@ -140,7 +143,10 @@ export default function useAnorganikForm({
           text: 'Jaringan terputus. Data telah disimpan di HP (Draft) dan akan dikirim otomatis.',
           confirmButtonColor: '#0891b2'
         });
-        setFormData(emptyForm);
+        setFormData({
+          ...emptyForm,
+          tanggal: formData.tanggal
+        });
       } else if (isRecordConflictError(error)) {
         MySwal.fire('Data Sudah Berubah', error.message, 'warning');
         fetchData();
