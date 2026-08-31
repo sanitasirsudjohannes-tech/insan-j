@@ -15,16 +15,16 @@ export { JENIS_FIELDS };
  * AnorganikForm – form input / edit data limbah anorganik.
  *
  * Props:
- *  formData, emptyForm, setFormData, handleInputChange, handleSubmit,
+ *  formData, setFormData, handleInputChange, handleSubmit, handleCancelEdit,
  *  submitting, user, ruanganList,
  *  showRuanganSheet, setShowRuanganSheet
  */
 export default function AnorganikForm({
   formData,
-  emptyForm,
   setFormData,
   handleInputChange,
   handleSubmit,
+  handleCancelEdit,
   submitting,
   user,
   ruanganList,
@@ -125,7 +125,7 @@ export default function AnorganikForm({
               {formData.id && (
                 <button
                   type="button"
-                  onClick={() => setFormData(emptyForm)}
+                  onClick={handleCancelEdit}
                   className="bg-gray-500 hover:bg-gray-600 text-white px-5 py-2.5 rounded-xl transition text-sm font-semibold"
                 >
                   Batal Edit

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
@@ -29,6 +29,14 @@ export default function useAnorganikForm({
   };
   const [formData, setFormData] = useState(emptyForm);
   const [showRuanganSheet, setShowRuanganSheet] = useState(false);
+  const dateBeforeEditRef = useRef(null);
+  const resetFormWithDate = date => {
+    dateBeforeEditRef.current = null;
+    setFormData({
+      ...emptyForm,
+      tanggal: date || getLocalDateString()
+    });
+  };
   const handleInputChange = e => {
     const {
       name,
@@ -124,10 +132,7 @@ export default function useAnorganikForm({
           MySwal.fire('Berhasil', 'Data limbah anorganik berhasil ditambahkan', 'success');
         }
       }
-      setFormData({
-        ...emptyForm,
-        tanggal: formData.tanggal
-      });
+      resetFormWithDate(formData.tanggal);
       fetchData();
     } catch (error) {
       if (isNetworkError(error)) {
@@ -143,10 +148,7 @@ export default function useAnorganikForm({
           text: 'Jaringan terputus. Data telah disimpan di HP (Draft) dan akan dikirim otomatis.',
           confirmButtonColor: '#0891b2'
         });
-        setFormData({
-          ...emptyForm,
-          tanggal: formData.tanggal
-        });
+        resetFormWithDate(formData.tanggal);
       } else if (isRecordConflictError(error)) {
         MySwal.fire('Data Sudah Berubah', error.message, 'warning');
         fetchData();
@@ -174,6 +176,9 @@ export default function useAnorganikForm({
       MySwal.fire('Gagal', error.message, 'error');
       return;
     }
+    if (!formData.id) {
+      dateBeforeEditRef.current = formData.tanggal || getLocalDateString();
+    }
     setFormData({
       id: item.id,
       tanggal: item.tanggal,
@@ -191,6 +196,9 @@ export default function useAnorganikForm({
       top: 0,
       behavior: 'smooth'
     });
+  };
+  const handleCancelEdit = () => {
+    resetFormWithDate(dateBeforeEditRef.current);
   };
   const handleDelete = async item => {
     const confirm = await MySwal.fire({
@@ -267,9 +275,9 @@ export default function useAnorganikForm({
     handleInputChange,
     handleSubmit,
     handleEdit,
+    handleCancelEdit,
     handleDelete,
     showRuanganSheet,
-    setShowRuanganSheet,
-    emptyForm
+    setShowRuanganSheet
   };
 }

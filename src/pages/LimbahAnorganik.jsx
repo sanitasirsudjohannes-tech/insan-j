@@ -43,10 +43,10 @@ export default function LimbahAnorganik({ embedded = false }) {
     handleInputChange,
     handleSubmit,
     handleEdit,
+    handleCancelEdit,
     handleDelete,
     showRuanganSheet,
-    setShowRuanganSheet,
-    emptyForm
+    setShowRuanganSheet
   } = useAnorganikForm({
     user,
     fetchData
@@ -83,10 +83,10 @@ export default function LimbahAnorganik({ embedded = false }) {
 
         <AnorganikForm
           formData={formData}
-          emptyForm={emptyForm}
           setFormData={setFormData}
           handleInputChange={handleInputChange}
           handleSubmit={handleSubmit}
+          handleCancelEdit={handleCancelEdit}
           submitting={submitting}
           user={user}
           ruanganList={ruanganList}
