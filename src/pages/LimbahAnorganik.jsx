@@ -8,14 +8,12 @@ import Pagination from '../components/limbah/Pagination';
 import useAnorganikData from '../hooks/limbah/useAnorganikData';
 import useAnorganikForm from '../hooks/limbah/useAnorganikForm';
 import { printAnorganikReport } from '../lib/limbah/anorganikReport';
-function EmbeddedWrapper({
-  children
-}) {
+
+function EmbeddedWrapper({ children }) {
   return <div className="bg-gray-100 min-h-screen">{children}</div>;
 }
-function FullWrapper({
-  children
-}) {
+
+function FullWrapper({ children }) {
   return <AppLayout title="Limbah Anorganik">{children}</AppLayout>;
 }
 
@@ -34,8 +32,11 @@ export default function LimbahAnorganik({ embedded = false }) {
     fetchData,
     ruanganList,
     filterRuangan,
-    setFilterRuangan
+    setFilterRuangan,
+    filterDate,
+    setFilterDate
   } = useAnorganikData();
+
   const {
     formData,
     setFormData,
@@ -51,6 +52,7 @@ export default function LimbahAnorganik({ embedded = false }) {
     user,
     fetchData
   });
+
   const handlePrint = () => printAnorganikReport({
     filterMonth,
     ruanganList
@@ -102,10 +104,12 @@ export default function LimbahAnorganik({ embedded = false }) {
             page={page}
             itemsPerPage={ITEMS_PER_PAGE}
             filterMonth={filterMonth}
+            filterDate={filterDate}
             filterRuangan={filterRuangan}
             ruanganList={ruanganList}
             totalData={totalData}
             setFilterMonth={setFilterMonth}
+            setFilterDate={setFilterDate}
             setFilterRuangan={setFilterRuangan}
             setPage={setPage}
             onEdit={handleEdit}
