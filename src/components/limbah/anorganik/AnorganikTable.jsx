@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getLocalDateString } from '../../../lib/localDate';
 import SearchableBottomSheet from '../../SearchableBottomSheet';
 import { JENIS_FIELDS } from './AnorganikForm';
 
@@ -7,9 +8,9 @@ import { JENIS_FIELDS } from './AnorganikForm';
  *
  * Props:
  *  data, loading, page, itemsPerPage,
- *  filterMonth, filterRuangan, ruanganList,
+ *  filterMonth, filterDate, filterRuangan, ruanganList,
  *  totalData,
- *  setFilterMonth, setFilterRuangan, setPage,
+ *  setFilterMonth, setFilterDate, setFilterRuangan, setPage,
  *  onEdit, onDelete
  */
 export default function AnorganikTable({
@@ -18,10 +19,12 @@ export default function AnorganikTable({
   page,
   itemsPerPage,
   filterMonth,
+  filterDate,
   filterRuangan,
   ruanganList,
   totalData,
   setFilterMonth,
+  setFilterDate,
   setFilterRuangan,
   setPage,
   onEdit,
@@ -30,7 +33,7 @@ export default function AnorganikTable({
 }) {
   const [showFilter, setShowFilter] = useState(false);
   const [showRuanganFilterSheet, setShowRuanganFilterSheet] = useState(false);
-  const activeFilterCount = [filterMonth, filterRuangan].filter(Boolean).length;
+  const activeFilterCount = [filterMonth, filterDate, filterRuangan].filter(Boolean).length;
 
   useEffect(() => {
     if (!showFilter) return undefined;
@@ -43,6 +46,7 @@ export default function AnorganikTable({
 
   const handleClearFilters = () => {
     setFilterMonth('');
+    setFilterDate('');
     setFilterRuangan('');
     setPage(1);
   };
@@ -144,15 +148,44 @@ export default function AnorganikTable({
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
                   <i className="fas fa-calendar mr-1.5 text-blue-500" />Periode
                 </label>
-                <input
-                  type="month"
-                  value={filterMonth}
-                  onChange={(event) => {
-                    setFilterMonth(event.target.value);
-                    setPage(1);
-                  }}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
-                />
+                <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-2.5">
+                  <button
+                    type="button"
+                    onClick={() => { setFilterDate(''); setPage(1); }}
+                    className={`flex-1 text-xs py-2 rounded-lg font-semibold transition ${!filterDate ? 'bg-white shadow-sm text-blue-700' : 'text-gray-400 hover:text-gray-600'}`}
+                  >
+                    <i className="fas fa-calendar-alt mr-1" />Per Bulan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setFilterMonth(''); if (!filterDate) setFilterDate(getLocalDateString()); setPage(1); }}
+                    className={`flex-1 text-xs py-2 rounded-lg font-semibold transition ${filterDate ? 'bg-white shadow-sm text-blue-700' : 'text-gray-400 hover:text-gray-600'}`}
+                  >
+                    <i className="fas fa-calendar-day mr-1" />Per Tanggal
+                  </button>
+                </div>
+
+                {!filterDate ? (
+                  <input
+                    type="month"
+                    value={filterMonth}
+                    onChange={(event) => {
+                      setFilterMonth(event.target.value);
+                      setPage(1);
+                    }}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                  />
+                ) : (
+                  <input
+                    type="date"
+                    value={filterDate}
+                    onChange={(event) => {
+                      setFilterDate(event.target.value);
+                      setPage(1);
+                    }}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                  />
+                )}
               </div>
 
               {activeFilterCount > 0 && (
@@ -162,6 +195,11 @@ export default function AnorganikTable({
                     {filterMonth && (
                       <span className="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full font-semibold">
                         📅 {filterMonth}
+                      </span>
+                    )}
+                    {filterDate && (
+                      <span className="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full font-semibold">
+                        📆 {new Date(filterDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </span>
                     )}
                     {filterRuangan && (
