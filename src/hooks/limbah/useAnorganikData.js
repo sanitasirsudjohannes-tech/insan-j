@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { fetchDaftarRuangan } from '../../lib/api';
 import { getOfflineQueue, getUnsyncedItemsForTable, getOfflineDeletedIds, getCachedServerRows, cacheServerRows } from '../../lib/offlineStorage';
+import { getLocalMonthString } from '../../lib/localDate';
 import { compareWasteRows } from '../../lib/limbah/rowOrder';
 
 export default function useAnorganikData() {
@@ -11,7 +12,7 @@ export default function useAnorganikData() {
   const [page, setPage] = useState(1);
   const [totalData, setTotalData] = useState(0);
   const [offlineQueueCount, setOfflineQueueCount] = useState(0);
-  const [filterMonth, setFilterMonth] = useState('');
+  const [filterMonth, setFilterMonth] = useState(() => getLocalMonthString());
   const fetchIdRef = useRef(0);
   const [ruanganList, setRuanganList] = useState([]);
   const [filterRuangan, setFilterRuangan] = useState('');
