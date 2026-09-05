@@ -15,9 +15,12 @@ export default function useAnorganikData() {
   const fetchIdRef = useRef(0);
   const [ruanganList, setRuanganList] = useState([]);
   const [filterRuangan, setFilterRuangan] = useState('');
+  const [filterDate, setFilterDate] = useState('');
+
   useEffect(() => {
     fetchDaftarRuangan().then(setRuanganList);
   }, []);
+
   const fetchData = useCallback(async () => {
     const currentFetchId = ++fetchIdRef.current;
     setLoading(true);
@@ -27,23 +30,35 @@ export default function useAnorganikData() {
       setOfflineQueueCount(getOfflineQueue().filter(item => item.table === 'limbah_anorganik').length);
 
       // Hide every stale server version, even when its offline replacement
-      // moved to a different room or month and no longer matches this filter.
+      // moved to a different room/date/month and no longer matches this filter.
       const allUnsynced = getUnsyncedItemsForTable('limbah_anorganik');
       let unsynced = allUnsynced;
-      if (filterMonth) unsynced = unsynced.filter(i => i.tanggal?.startsWith(filterMonth));
+      if (filterDate) {
+        unsynced = unsynced.filter(i => i.tanggal === filterDate);
+      } else if (filterMonth) {
+        unsynced = unsynced.filter(i => i.tanggal?.startsWith(filterMonth));
+      }
       if (filterRuangan) unsynced = unsynced.filter(i => i.ruangan === filterRuangan);
+
       const delIds = new Set(getOfflineDeletedIds('limbah_anorganik'));
-      const hiddenServerIds = new Set([...allUnsynced.filter(item => item.offlineAction === 'update').map(item => String(item.id)), ...delIds]);
+      const hiddenServerIds = new Set([
+        ...allUnsynced.filter(item => item.offlineAction === 'update').map(item => String(item.id)),
+        ...delIds
+      ]);
       const excludedIds = hiddenServerIds.size > 0 ? `(${Array.from(hiddenServerIds).join(',')})` : null;
       let dbFetchSucceeded = false;
       let dbStartIndex = 0;
+
       try {
         if (!navigator.onLine) throw new Error('Perangkat sedang offline.');
+
         let queryCount = supabase.from('limbah_anorganik').select('id', {
           count: 'exact',
           head: true
         });
-        if (filterMonth) {
+        if (filterDate) {
+          queryCount = queryCount.eq('tanggal', filterDate);
+        } else if (filterMonth) {
           const [year, month] = filterMonth.split('-');
           const start = `${year}-${month}-01`;
           const end = `${year}-${month}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`;
@@ -51,23 +66,27 @@ export default function useAnorganikData() {
         }
         if (filterRuangan) queryCount = queryCount.eq('ruangan', filterRuangan);
         if (excludedIds) queryCount = queryCount.not('id', 'in', excludedIds);
-        const {
-          count: c,
-          error: countError
-        } = await queryCount;
+
+        const { count: c, error: countError } = await queryCount;
         if (countError) throw countError;
         count = c || 0;
+
         const pageStartIndex = (page - 1) * ITEMS_PER_PAGE;
         dbStartIndex = Math.max(0, pageStartIndex - unsynced.length);
         const dbEndIndex = pageStartIndex + ITEMS_PER_PAGE - 1;
+
         for (let from = dbStartIndex; from <= dbEndIndex; from += FETCH_BATCH_SIZE) {
           const to = Math.min(from + FETCH_BATCH_SIZE - 1, dbEndIndex);
-          let queryData = supabase.from('limbah_anorganik').select('id, tanggal, ruangan, infus, jerigen, kertas, kardus, botol_mineral, bayclin_dll, keterangan, petugas, waktu_input, created_by').order('tanggal', {
-            ascending: false
-          }).order('waktu_input', {
-            ascending: false
-          }).range(from, to);
-          if (filterMonth) {
+          let queryData = supabase
+            .from('limbah_anorganik')
+            .select('id, tanggal, ruangan, infus, jerigen, kertas, kardus, botol_mineral, bayclin_dll, keterangan, petugas, waktu_input, created_by')
+            .order('tanggal', { ascending: false })
+            .order('waktu_input', { ascending: false })
+            .range(from, to);
+
+          if (filterDate) {
+            queryData = queryData.eq('tanggal', filterDate);
+          } else if (filterMonth) {
             const [year, month] = filterMonth.split('-');
             const start = `${year}-${month}-01`;
             const end = `${year}-${month}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`;
@@ -75,37 +94,40 @@ export default function useAnorganikData() {
           }
           if (filterRuangan) queryData = queryData.eq('ruangan', filterRuangan);
           if (excludedIds) queryData = queryData.not('id', 'in', excludedIds);
-          const {
-            data: result,
-            error
-          } = await queryData;
+
+          const { data: result, error } = await queryData;
           if (error) throw error;
           const batch = result || [];
           dbData.push(...batch);
           if (batch.length < to - from + 1) break;
         }
+
         cacheServerRows('limbah_anorganik', dbData);
         dbFetchSucceeded = true;
       } catch (e) {
         console.warn('Handling offline/network error fetching limbah anorganik:', e);
         dbData = getCachedServerRows('limbah_anorganik').filter(item => {
           if (hiddenServerIds.has(String(item.id))) return false;
-          if (filterMonth && !item.tanggal?.startsWith(filterMonth)) return false;
+          if (filterDate && item.tanggal !== filterDate) return false;
+          if (!filterDate && filterMonth && !item.tanggal?.startsWith(filterMonth)) return false;
           if (filterRuangan && item.ruangan !== filterRuangan) return false;
           return true;
         });
         count = dbData.length;
       }
+
       if (currentFetchId !== fetchIdRef.current) return;
       const filteredDb = dbData.filter(item => !hiddenServerIds.has(String(item.id)));
       const mergedData = [...unsynced, ...filteredDb].sort(compareWasteRows);
       const adjustedTotal = Math.max(0, count + unsynced.length);
       setTotalData(adjustedTotal);
+
       const lastAvailablePage = Math.max(1, Math.ceil(adjustedTotal / ITEMS_PER_PAGE));
       if (page > lastAvailablePage) {
         setPage(lastAvailablePage);
         return;
       }
+
       const fromIndex = (page - 1) * ITEMS_PER_PAGE;
       const localStartIndex = dbFetchSucceeded ? fromIndex - dbStartIndex : fromIndex;
       setData(mergedData.slice(localStartIndex, localStartIndex + ITEMS_PER_PAGE));
@@ -114,16 +136,15 @@ export default function useAnorganikData() {
     } finally {
       if (currentFetchId === fetchIdRef.current) setLoading(false);
     }
-  }, [filterMonth, filterRuangan, page]);
+  }, [filterMonth, filterDate, filterRuangan, page]);
+
   useEffect(() => {
     fetchData();
     let queueRefreshTimer;
     const handleQueueChange = event => {
       if (event.syncInProgress) return;
       const changedTables = event.changedTables || event.detail?.changedTables;
-      if (changedTables?.length && !changedTables.includes('limbah_anorganik')) {
-        return;
-      }
+      if (changedTables?.length && !changedTables.includes('limbah_anorganik')) return;
       window.clearTimeout(queueRefreshTimer);
       queueRefreshTimer = window.setTimeout(fetchData, 180);
     };
@@ -138,11 +159,10 @@ export default function useAnorganikData() {
     };
   }, [fetchData]);
 
-  // Reset to the first page whenever a filter changes so a previously selected
-  // page cannot become empty after the result set shrinks.
   useEffect(() => {
     setPage(1);
-  }, [filterMonth, filterRuangan]);
+  }, [filterMonth, filterDate, filterRuangan]);
+
   return {
     data,
     loading,
@@ -155,6 +175,8 @@ export default function useAnorganikData() {
     fetchData,
     ruanganList,
     filterRuangan,
-    setFilterRuangan
+    setFilterRuangan,
+    filterDate,
+    setFilterDate
   };
 }
