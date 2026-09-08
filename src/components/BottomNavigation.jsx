@@ -12,9 +12,9 @@ const NavItem = ({ item, onClick }) => (
   >
     {({ isActive }) => (
       <>
-        <span className={`relative flex h-9 w-12 items-center justify-center rounded-xl border transition-all duration-300 ${
+        <span className={`relative z-10 flex h-9 w-12 items-center justify-center rounded-xl border transition-all duration-200 ${
           isActive
-            ? '-translate-y-1 scale-105 border-white bg-linear-to-b from-white to-blue-50 shadow-[0_6px_12px_rgba(37,99,235,0.2),inset_0_1px_0_white]'
+            ? '-translate-y-0.5 border-transparent'
             : 'border-transparent group-active:translate-y-0.5 group-active:bg-slate-100'
         }`}>
           <i className={`${item.icon} relative text-base`} />
@@ -140,12 +140,14 @@ export default function BottomNavigation() {
         <div className="relative mx-auto flex h-[4.75rem] max-w-lg items-stretch px-1.5">
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute bottom-0 left-1.5 h-1 rounded-full bg-linear-to-r from-blue-600 to-cyan-500 shadow-[0_-2px_8px_rgba(37,99,235,0.35)] transition-transform duration-300 ease-out"
+            className="pointer-events-none absolute left-1.5 top-3 flex h-9 items-center justify-center transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
             style={{
               width: `calc((100% - 0.75rem) / ${totalNavItems})`,
               transform: `translateX(${activeIndex * 100}%)`,
             }}
-          />
+          >
+            <span className="h-9 w-12 -translate-y-0.5 rounded-xl border border-white bg-linear-to-b from-white to-blue-50 shadow-[0_5px_10px_rgba(37,99,235,0.18),inset_0_1px_0_white]" />
+          </span>
           {primaryItems.map(item => <NavItem key={item.to} item={item} />)}
           {moreItems.length > 0 && (
             <button
@@ -154,7 +156,7 @@ export default function BottomNavigation() {
               className={`group flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-bold transition-all ${moreOpen || moreIsActive ? 'text-blue-600' : 'text-slate-500'}`}
               aria-expanded={moreOpen}
             >
-              <span className={`flex h-9 w-12 items-center justify-center rounded-xl border transition-all duration-300 ${moreOpen || moreIsActive ? '-translate-y-1 scale-105 border-white bg-linear-to-b from-white to-blue-50 shadow-[0_6px_12px_rgba(37,99,235,0.2),inset_0_1px_0_white]' : 'border-transparent group-active:translate-y-0.5 group-active:bg-slate-100'}`}>
+              <span className={`relative z-10 flex h-9 w-12 items-center justify-center rounded-xl border transition-all duration-200 ${moreOpen || moreIsActive ? '-translate-y-0.5 border-transparent' : 'border-transparent group-active:translate-y-0.5 group-active:bg-slate-100'}`}>
                 <i className="fas fa-ellipsis text-base" />
               </span>
               <span>Lainnya</span>
