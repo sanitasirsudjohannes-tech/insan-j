@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { getCurrentUser, logoutUser } from '../lib/api';
 import { getOfflineQueue, syncOfflineQueue } from '../lib/offlineStorage';
-import OfflineSyncIndicator from './OfflineSyncIndicator';
 
 export default function Navbar({ title, showBackButton, onMenuToggle }) {
   // const user = getCurrentUser();
@@ -129,7 +128,6 @@ export default function Navbar({ title, showBackButton, onMenuToggle }) {
             {title && <h1 className="text-base sm:text-lg font-semibold truncate">{title}</h1>}
           </div>
           <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-            <OfflineSyncIndicator />
             <div className="text-gray-600 hidden sm:flex items-center bg-gray-100 rounded-full py-1.5 px-3">
               <i
                 className={`fas fa-user-circle text-lg mr-2 ${isAdmin ? 'text-purple-600' : 'text-cyan-600'

@@ -149,23 +149,32 @@ export default function OfflineSyncIndicator() {
   const tone = !isOnline ? 'danger' : failedItems.length || conflictedItems.length ? 'warning' : queue.length ? 'info' : 'success';
   const icon = syncing ? 'fas fa-spinner fa-spin' : !isOnline ? 'fas fa-wifi-slash' : failedItems.length || conflictedItems.length ? 'fas fa-exclamation-circle' : queue.length ? 'fas fa-cloud-upload-alt' : 'fas fa-cloud';
   const label = !isOnline ? 'Offline' : syncing ? 'Sinkronisasi' : queue.length ? `${queue.length} draft` : 'Tersinkron';
+  const bannerLabel = !isOnline
+    ? `Mode Offline${queue.length ? ` · ${queue.length} Draft` : ''}`
+    : syncing
+      ? `Mengirim ${queue.length} Draft...`
+      : conflictedItems.length
+        ? `${conflictedItems.length} Konflik Perlu Diperiksa`
+        : failedItems.length
+          ? `${failedItems.length} Draft Belum Terkirim`
+          : `${queue.length} Draft Menunggu`;
+  const showBanner = !isOnline || syncing || queue.length > 0;
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="relative min-w-10 min-h-10 rounded-xl hover:bg-slate-100 flex items-center justify-center transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-        aria-label={`Status data: ${label}`}
-        title={label}
-      >
-        <i className={`${icon} text-lg ${tone === 'success' ? 'text-emerald-600' : tone === 'danger' ? 'text-rose-600' : tone === 'warning' ? 'text-amber-600' : 'text-blue-600'}`} />
-        {queue.length > 0 && (
-          <span className="absolute top-0.5 right-0.5 min-w-4 h-4 px-1 rounded-full bg-rose-600 text-white text-[9px] font-black flex items-center justify-center">
-            {queue.length > 99 ? '99+' : queue.length}
-          </span>
-        )}
-      </button>
+      {showBanner && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className={`fixed top-3 left-1/2 -translate-x-1/2 z-50 inline-flex items-center gap-2 max-w-[calc(100vw-2rem)] px-3.5 py-2 rounded-full text-xs font-bold text-white shadow-xl border backdrop-blur-md transition active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-white ${!isOnline ? 'bg-slate-900/95 border-slate-700' : failedItems.length || conflictedItems.length ? 'bg-amber-600/95 border-amber-500' : 'bg-blue-600/95 border-blue-500'}`}
+          aria-label={`Buka rincian sinkronisasi: ${bannerLabel}`}
+          title="Tekan untuk melihat rincian sinkronisasi"
+        >
+          <i className={icon} aria-hidden="true" />
+          <span className="truncate">{bannerLabel}</span>
+          <i className="fas fa-chevron-down text-[9px] opacity-75" aria-hidden="true" />
+        </button>
+      )}
 
       {open && createPortal((
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center" onClick={() => setOpen(false)}>
