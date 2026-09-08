@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { getCurrentUser } from '../lib/api';
 
+// AppLayout dibuat ulang pada setiap perpindahan route. Simpan posisi terakhir
+// agar indikator tetap dapat beranimasi dari menu lama setelah mount kembali.
+let lastActiveIndex = null;
+
 const NavItem = ({ item, onClick }) => (
   <NavLink
     to={item.to}
@@ -94,6 +98,17 @@ export default function BottomNavigation() {
   const activeIndex = moreOpen || moreIsActive
     ? primaryItems.length
     : Math.max(0, primaryActiveIndex);
+  const [animatedIndex, setAnimatedIndex] = useState(() => lastActiveIndex ?? activeIndex);
+
+  useEffect(() => {
+    const animationFrame = window.requestAnimationFrame(() => {
+      setAnimatedIndex(activeIndex);
+      lastActiveIndex = activeIndex;
+    });
+
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [activeIndex]);
+
   if (keyboardOpen) return null;
 
   return (
@@ -143,7 +158,7 @@ export default function BottomNavigation() {
             className="pointer-events-none absolute left-1.5 top-3 flex h-9 items-center justify-center transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
             style={{
               width: `calc((100% - 0.75rem) / ${totalNavItems})`,
-              transform: `translateX(${activeIndex * 100}%)`,
+              transform: `translateX(${animatedIndex * 100}%)`,
             }}
           >
             <span className="h-9 w-12 -translate-y-0.5 rounded-xl border border-white bg-linear-to-b from-white to-blue-50 shadow-[0_5px_10px_rgba(37,99,235,0.18),inset_0_1px_0_white]" />
