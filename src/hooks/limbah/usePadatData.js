@@ -10,15 +10,23 @@ export default function usePadatData() {
   const [page, setPage] = useState(1);
   const [totalData, setTotalData] = useState(0);
   const [offlineQueueCount, setOfflineQueueCount] = useState(0);
-  const [filterMonth, setFilterMonth] = useState(() => getLocalMonthString());
+  const [filterMonth, setFilterMonthState] = useState(() => getLocalMonthString());
   const fetchIdRef = useRef(0);
   const [accumulatedData, setAccumulatedData] = useState([]);
+
+  // Periode tidak boleh kosong. Reset/clear selalu kembali ke bulan berjalan
+  // agar halaman tidak pernah meminta seluruh riwayat data sekaligus.
+  const setFilterMonth = useCallback((value) => {
+    setFilterMonthState(value || getLocalMonthString());
+  }, []);
+
   const fetchData = useCallback(async () => {
     const currentFetchId = ++fetchIdRef.current;
     setLoading(true);
     try {
       setOfflineQueueCount(getOfflineQueue().filter(item => item.table === 'limbah_padat' || item.table === 'limbah_ruangan').length);
-      const accumulated = await getAccumulatedData(filterMonth);
+      const month = filterMonth || getLocalMonthString();
+      const accumulated = await getAccumulatedData(month);
       if (currentFetchId !== fetchIdRef.current) return;
       accumulated.sort((a, b) => b.tanggal.localeCompare(a.tanggal));
       setAccumulatedData(accumulated);
