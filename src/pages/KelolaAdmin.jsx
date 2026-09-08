@@ -10,6 +10,8 @@ import TambahPenggunaTab from '../components/kelola-admin/TambahPenggunaTab';
 import RuanganTab from '../components/kelola-admin/RuanganTab';
 import PengaturanTab from '../components/kelola-admin/PengaturanTab';
 import AdminHeader from '../components/kelola-admin/AdminHeader';
+import DataMaintenanceTab from '../components/kelola-admin/DataMaintenanceTab';
+import useDataMaintenance from '../features/data-maintenance/hooks/useDataMaintenance';
 import {
   escapeAdminHTML,
   generateSecureTemporaryPassword,
@@ -63,6 +65,7 @@ export default function KelolaAdmin() {
   // Pengaturan State
   const [formLimbahPadatEnabled, setFormLimbahPadatEnabled] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
+  const dataMaintenance = useDataMaintenance({ user, alert: MySwal });
 
   // Verifikasi sesi dan role dari Supabase; jangan percaya role pada localStorage saja.
   useEffect(() => {
@@ -782,6 +785,11 @@ export default function KelolaAdmin() {
             savingSettings={savingSettings}
             handleToggleFormLimbahPadat={handleToggleFormLimbahPadat}
           />
+        )}
+
+        {/* TAB 5: PEMELIHARAAN DATA */}
+        {activeTab === 'pemeliharaan' && (
+          <DataMaintenanceTab maintenance={dataMaintenance} />
         )}
       </div>
     </AppLayout>

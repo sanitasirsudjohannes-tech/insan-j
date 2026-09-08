@@ -3,6 +3,7 @@ const TABS = [
   { id: 'tambah-pengguna', icon: 'fas fa-user-plus', label: 'Tambah Pengguna' },
   { id: 'ruangan', icon: 'fas fa-door-open', label: 'Ruangan' },
   { id: 'pengaturan', icon: 'fas fa-sliders-h', label: 'Pengaturan' },
+  { id: 'pemeliharaan', icon: 'fas fa-database', label: 'Pemeliharaan' },
 ];
 
 export default function AdminHeader({

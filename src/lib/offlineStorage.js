@@ -118,6 +118,27 @@ export const removeCachedServerRow = (tableName, id) => {
   }
 };
 
+export const clearCachedServerRows = (tableNames = []) => {
+  const ownerId = getCurrentQueueOwnerId();
+  if (!ownerId) return;
+
+  try {
+    const cache = readRecordCache();
+    const ownerCache = cache[ownerId];
+    if (!ownerCache) return;
+
+    const names = Array.isArray(tableNames) ? tableNames : [tableNames];
+    const updatedOwnerCache = { ...ownerCache };
+    names.filter(Boolean).forEach(tableName => {
+      delete updatedOwnerCache[tableName];
+    });
+    cache[ownerId] = updatedOwnerCache;
+    localStorage.setItem(RECORD_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.warn('Gagal membersihkan cache data arsip:', error);
+  }
+};
+
 export const getSyncedServerId = (localId) => {
   const ownerId = getCurrentQueueOwnerId();
   if (!ownerId || !localId || !String(localId).startsWith('off_')) return null;
