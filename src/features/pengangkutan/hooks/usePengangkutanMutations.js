@@ -11,6 +11,7 @@ import {
   resolveOfflineRecordConflict, updateRecordWithVersion
 } from '../../../lib/recordVersion';
 import { createPengangkutan } from '../services/pengangkutanService';
+import { createDeleteDetailsHtml, formatDeleteDate, formatDeleteKg } from '../../../lib/deleteConfirmation';
 
 const createEmptyForm = () => ({
   id: null,
@@ -152,7 +153,12 @@ export default function usePengangkutanMutations({ user, fetchData, alert }) {
 
     const handleDelete = async (item) => {
         const { isConfirmed } = await MySwal.fire({
-            title: 'Hapus Data?', text: 'Data tidak dapat dikembalikan!', icon: 'warning',
+            title: 'Hapus Data Pengangkutan?',
+            html: createDeleteDetailsHtml([
+                { label: 'Tanggal', value: formatDeleteDate(item.tanggal) },
+                { label: 'Jumlah limbah', value: formatDeleteKg(item.jumlah_kg) }
+            ]),
+            icon: 'warning',
             showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'Ya, Hapus!'
         });
         if (!isConfirmed) return;

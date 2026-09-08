@@ -7,6 +7,7 @@ import { saveToOfflineQueue, getOfflineQueue, removeLocalRecordQueue, getSyncedS
 import { notifyDatabaseTablesChanged } from '../../lib/databaseAggregations';
 import { isNetworkError } from '../../lib/networkErrors';
 import { deleteRecordWithVersion, getRecordBaseVersion, isRecordConflictError, resolveOfflineRecordConflict, updateRecordWithVersion } from '../../lib/recordVersion';
+import { createDeleteDetailsHtml, formatDeleteDate, formatDeleteKg } from '../../lib/deleteConfirmation';
 
 const MySwal = withReactContent(Swal);
 
@@ -209,16 +210,21 @@ export default function usePadatForm({
       });
       return;
     }
-    const tglLabel = new Date(item.tanggal).toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    });
+    const tglLabel = formatDeleteDate(item.tanggal);
+    const recordsToDelete = item.manualRecords?.length ? item.manualRecords : [item];
+    const totalToDelete = recordsToDelete.reduce((total, record) => total + [
+      'infeksius', 'jarum_suntik', 'botol_obat', 'sitotoksik'
+    ].reduce((sum, field) => sum + (parseFloat(record[field]) || 0), 0), 0);
     const {
       isConfirmed
     } = await MySwal.fire({
-      title: 'Hapus Data?',
-      text: isMixed ? `Hanya data manual pada ${tglLabel} yang dihapus.` : `Data ${tglLabel} akan dihapus permanen!`,
+      title: 'Hapus Data Limbah?',
+      html: createDeleteDetailsHtml([
+        { label: 'Tanggal', value: tglLabel },
+        { label: 'Jumlah limbah', value: formatDeleteKg(totalToDelete) }
+      ], isMixed
+        ? 'Hanya data input manual yang dihapus. Akumulasi dari ruangan tetap dipertahankan.'
+        : 'Data yang dihapus tidak dapat dikembalikan.'),
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',

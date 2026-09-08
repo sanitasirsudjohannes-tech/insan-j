@@ -7,6 +7,7 @@ import { getLocalDateString } from '../../lib/localDate';
 import { isNetworkError } from '../../lib/networkErrors';
 import { notifyDatabaseTablesChanged } from '../../lib/databaseAggregations';
 import { deleteRecordWithVersion, getRecordBaseVersion, isRecordConflictError, resolveOfflineRecordConflict, updateRecordWithVersion } from '../../lib/recordVersion';
+import { createDeleteDetailsHtml, formatDeleteDate } from '../../lib/deleteConfirmation';
 
 const MySwal = withReactContent(Swal);
 
@@ -203,7 +204,10 @@ export default function useAnorganikForm({
   const handleDelete = async item => {
     const confirm = await MySwal.fire({
       title: 'Hapus Data Limbah Anorganik?',
-      text: 'Data yang dihapus tidak dapat dikembalikan!',
+      html: createDeleteDetailsHtml([
+        { label: 'Tanggal', value: formatDeleteDate(item.tanggal) },
+        { label: 'Ruangan', value: item.ruangan || '-' }
+      ]),
       icon: 'warning',
       showCancelButton: true,
       confirmButtonColor: '#d33',
