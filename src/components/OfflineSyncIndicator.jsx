@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Swal from 'sweetalert2';
 import {
   getOfflineQueue,
@@ -166,7 +167,7 @@ export default function OfflineSyncIndicator() {
         )}
       </button>
 
-      {open && (
+      {open && createPortal((
         <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center" onClick={() => setOpen(false)}>
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
           <section className="relative z-10 w-full sm:max-w-md sm:mx-4 bg-white rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden" onClick={event => event.stopPropagation()} aria-label="Status sinkronisasi">
@@ -215,7 +216,7 @@ export default function OfflineSyncIndicator() {
             </div>
           </section>
         </div>
-      )}
+      ), document.body)}
     </>
   );
 }
