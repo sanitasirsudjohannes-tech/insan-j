@@ -166,11 +166,18 @@ export default function OfflineSyncIndicator() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className={`fixed top-3 left-1/2 -translate-x-1/2 z-50 inline-flex items-center gap-2 max-w-[calc(100vw-2rem)] px-3.5 py-2 rounded-full text-xs font-bold text-white shadow-xl border backdrop-blur-md transition active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-white ${!isOnline ? 'bg-slate-900/95 border-slate-700' : failedItems.length || conflictedItems.length ? 'bg-amber-600/95 border-amber-500' : 'bg-blue-600/95 border-blue-500'}`}
+          className={`fixed top-3 left-1/2 -translate-x-1/2 z-50 inline-flex items-center gap-2.5 max-w-[calc(100vw-2rem)] px-4 py-2 rounded-full text-xs font-bold text-white border backdrop-blur-xl transition-all duration-300 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-white ${!isOnline ? 'bg-linear-to-r from-slate-950/95 to-slate-800/95 border-white/15 shadow-[0_10px_30px_rgba(15,23,42,0.35),inset_0_1px_0_rgba(255,255,255,0.12)]' : failedItems.length || conflictedItems.length ? 'bg-linear-to-r from-amber-600/95 to-orange-600/95 border-white/20 shadow-[0_10px_30px_rgba(217,119,6,0.28),inset_0_1px_0_rgba(255,255,255,0.18)]' : 'bg-linear-to-r from-blue-600/95 to-cyan-600/95 border-white/20 shadow-[0_10px_30px_rgba(37,99,235,0.28),inset_0_1px_0_rgba(255,255,255,0.18)]'}`}
           aria-label={`Buka rincian sinkronisasi: ${bannerLabel}`}
           title="Tekan untuk melihat rincian sinkronisasi"
         >
-          <i className={icon} aria-hidden="true" />
+          {!isOnline ? (
+            <span className="relative flex h-2.5 w-2.5 shrink-0" aria-hidden="true">
+              <span className="sync-status-pulse absolute inline-flex h-full w-full rounded-full bg-rose-400" />
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-rose-300/30" />
+            </span>
+          ) : (
+            <i className={icon} aria-hidden="true" />
+          )}
           <span className="truncate">{bannerLabel}</span>
           <i className="fas fa-chevron-down text-[9px] opacity-75" aria-hidden="true" />
         </button>

@@ -19,6 +19,27 @@
 }
 
 @layer utilities {
+  @keyframes sync-status-pulse {
+    0%, 100% {
+      opacity: 0.35;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0;
+      transform: scale(2.4);
+    }
+  }
+
+  .sync-status-pulse {
+    animation: sync-status-pulse 2.4s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sync-status-pulse {
+      animation: none;
+    }
+  }
+
   .password-input-group {
     @apply relative flex items-center;
   }
