@@ -8,6 +8,7 @@ import {
 import { fetchWasteRows } from '../../lib/wasteQueries';
 import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
 import { fetchDatabaseAggregation } from '../../lib/databaseAggregations';
+import { DashboardSkeleton, EmptyState } from '../ui/DataStates';
 
 export default function TabPengangkutan() {
   const [chartData, setChartData] = useState([]);
@@ -169,11 +170,7 @@ export default function TabPengangkutan() {
   ];
 
   if (loading) {
-    return (
-      <div className="flex justify-center py-20">
-        <i className="fas fa-spinner fa-spin text-blue-500 text-4xl"></i>
-      </div>
-    );
+    return <DashboardSkeleton cards={3} />;
   }
 
   return (
@@ -196,9 +193,8 @@ export default function TabPengangkutan() {
       </div>
 
       {chartData.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm p-8 text-center border border-gray-100">
-          <i className="fas fa-inbox text-gray-300 text-5xl mb-4"></i>
-          <p className="text-gray-500 font-medium">Belum ada data limbah.</p>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+          <EmptyState title="Belum ada data pengangkutan" description="Grafik akan muncul setelah limbah masuk dan pengangkutan dicatat." icon="fas fa-truck" />
         </div>
       ) : (
         <>

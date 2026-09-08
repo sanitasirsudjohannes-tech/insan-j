@@ -3,6 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, AreaChart, Area
 } from 'recharts';
+import { DashboardSkeleton } from '../ui/DataStates';
 
 import { fetchWasteRows } from '../../lib/wasteQueries';
 import { fetchDatabaseAggregation } from '../../lib/databaseAggregations';
@@ -213,11 +214,7 @@ export default function TabJenisLimbah() {
   ], []);
 
   if (loading) {
-    return (
-      <div className="flex justify-center py-20">
-        <i className="fas fa-spinner fa-spin text-blue-500 text-4xl"></i>
-      </div>
-    );
+    return <DashboardSkeleton cards={4} />;
   }
 
   return (

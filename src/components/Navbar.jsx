@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { getCurrentUser, logoutUser } from '../lib/api';
 import { getOfflineQueue, syncOfflineQueue } from '../lib/offlineStorage';
+import OfflineSyncIndicator from './OfflineSyncIndicator';
 
 export default function Navbar({ title, showBackButton, onMenuToggle }) {
   // const user = getCurrentUser();
@@ -104,7 +105,7 @@ export default function Navbar({ title, showBackButton, onMenuToggle }) {
     <nav className="bg-white shadow-lg border-b-2 border-blue-500 sticky top-0 z-30">
       <div className="px-4 sm:px-6">
         <div className="flex justify-between items-center h-16">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             {/* Hamburger for mobile */}
             <button
               onClick={onMenuToggle}
@@ -125,10 +126,11 @@ export default function Navbar({ title, showBackButton, onMenuToggle }) {
             ) : (
               <img src={`${import.meta.env.BASE_URL}img/logo.webp`} alt="Logo" className="h-12 w-auto mr-3 hidden lg:block" onError={(e) => e.target.style.display = 'none'} />
             )}
-            {title && <h1 className="text-lg font-semibold">{title}</h1>}
+            {title && <h1 className="text-base sm:text-lg font-semibold truncate">{title}</h1>}
           </div>
-          <div className="flex items-center space-x-3">
-            <div className="text-gray-600 flex items-center bg-gray-100 rounded-full py-1.5 px-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+            <OfflineSyncIndicator />
+            <div className="text-gray-600 hidden sm:flex items-center bg-gray-100 rounded-full py-1.5 px-3">
               <i
                 className={`fas fa-user-circle text-lg mr-2 ${isAdmin ? 'text-purple-600' : 'text-cyan-600'
                   }`}

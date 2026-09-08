@@ -1,3 +1,5 @@
+import { EmptyState, TableRowsSkeleton } from '../../ui/DataStates';
+
 export default function PengangkutanDesktopTable({ data, loading, page, itemsPerPage, formatDate, onEdit, onDelete }) {
   return (
     <div className="hidden md:block overflow-x-auto">
@@ -14,9 +16,9 @@ export default function PengangkutanDesktopTable({ data, loading, page, itemsPer
         </thead>
         <tbody className="divide-y divide-gray-100 text-xs">
           {loading ? (
-            <tr><td colSpan="6" className="text-center py-10"><i className="fas fa-spinner fa-spin text-orange-500 text-2xl mb-2 block" /><span className="text-gray-500 text-xs font-semibold">Memuat data...</span></td></tr>
+            <TableRowsSkeleton columns={6} />
           ) : data.length === 0 ? (
-            <tr><td colSpan="6" className="text-center py-12 text-gray-400"><i className="fas fa-inbox text-4xl mb-3 block opacity-40" />Belum ada data pengangkutan.</td></tr>
+            <tr><td colSpan="6"><EmptyState compact title="Belum ada pengangkutan" description="Belum ada data untuk periode yang dipilih." icon="fas fa-truck" /></td></tr>
           ) : data.map((item, idx) => {
             const rowNo = (page - 1) * itemsPerPage + idx + 1;
             const amount = parseFloat(item.jumlah_kg || 0);

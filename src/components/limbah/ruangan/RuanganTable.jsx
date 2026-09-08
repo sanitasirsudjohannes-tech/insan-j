@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { getLocalDateString } from '../../../lib/localDate';
 import SearchableBottomSheet from '../../SearchableBottomSheet';
+import { EmptyState, MobileListSkeleton, TableRowsSkeleton } from '../../ui/DataStates';
 
 export default function RuanganTable({
   data,
@@ -252,14 +253,9 @@ export default function RuanganTable({
           </thead>
           <tbody className="divide-y divide-gray-100 text-xs">
             {loading ? (
-              <tr><td colSpan="10" className="text-center py-10">
-                <i className="fas fa-spinner fa-spin text-emerald-500 text-2xl mb-2 block" />
-                <span className="text-gray-500 text-xs font-semibold">Memuat data...</span>
-              </td></tr>
+              <TableRowsSkeleton columns={10} />
             ) : data.length === 0 ? (
-              <tr><td colSpan="10" className="text-center py-12 text-gray-400">
-                <i className="fas fa-inbox text-4xl mb-3 block opacity-40" />Belum ada data limbah ruangan.
-              </td></tr>
+              <tr><td colSpan="10"><EmptyState compact title="Belum ada data limbah ruangan" description="Coba ubah bulan atau filter ruangan." /></td></tr>
             ) : (
               data.map((item, idx) => {
                 const rowNo = (page - 1) * itemsPerPage + idx + 1;
@@ -299,15 +295,9 @@ export default function RuanganTable({
       {/* Mobile card list */}
       <div className="md:hidden divide-y divide-gray-100">
         {loading ? (
-          <div className="text-center py-10">
-            <i className="fas fa-spinner fa-spin text-emerald-500 text-2xl" />
-            <p className="text-gray-500 text-xs mt-2">Memuat data...</p>
-          </div>
+          <MobileListSkeleton />
         ) : data.length === 0 ? (
-          <div className="text-center py-10 text-gray-400">
-            <i className="fas fa-inbox text-3xl mb-2 block opacity-50" />
-            <p className="text-xs">Belum ada data limbah ruangan.</p>
-          </div>
+          <EmptyState compact title="Belum ada data limbah ruangan" description="Coba ubah bulan atau filter ruangan." />
         ) : (
           data.map((item, idx) => {
             const rowNo = (page - 1) * itemsPerPage + idx + 1;

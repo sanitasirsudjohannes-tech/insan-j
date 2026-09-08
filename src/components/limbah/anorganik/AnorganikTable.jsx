@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getLocalDateString } from '../../../lib/localDate';
 import SearchableBottomSheet from '../../SearchableBottomSheet';
 import { JENIS_FIELDS } from './AnorganikForm';
+import { EmptyState, MobileListSkeleton, TableRowsSkeleton } from '../../ui/DataStates';
 
 /**
  * AnorganikTable – tabel data limbah anorganik (desktop + mobile card).
@@ -259,14 +260,9 @@ export default function AnorganikTable({
           </thead>
           <tbody className="divide-y divide-gray-100 text-xs">
             {loading ? (
-              <tr><td colSpan={JENIS_FIELDS.length + 6} className="text-center py-10">
-                <i className="fas fa-spinner fa-spin text-cyan-500 text-2xl mb-2 block" />
-                <span className="text-gray-500 text-xs font-semibold">Memuat data...</span>
-              </td></tr>
+              <TableRowsSkeleton columns={JENIS_FIELDS.length + 6} />
             ) : data.length === 0 ? (
-              <tr><td colSpan={JENIS_FIELDS.length + 6} className="text-center py-12 text-gray-400">
-                <i className="fas fa-inbox text-4xl mb-3 block opacity-40" />Belum ada data limbah anorganik.
-              </td></tr>
+              <tr><td colSpan={JENIS_FIELDS.length + 6}><EmptyState compact title="Belum ada data limbah anorganik" description="Coba ubah bulan atau filter ruangan." icon="fas fa-recycle" /></td></tr>
             ) : (
               data.map((item, idx) => {
                 const rowNo = (page - 1) * itemsPerPage + idx + 1;
@@ -307,15 +303,9 @@ export default function AnorganikTable({
       {/* Mobile card list */}
       <div className="md:hidden divide-y divide-gray-100">
         {loading ? (
-          <div className="text-center py-10">
-            <i className="fas fa-spinner fa-spin text-cyan-500 text-2xl" />
-            <p className="text-gray-500 text-xs mt-2">Memuat data...</p>
-          </div>
+          <MobileListSkeleton />
         ) : data.length === 0 ? (
-          <div className="text-center py-10 text-gray-400">
-            <i className="fas fa-inbox text-3xl mb-2 block opacity-50" />
-            <p className="text-xs">Belum ada data limbah anorganik.</p>
-          </div>
+          <EmptyState compact title="Belum ada data limbah anorganik" description="Coba ubah bulan atau filter ruangan." icon="fas fa-recycle" />
         ) : (
           data.map((item, idx) => {
             const rowNo = (page - 1) * itemsPerPage + idx + 1;

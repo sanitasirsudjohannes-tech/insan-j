@@ -1,10 +1,12 @@
+import { EmptyState, MobileListSkeleton } from '../../ui/DataStates';
+
 export default function PengangkutanMobileList({ data, loading, page, itemsPerPage, formatDate, onEdit, onDelete }) {
   return (
     <div className="md:hidden divide-y divide-gray-100">
       {loading ? (
-        <div className="text-center py-10"><i className="fas fa-spinner fa-spin text-orange-500 text-2xl" /><p className="text-gray-500 text-xs mt-2">Memuat data...</p></div>
+        <MobileListSkeleton />
       ) : data.length === 0 ? (
-        <div className="text-center py-10 text-gray-400"><i className="fas fa-inbox text-3xl mb-2 block opacity-50" /><p className="text-xs">Belum ada data pengangkutan.</p></div>
+        <EmptyState compact title="Belum ada pengangkutan" description="Belum ada data untuk periode yang dipilih." icon="fas fa-truck" />
       ) : data.map((item, idx) => {
         const rowNo = (page - 1) * itemsPerPage + idx + 1;
         const amount = parseFloat(item.jumlah_kg || 0);
