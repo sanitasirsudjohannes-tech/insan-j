@@ -14,7 +14,8 @@ export function calculateRuanganSummary(rows = []) {
         botol_obat: 0,
         sitotoksik: 0,
         total: 0,
-        jumlahEntri: 0
+        jumlahEntri: 0,
+        tanggalTercatat: new Set()
       });
     }
 
@@ -25,9 +26,13 @@ export function calculateRuanganSummary(rows = []) {
       summary.total += value;
     });
     summary.jumlahEntri += 1;
+    if (row.tanggal) summary.tanggalTercatat.add(String(row.tanggal).slice(0, 10));
   });
 
-  return Array.from(roomMap.values());
+  return Array.from(roomMap.values()).map(({ tanggalTercatat, ...summary }) => ({
+    ...summary,
+    hariTercatat: tanggalTercatat.size
+  }));
 }
 
 export function calculateRuanganTotals(rows = []) {
