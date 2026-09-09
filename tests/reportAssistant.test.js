@@ -13,6 +13,7 @@ const validPayload = {
   reportType: 'medical_waste',
   period: { start: '2026-09-01', end: '2026-09-30' },
   facts: {
+    openingBalanceKg: 0,
     totalGeneratedKg: 100.25,
     totalTransportedKg: 80,
     remainingKg: 20.25,

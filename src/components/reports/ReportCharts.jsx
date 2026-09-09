@@ -1,6 +1,6 @@
 import { forwardRef } from 'react';
 import {
-  Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart,
+  Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 
@@ -22,7 +22,7 @@ const ReportCharts = forwardRef(function ReportCharts({ data }, ref) {
       <div className="grid gap-3 lg:grid-cols-2">
         {data.timeline?.length > 0 && <ChartCard title="Timbulan dan Pengangkutan" subtitle="Per tanggal pada periode yang dipilih">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data.timeline} margin={{ top: 8, right: 8, left: -15, bottom: 0 }}>
+            <ComposedChart data={data.timeline} margin={{ top: 8, right: 8, left: -15, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
               <XAxis dataKey="label" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} />
@@ -30,7 +30,8 @@ const ReportCharts = forwardRef(function ReportCharts({ data }, ref) {
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Bar name="Timbulan" dataKey="generated" fill="#2563eb" radius={[4, 4, 0, 0]} />
               <Bar name="Diangkut" dataKey="transported" fill="#10b981" radius={[4, 4, 0, 0]} />
-            </BarChart>
+              <Line name="Sisa Akumulasi" type="monotone" dataKey="balance" stroke="#ef4444" strokeWidth={2} dot={false} />
+            </ComposedChart>
           </ResponsiveContainer>
         </ChartCard>}
         <ChartCard title="Komposisi Jenis Limbah" subtitle="Proporsi berat setiap jenis limbah">

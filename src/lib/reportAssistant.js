@@ -5,9 +5,10 @@ export const REPORT_TYPES = {
     icon: 'fas fa-biohazard',
     supportsRecap: true,
     fields: [
+      { key: 'openingBalanceKg', label: 'Saldo awal sebelum periode (kg)', type: 'number', required: true, allowNegative: true },
       { key: 'totalGeneratedKg', label: 'Total timbulan (kg)', type: 'number', required: true },
       { key: 'totalTransportedKg', label: 'Total diangkut (kg)', type: 'number', required: true },
-      { key: 'remainingKg', label: 'Selisih timbulan dan pengangkutan (kg)', type: 'number', required: true, allowNegative: true },
+      { key: 'remainingKg', label: 'Saldo akhir/sisa limbah (kg)', type: 'number', required: true, allowNegative: true },
       { key: 'infectiousKg', label: 'Infeksius (kg)', type: 'number' },
       { key: 'sharpsKg', label: 'Jarum suntik (kg)', type: 'number' },
       { key: 'bottleKg', label: 'Botol obat (kg)', type: 'number' },
@@ -158,6 +159,7 @@ export function buildAutomaticAnalysis(payload = {}) {
   if (payload.reportType === 'medical_waste') {
     const generated = Number(facts.totalGeneratedKg) || 0;
     const transported = Number(facts.totalTransportedKg) || 0;
+    const opening = Number(facts.openingBalanceKg) || 0;
     const difference = Number(facts.remainingKg) || 0;
     const types = [
       ['limbah infeksius', Number(facts.infectiousKg) || 0],
@@ -169,10 +171,10 @@ export function buildAutomaticAnalysis(payload = {}) {
     const dominantPercent = generated > 0 ? (dominantValue / generated) * 100 : 0;
     const transportedPercent = generated > 0 ? (transported / generated) * 100 : 0;
     const balanceText = difference > 0
-      ? `Timbulan lebih besar daripada pengangkutan, sehingga terdapat selisih positif sebesar ${formatNumberId(difference)} kg pada periode ini.`
+      ? `Setelah memperhitungkan saldo awal sebesar ${formatNumberId(opening)} kg, masih terdapat sisa limbah sebanyak ${formatNumberId(difference)} kg pada akhir periode.`
       : difference < 0
-        ? `Pengangkutan lebih besar daripada timbulan periode ini sebesar ${formatNumberId(Math.abs(difference))} kg. Kondisi ini dapat terjadi apabila pengangkutan turut mencakup sisa periode sebelumnya dan perlu dikonfirmasi pada catatan TPS.`
-        : 'Jumlah timbulan dan pengangkutan pada periode ini seimbang.';
+        ? `Perhitungan menghasilkan saldo akhir negatif sebesar ${formatNumberId(Math.abs(difference))} kg. Kondisi ini menunjukkan bahwa data pengangkutan melebihi saldo awal ditambah timbulan periode berjalan dan perlu dicocokkan kembali dengan catatan TPS.`
+        : `Setelah saldo awal sebesar ${formatNumberId(opening)} kg diperhitungkan, jumlah limbah yang tersedia dan jumlah yang diangkut berada dalam keadaan seimbang.`;
     return `Selama periode pelaporan, timbulan limbah medis tercatat sebanyak ${formatNumberId(generated)} kg. Dari jumlah tersebut, limbah yang telah diangkut mencapai ${formatNumberId(transported)} kg atau sekitar ${formatNumberId(transportedPercent)}% dari total timbulan. ${balanceText}\n\nDitinjau dari jenisnya, ${dominantName} merupakan komponen terbesar, yaitu ${formatNumberId(dominantValue)} kg atau sekitar ${formatNumberId(dominantPercent)}% dari keseluruhan timbulan. Besarnya proporsi tersebut perlu diperhatikan dalam penyediaan wadah, pengaturan ruang penyimpanan sementara, serta pelaksanaan pengangkutan. Pemilahan di setiap ruangan juga perlu terus dipantau agar limbah ditempatkan sesuai dengan jenisnya.\n\nSecara umum, data tersebut memberikan gambaran mengenai hubungan antara timbulan dan pengangkutan selama periode berjalan. Apabila terdapat selisih, petugas perlu mencocokkannya dengan catatan stok di TPS limbah medis dan dokumen pengangkutan.`;
   }
   if (payload.reportType === 'lighting') {
@@ -189,12 +191,13 @@ export function buildReportConclusion(payload = {}) {
   const facts = payload.facts || {};
   if (payload.reportType === 'medical_waste') {
     const difference = Number(facts.remainingKg) || 0;
+    const opening = Number(facts.openingBalanceKg) || 0;
     const condition = difference > 0
       ? `Masih terdapat selisih timbulan yang belum terangkut sebesar ${formatNumberId(difference)} kg pada periode pelaporan.`
       : difference < 0
         ? `Jumlah yang diangkut lebih besar ${formatNumberId(Math.abs(difference))} kg dibandingkan timbulan periode berjalan, yang mengindikasikan adanya pengangkutan sisa dari periode sebelumnya.`
         : 'Jumlah timbulan dan pengangkutan pada periode pelaporan berada dalam keadaan seimbang.';
-    return `Pengelolaan limbah medis selama periode yang dilaporkan telah tercatat dengan total timbulan ${formatNumberId(facts.totalGeneratedKg)} kg dan total pengangkutan ${formatNumberId(facts.totalTransportedKg)} kg. ${condition} Hasil ini perlu dicocokkan dengan kondisi penyimpanan di TPS limbah medis dan catatan pengangkutan sebelum laporan ditetapkan.`;
+    return `Dengan memperhitungkan saldo awal sebesar ${formatNumberId(opening)} kg, pengelolaan limbah medis selama periode yang dilaporkan mencatat timbulan sebanyak ${formatNumberId(facts.totalGeneratedKg)} kg dan pengangkutan sebanyak ${formatNumberId(facts.totalTransportedKg)} kg. ${condition} Hasil ini perlu dicocokkan dengan kondisi penyimpanan di TPS limbah medis dan catatan pengangkutan sebelum laporan ditetapkan.`;
   }
   if (payload.reportType === 'lighting') {
     return `Pemeriksaan pencahayaan telah dilakukan pada ${formatNumberId(facts.totalPoints)} titik. Sebanyak ${formatNumberId(facts.compliantPoints)} titik memenuhi standar dan ${formatNumberId(facts.nonCompliantPoints)} titik masih memerlukan tindak lanjut. Perbaikan perlu diprioritaskan pada lokasi yang belum memenuhi standar dan hasilnya dipantau kembali.`;

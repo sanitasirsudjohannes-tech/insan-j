@@ -38,7 +38,10 @@ export async function buildDocxBlob(draft, chartImages = []) {
 
 export async function captureChartPngs(container) {
   if (!container) return [];
-  return Promise.all(Array.from(container.querySelectorAll('svg')).map(svg => new Promise((resolve, reject) => {
+  const svgs = Array.from(container.querySelectorAll('article'))
+    .map(article => article.querySelector('svg.recharts-surface'))
+    .filter(Boolean);
+  return Promise.all(svgs.map(svg => new Promise((resolve, reject) => {
     const clone = svg.cloneNode(true);
     const bounds = svg.getBoundingClientRect();
     const width = Math.max(Math.round(bounds.width), 640);
