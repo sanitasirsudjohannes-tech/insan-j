@@ -124,6 +124,15 @@ export default function RekapPerRuangan({
         ['', 'TOTAL', totals.infeksius, totals.jarum_suntik, totals.botol_obat, totals.sitotoksik, totals.total, '', '', '', '', '', '']
       ];
       const worksheet = XLSX.utils.aoa_to_sheet(worksheetRows);
+      const firstDataRow = 4;
+      const lastDataRow = worksheetRows.length - 1;
+      const decimalColumns = [2, 3, 4, 5, 6, 8, 9, 10, 11, 12];
+      for (let rowIndex = firstDataRow; rowIndex <= lastDataRow; rowIndex += 1) {
+        decimalColumns.forEach(columnIndex => {
+          const cell = worksheet[XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex })];
+          if (cell?.t === 'n') cell.z = '0.00';
+        });
+      }
       worksheet['!cols'] = [
         { wch: 6 }, { wch: 28 }, { wch: 18 }, { wch: 20 },
         { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 16 },
