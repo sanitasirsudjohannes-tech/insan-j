@@ -35,16 +35,51 @@ function loadSavedState() {
   }
 }
 
-function downloadWord(draft, reportType, chartsHtml = '') {
+function createWordFile(draft, reportType, chartsHtml = '') {
   const escaped = draft.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>@page{size:A4;margin:2.5cm}body{font-family:Arial,sans-serif;font-size:12pt;line-height:1.5}svg{max-width:100%;height:auto}.report-charts{page-break-before:always}.report-charts article{page-break-inside:avoid;margin-bottom:24px}</style></head><body>${escaped}${chartsHtml ? `<div class="report-charts"><h1>LAMPIRAN GRAFIK</h1>${chartsHtml}</div>` : ''}</body></html>`;
-  const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
-  const url = URL.createObjectURL(blob);
+  const filename = `Draft_${REPORT_TYPES[reportType]?.shortLabel || 'Laporan'}_${getLocalDateString()}.doc`
+    .replace(/\s+/g, '_')
+    .replace(/[^a-zA-Z0-9_.-]/g, '');
+  return new File(['\ufeff', html], filename, { type: 'application/msword' });
+}
+
+async function downloadWord(draft, reportType, chartsHtml = '') {
+  const file = createWordFile(draft, reportType, chartsHtml);
+  const blobUrl = URL.createObjectURL(file);
   const link = document.createElement('a');
-  link.href = url;
-  link.download = `Draft_${REPORT_TYPES[reportType]?.shortLabel || 'Laporan'}_${getLocalDateString()}.doc`;
-  link.click();
-  URL.revokeObjectURL(url);
+  link.href = blobUrl;
+  link.download = file.name;
+  link.rel = 'noopener';
+  link.style.display = 'none';
+  document.body.appendChild(link);
+
+  try {
+    link.click();
+    await new Promise(resolve => window.setTimeout(resolve, 500));
+  } finally {
+    link.remove();
+    // Android/PWA memerlukan URL tetap aktif sampai pengelola unduhan mengambil file.
+    window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+  }
+}
+
+async function handleWordDownload(draft, reportType, chartsHtml = '') {
+  try {
+    await downloadWord(draft, reportType, chartsHtml);
+    Swal.fire({ icon: 'success', title: 'File Word Disiapkan', text: 'Periksa folder Unduhan pada perangkat Anda.', timer: 1800, showConfirmButton: false });
+  } catch {
+    const file = createWordFile(draft, reportType, chartsHtml);
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: file.name });
+        return;
+      } catch (error) {
+        if (error.name === 'AbortError') return;
+      }
+    }
+    Swal.fire({ icon: 'error', title: 'Unduhan Gagal', text: 'Coba gunakan tombol Word tanpa grafik atau buka aplikasi melalui browser Chrome.', confirmButtonColor: '#2563eb' });
+  }
 }
 
 export default function AsistenLaporan() {
@@ -245,7 +280,7 @@ export default function AsistenLaporan() {
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-black text-slate-800">3. Periksa dan edit draft</h2><p className="mt-1 text-xs text-slate-500">Perubahan tersimpan sementara pada tab ini.</p></div>{sourceInfo && <span className={`rounded-full border px-3 py-1.5 text-xs font-bold ${sourceInfo.color}`}><i className={`fas ${sourceInfo.icon} mr-1.5`} />{sourceInfo.label}</span>}</div>
           {chartData && form.reportType === 'medical_waste' && <div className="mb-5"><ReportCharts ref={chartsRef} data={chartData} /></div>}
           <textarea value={draft} onChange={event => setDraft(event.target.value)} rows="28" className="w-full resize-y rounded-2xl border border-slate-300 bg-slate-50 p-4 font-mono text-sm leading-relaxed text-slate-800 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500" />
-          {draft && <><label className={`mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border p-4 ${errors.privacyConfirmed ? 'border-red-300 bg-red-50' : 'border-violet-100 bg-violet-50/60'}`}><input type="checkbox" checked={form.privacyConfirmed} onChange={event => updateForm('privacyConfirmed', event.target.checked)} className="mt-1 h-4 w-4 accent-violet-600" /><span className="text-sm text-slate-700"><strong>Saya memastikan isian tidak mengandung data pasien</strong><span className="mt-1 block text-xs text-slate-500">Konfirmasi ini hanya diperlukan jika memakai tombol AI.</span>{errors.privacyConfirmed && <span className="mt-1 block text-xs text-red-600">{errors.privacyConfirmed}</span>}</span></label><div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">{loading ? <button type="button" onClick={() => abortRef.current?.abort()} className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-bold text-red-600">Batalkan AI</button> : <button type="button" onClick={handlePolishWithAi} className="rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white shadow-md"><i className="fas fa-wand-magic-sparkles mr-2" />Rapikan dengan AI</button>}<button type="button" onClick={handleCopy} className="rounded-xl border border-blue-200 px-4 py-2.5 text-sm font-bold text-blue-700"><i className="fas fa-copy mr-2" />Salin</button><button type="button" onClick={() => downloadWord(draft, form.reportType, chartsRef.current?.innerHTML || '')} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-md"><i className="fas fa-file-word mr-2" />Unduh Word + Grafik</button></div></>}
+          {draft && <><label className={`mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border p-4 ${errors.privacyConfirmed ? 'border-red-300 bg-red-50' : 'border-violet-100 bg-violet-50/60'}`}><input type="checkbox" checked={form.privacyConfirmed} onChange={event => updateForm('privacyConfirmed', event.target.checked)} className="mt-1 h-4 w-4 accent-violet-600" /><span className="text-sm text-slate-700"><strong>Saya memastikan isian tidak mengandung data pasien</strong><span className="mt-1 block text-xs text-slate-500">Konfirmasi ini hanya diperlukan jika memakai tombol AI.</span>{errors.privacyConfirmed && <span className="mt-1 block text-xs text-red-600">{errors.privacyConfirmed}</span>}</span></label><div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">{loading ? <button type="button" onClick={() => abortRef.current?.abort()} className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-bold text-red-600">Batalkan AI</button> : <button type="button" onClick={handlePolishWithAi} className="rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white shadow-md"><i className="fas fa-wand-magic-sparkles mr-2" />Rapikan dengan AI</button>}<button type="button" onClick={handleCopy} className="rounded-xl border border-blue-200 px-4 py-2.5 text-sm font-bold text-blue-700"><i className="fas fa-copy mr-2" />Salin</button><button type="button" onClick={() => handleWordDownload(draft, form.reportType)} className="rounded-xl border border-emerald-200 px-4 py-2.5 text-sm font-bold text-emerald-700"><i className="fas fa-file-word mr-2" />Unduh Word</button>{chartData && <button type="button" onClick={() => handleWordDownload(draft, form.reportType, chartsRef.current?.innerHTML || '')} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-md"><i className="fas fa-chart-column mr-2" />Word + Grafik</button>}</div></>}
         </section>}
       </div>
     </AppLayout>
