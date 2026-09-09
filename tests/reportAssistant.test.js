@@ -43,20 +43,22 @@ test('validasi menolak angka negatif dan periode terbalik', () => {
 
 test('template lokal mempertahankan angka dan struktur BAB', () => {
   const report = buildLocalReport(validPayload);
-  assert.match(report, /100\.25 kg/);
+  assert.match(report, /100,25 kg/);
   assert.match(report, /BAB I/);
   assert.match(report, /BAB II/);
   assert.match(report, /BAB III/);
   assert.match(report, /1\.3 Manfaat/);
-  assert.match(report, /2\.3 Analisis Otomatis/);
-  assert.match(report, /draft dan wajib diperiksa/i);
+  assert.match(report, /2\.3 Analisis dan Evaluasi/);
+  assert.doesNotMatch(report, /dihitung otomatis|analisis otomatis/i);
+  assert.match(report, /keselamatan pasien, petugas, masyarakat, dan lingkungan/i);
+  assert.match(report, /draf dan harus diperiksa/i);
 });
 
 test('analisis lokal menghitung persentase dan jenis dominan', () => {
   const analysis = buildAutomaticAnalysis(validPayload);
-  assert.match(analysis, /79\.80%/);
+  assert.match(analysis, /79,8%/);
   assert.match(analysis, /limbah infeksius/i);
-  assert.match(analysis, /59\.85%/);
+  assert.match(analysis, /59,85%/);
 });
 
 test('periode satu hari tidak memakai kata sampai', () => {
@@ -72,5 +74,6 @@ test('deteksi data sensitif memblokir NIK dan nomor rekam medis', () => {
 
 test('verifikasi hasil AI mendeteksi angka yang berubah atau hilang', () => {
   assert.equal(preservesNumericFacts('Timbulan 100.25 kg dan diangkut 80 kg.', { total: 100.25, transported: 80 }), true);
+  assert.equal(preservesNumericFacts('Timbulan 100,25 kg dan diangkut 80 kg.', { total: 100.25, transported: 80 }), true);
   assert.equal(preservesNumericFacts('Timbulan 100 kg dan diangkut 80 kg.', { total: 100.25, transported: 80 }), false);
 });

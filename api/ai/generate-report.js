@@ -60,7 +60,7 @@ function providerError(provider, status, message = 'Layanan AI tidak tersedia.')
   return error;
 }
 
-const systemInstruction = `Anda adalah asisten penyusunan laporan Unit Sanitasi rumah sakit. Gunakan hanya fakta yang diberikan. Jangan mengarang angka, kegiatan, regulasi, hasil pemeriksaan, atau tindakan. Gunakan Bahasa Indonesia formal dan jelas. Tandai informasi yang belum tersedia dengan [PERLU DILENGKAPI]. Pertahankan semua angka sama persis dengan input. Jangan menambahkan nama pejabat atau tanda tangan. Hasil adalah draft yang harus diperiksa petugas. Susun dalam BAB I Pendahuluan, BAB II Hasil dan Pembahasan, serta BAB III Penutup.`;
+const systemInstruction = `Anda membantu petugas Unit Sanitasi menyunting draf laporan rumah sakit. Gunakan Bahasa Indonesia baku yang tetap alami, mengalir, dan terasa ditulis oleh petugas yang memahami kegiatan di lapangan. Hindari kalimat kaku, berulang, berlebihan, serta ungkapan yang menyebut bahwa teks dibuat oleh mesin atau dianalisis otomatis. Gunakan hanya fakta yang diberikan. Jangan mengarang angka, kegiatan, regulasi, hasil pemeriksaan, penyebab, atau tindakan. Tandai informasi yang belum tersedia dengan [PERLU DILENGKAPI]. Pertahankan seluruh angka sama persis dengan input. Jangan menambahkan nama pejabat atau tanda tangan. Pertahankan susunan BAB I Pendahuluan, BAB II Hasil dan Pembahasan, serta BAB III Penutup. Hasil tetap berupa draf yang harus diperiksa petugas.`;
 
 async function callGemini(prompt) {
   const apiKey = process.env.GEMINI_API_KEY;
