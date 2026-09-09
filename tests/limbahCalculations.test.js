@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { distributeValue } from '../src/lib/limbah/ruanganDistribution.js';
 import { accumulatePadatRows } from '../src/lib/limbah/padatAggregation.js';
 import { compareWasteRows } from '../src/lib/limbah/rowOrder.js';
+import { calculateRuanganSummary, calculateRuanganTotals } from '../src/lib/limbah/rekapRuanganCalculations.js';
 
 test('distribusi memberi sisa pembulatan hanya ke tanggal terakhir', () => {
   assert.deepEqual(distributeValue('10', 3), [3.33, 3.33, 3.34]);
@@ -85,4 +86,24 @@ test('urutan draft dan server mengikuti tanggal lalu waktu input menurun', () =>
   assert.deepEqual(rows.sort(compareWasteRows).map(row => row.id), ['off_new', 'early', 'old', 'missing']);
   assert.equal(compareWasteRows({}, {}), 0);
   assert.equal(compareWasteRows(rows[0], { ...rows[0], id: 'other' }), 0);
+});
+
+test('rekap per ruangan menggabungkan nama dan seluruh jenis limbah', () => {
+  const summaries = calculateRuanganSummary([
+    { ruangan: 'IGD', infeksius: 2, jarum_suntik: 1, botol_obat: 0.5 },
+    { ruangan: 'igd', infeksius: 3, sitotoksik: 0.25 },
+    { ruangan: 'ICU', infeksius: 4, jarum_suntik: 2 },
+  ]);
+
+  assert.equal(summaries.length, 2);
+  assert.deepEqual(summaries[0], {
+    ruangan: 'IGD',
+    infeksius: 5,
+    jarum_suntik: 1,
+    botol_obat: 0.5,
+    sitotoksik: 0.25,
+    total: 6.75,
+    jumlahEntri: 2,
+  });
+  assert.equal(calculateRuanganTotals(summaries).total, 12.75);
 });

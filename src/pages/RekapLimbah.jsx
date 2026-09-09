@@ -7,6 +7,9 @@ import { getSetting } from '../lib/api';
 import RekapSummaryCards from '../components/limbah/rekap/RekapSummaryCards';
 import RekapFilter from '../components/limbah/rekap/RekapFilter';
 import RekapTable from '../components/limbah/rekap/RekapTable';
+import RekapPerRuangan from '../components/limbah/rekap/RekapPerRuangan';
+import { fetchRuanganRowsByMonth } from '../lib/limbah/rekapRuangan';
+import { calculateRuanganSummary } from '../lib/limbah/rekapRuanganCalculations';
 import Swal from 'sweetalert2';
 
 export default function RekapLimbah() {
@@ -15,10 +18,16 @@ export default function RekapLimbah() {
   const [loading, setLoading] = useState(true);
   const [selectedYear, setSelectedYear] = useState(currentYearStr);
   const [selectedMonth, setSelectedMonth] = useState('semua');
+  const [activeTab, setActiveTab] = useState('bulanan');
+  const [roomMonth, setRoomMonth] = useState(String(new Date().getMonth() + 1));
+  const [roomRows, setRoomRows] = useState([]);
+  const [roomLoading, setRoomLoading] = useState(false);
+  const [roomError, setRoomError] = useState('');
   const [isPrinting, setIsPrinting] = useState(false);
 
   const frameRef = useRef(null);
   const loadIdRef = useRef(0);
+  const roomLoadIdRef = useRef(0);
 
   const loadData = useCallback(async () => {
     const currentLoadId = ++loadIdRef.current;
@@ -34,6 +43,24 @@ export default function RekapLimbah() {
       if (currentLoadId === loadIdRef.current) setLoading(false);
     }
   }, [selectedYear]);
+
+  const loadRoomData = useCallback(async () => {
+    const currentLoadId = ++roomLoadIdRef.current;
+    setRoomLoading(true);
+    setRoomError('');
+    try {
+      const rows = await fetchRuanganRowsByMonth(selectedYear, roomMonth);
+      if (currentLoadId !== roomLoadIdRef.current) return;
+      setRoomRows(calculateRuanganSummary(rows));
+    } catch (error) {
+      if (currentLoadId !== roomLoadIdRef.current) return;
+      console.error('Gagal mengambil rekap per ruangan:', error);
+      setRoomRows([]);
+      setRoomError(error.message || 'Periksa koneksi lalu coba kembali.');
+    } finally {
+      if (currentLoadId === roomLoadIdRef.current) setRoomLoading(false);
+    }
+  }, [selectedYear, roomMonth]);
 
   useEffect(() => {
     loadData();
@@ -61,6 +88,32 @@ export default function RekapLimbah() {
       window.removeEventListener('offline', handleQueueChange);
     };
   }, [loadData]);
+
+  useEffect(() => {
+    if (activeTab !== 'ruangan') return undefined;
+    loadRoomData();
+
+    let refreshTimer;
+    const handleDataChange = event => {
+      if (event.syncInProgress) return;
+      const changedTables = event.changedTables || event.detail?.changedTables;
+      if (changedTables?.length && !changedTables.includes('limbah_ruangan')) return;
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(loadRoomData, 220);
+    };
+    window.addEventListener('offline-queue-changed', handleDataChange);
+    window.addEventListener('offline-sync-finished', handleDataChange);
+    window.addEventListener('insan-j-data-changed', handleDataChange);
+    window.addEventListener('offline', handleDataChange);
+
+    return () => {
+      window.clearTimeout(refreshTimer);
+      window.removeEventListener('offline-queue-changed', handleDataChange);
+      window.removeEventListener('offline-sync-finished', handleDataChange);
+      window.removeEventListener('insan-j-data-changed', handleDataChange);
+      window.removeEventListener('offline', handleDataChange);
+    };
+  }, [activeTab, loadRoomData]);
 
   const { availableYears, tableRows, summary, hasAnomaly } = useMemo(() => {
     return calculateRekapitulasi(allData, selectedYear, selectedMonth);
@@ -104,27 +157,57 @@ export default function RekapLimbah() {
           </p>
         </div>
 
-        {/* Filter Toolbar */}
-        <RekapFilter
-          selectedYear={selectedYear}
-          setSelectedYear={setSelectedYear}
-          selectedMonth={selectedMonth}
-          setSelectedMonth={setSelectedMonth}
-          availableYears={availableYears}
-          onPrint={handlePrint}
-          isPrinting={isPrinting}
-        />
+        <div className="mb-6 inline-flex w-full rounded-2xl border border-slate-200 bg-slate-100 p-1 md:w-auto" role="tablist" aria-label="Jenis rekap limbah">
+          {[
+            { id: 'bulanan', label: 'Rekap Bulanan', icon: 'fas fa-calendar-alt' },
+            { id: 'ruangan', label: 'Per Ruangan', icon: 'fas fa-hospital' }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition-all md:flex-none ${activeTab === tab.id ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <i className={tab.icon} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
 
-        {/* Summary Cards */}
-        <RekapSummaryCards summary={summary} />
-
-        {/* Table & Anomaly Alert */}
-        <RekapTable
-          tableRows={tableRows}
-          summary={summary}
-          hasAnomaly={hasAnomaly}
-          loading={loading}
-        />
+        {activeTab === 'bulanan' ? (
+          <>
+            <RekapFilter
+              selectedYear={selectedYear}
+              setSelectedYear={setSelectedYear}
+              selectedMonth={selectedMonth}
+              setSelectedMonth={setSelectedMonth}
+              availableYears={availableYears}
+              onPrint={handlePrint}
+              isPrinting={isPrinting}
+            />
+            <RekapSummaryCards summary={summary} />
+            <RekapTable
+              tableRows={tableRows}
+              summary={summary}
+              hasAnomaly={hasAnomaly}
+              loading={loading}
+            />
+          </>
+        ) : (
+          <RekapPerRuangan
+            rows={roomRows}
+            loading={roomLoading}
+            error={roomError}
+            selectedYear={selectedYear}
+            selectedMonth={roomMonth}
+            availableYears={availableYears}
+            onYearChange={setSelectedYear}
+            onMonthChange={setRoomMonth}
+            onRetry={loadRoomData}
+          />
+        )}
       </div>
     </AppLayout>
   );
