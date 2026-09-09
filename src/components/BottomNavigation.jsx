@@ -93,7 +93,9 @@ export default function BottomNavigation() {
   const moreIsActive = moreItems.some(item => item.to === location.pathname);
   const totalNavItems = primaryItems.length + (moreItems.length > 0 ? 1 : 0);
   const primaryActiveIndex = primaryItems.findIndex(item => (
-    location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)
+    location.pathname === item.to
+    || location.pathname.startsWith(`${item.to}/`)
+    || (location.pathname === '/asisten-laporan' && item.to === '/rekap-limbah')
   ));
   const activeIndex = moreOpen || moreIsActive
     ? primaryItems.length

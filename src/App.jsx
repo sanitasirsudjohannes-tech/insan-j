@@ -14,6 +14,7 @@ const LimbahRuangan = lazy(() => import('./pages/LimbahRuangan'));
 const LimbahDihasilkan = lazy(() => import('./pages/LimbahDihasilkan'));
 const PengangkutanLimbah = lazy(() => import('./pages/PengangkutanLimbah'));
 const RekapLimbah = lazy(() => import('./pages/RekapLimbah'));
+const AsistenLaporan = lazy(() => import('./pages/AsistenLaporan'));
 
 // Loading component
 const LoadingScreen = () => (
@@ -80,6 +81,12 @@ function App() {
           <Route path="/rekap-limbah" element={
             <ProtectedRoute deniedRoles={['mahasiswa']}>
               <RekapLimbah />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/asisten-laporan" element={
+            <ProtectedRoute deniedRoles={['mahasiswa']}>
+              <AsistenLaporan />
             </ProtectedRoute>
           } />
 
