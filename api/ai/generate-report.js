@@ -135,7 +135,7 @@ export default async function handler(req, res) {
     if (Object.keys(validationErrors).length) return json(res, 400, { success: false, code: 'INVALID_INPUT', errors: validationErrors, message: 'Periksa kembali isian laporan.', requestId: id });
     if (detectSensitiveData(req.body)) return json(res, 400, { success: false, code: 'SENSITIVE_DATA_DETECTED', message: 'Hapus data pasien, NIK, nomor rekam medis, diagnosis, atau nomor telepon.', requestId: id });
 
-    const localDraft = buildLocalReport(req.body);
+    const localDraft = String(req.body.sourceDraft || '').trim() || buildLocalReport(req.body);
     const usage = getUsage(auth.user.id);
     const dailyLimit = Math.max(Number(process.env.AI_DAILY_LIMIT) || 5, 1);
     if (usage.count >= dailyLimit) {

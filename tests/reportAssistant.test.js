@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildLocalReport,
+  buildAutomaticAnalysis,
   detectSensitiveData,
   formatReportPeriod,
   preservesNumericFacts,
@@ -46,7 +47,16 @@ test('template lokal mempertahankan angka dan struktur BAB', () => {
   assert.match(report, /BAB I/);
   assert.match(report, /BAB II/);
   assert.match(report, /BAB III/);
+  assert.match(report, /1\.3 Manfaat/);
+  assert.match(report, /2\.3 Analisis Otomatis/);
   assert.match(report, /draft dan wajib diperiksa/i);
+});
+
+test('analisis lokal menghitung persentase dan jenis dominan', () => {
+  const analysis = buildAutomaticAnalysis(validPayload);
+  assert.match(analysis, /79\.80%/);
+  assert.match(analysis, /limbah infeksius/i);
+  assert.match(analysis, /59\.85%/);
 });
 
 test('periode satu hari tidak memakai kata sampai', () => {
