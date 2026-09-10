@@ -2,6 +2,7 @@ import { supabase } from './supabase';
 import { fetchAllSupabaseRows } from './supabasePagination';
 import { fetchDatabaseAggregation } from './databaseAggregations';
 import { calculateOpeningBalance } from './reportRecapCalculations';
+import { buildMedicalWasteAnalytics, previousPeriod } from './medicalWasteAnalytics';
 
 const sum = (rows, key) => rows.reduce((total, row) => total + (Number(row[key]) || 0), 0);
 export async function fetchMedicalWasteRecap(start, end) {
@@ -13,7 +14,9 @@ export async function fetchMedicalWasteRecap(start, end) {
   const priorEnd = `${dayBeforeStart.getFullYear()}-${String(dayBeforeStart.getMonth() + 1).padStart(2, '0')}-${String(dayBeforeStart.getDate()).padStart(2, '0')}`;
   const hasPartialMonth = start > monthStart;
   const priorRange = query => query.gte('tanggal', monthStart).lte('tanggal', priorEnd).order('tanggal', { ascending: true });
-  const [padatRows, ruanganRows, transportRows, yearlyData, partialPadat, partialRuangan, partialTransport] = await Promise.all([
+  const comparisonPeriod = previousPeriod(start, end);
+  const previousRange = query => query.gte('tanggal', comparisonPeriod.start).lte('tanggal', comparisonPeriod.end).order('tanggal', { ascending: true });
+  const [padatRows, ruanganRows, transportRows, yearlyData, partialPadat, partialRuangan, partialTransport, previousPadatRows, previousRuanganRows, previousTransportRows] = await Promise.all([
     fetchAllSupabaseRows(() => range(supabase.from('limbah_padat').select(wasteColumns))),
     fetchAllSupabaseRows(() => range(supabase.from('limbah_ruangan').select(`${wasteColumns}, ruangan`))),
     fetchAllSupabaseRows(() => range(supabase.from('pengangkutan_limbah').select('tanggal, jumlah_kg'))),
@@ -21,6 +24,9 @@ export async function fetchMedicalWasteRecap(start, end) {
     hasPartialMonth ? fetchAllSupabaseRows(() => priorRange(supabase.from('limbah_padat').select(wasteColumns))) : [],
     hasPartialMonth ? fetchAllSupabaseRows(() => priorRange(supabase.from('limbah_ruangan').select(wasteColumns))) : [],
     hasPartialMonth ? fetchAllSupabaseRows(() => priorRange(supabase.from('pengangkutan_limbah').select('tanggal, jumlah_kg'))) : [],
+    fetchAllSupabaseRows(() => previousRange(supabase.from('limbah_padat').select(wasteColumns))),
+    fetchAllSupabaseRows(() => previousRange(supabase.from('limbah_ruangan').select(`${wasteColumns}, ruangan`))),
+    fetchAllSupabaseRows(() => previousRange(supabase.from('pengangkutan_limbah').select('tanggal, jumlah_kg'))),
   ]);
   let openingSource = yearlyData;
   if (!openingSource) {
@@ -61,6 +67,11 @@ export async function fetchMedicalWasteRecap(start, end) {
     runningBalance += row.generated - row.transported;
     return { ...row, balance: runningBalance, label: `${row.date.slice(8, 10)}/${row.date.slice(5, 7)}` };
   });
+  const analytics = buildMedicalWasteAnalytics({
+    currentWasteRows: wasteRows, currentRoomRows: ruanganRows, currentTransportRows: transportRows,
+    previousWasteRows: [...previousPadatRows, ...previousRuanganRows], previousRoomRows: previousRuanganRows,
+    previousTransportRows, openingBalanceKg, days: comparisonPeriod.days,
+  });
   return {
     facts: { openingBalanceKg, totalGeneratedKg, totalTransportedKg, remainingKg: openingBalanceKg + totalGeneratedKg - totalTransportedKg, infectiousKg, sharpsKg, bottleKg, cytotoxicKg },
     charts: {
@@ -77,5 +88,6 @@ export async function fetchMedicalWasteRecap(start, end) {
       ],
       rooms: Array.from(rooms, ([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10),
     },
+    analytics: { ...analytics, comparisonPeriod: { start: comparisonPeriod.start, end: comparisonPeriod.end } },
   };
 }

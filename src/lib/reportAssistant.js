@@ -1,3 +1,5 @@
+import { buildMedicalWasteAnalysis, buildMedicalWasteConclusion, buildMedicalWasteRecommendations } from './medicalWasteNarrative.js';
+
 export const REPORT_TYPES = {
   medical_waste: {
     label: 'Pengelolaan Limbah Medis',
@@ -150,13 +152,18 @@ export function buildLocalReport(payload = {}) {
   const analysis = buildAutomaticAnalysis(payload);
   const narrative = REPORT_NARRATIVES[payload.reportType] || REPORT_NARRATIVES.sanitation_activity;
   const conclusion = buildReportConclusion(payload);
+  const automaticRecommendations = payload.reportType === 'medical_waste' ? buildMedicalWasteRecommendations(facts, payload.analytics) : '';
+  const recommendationSection = payload.reportType === 'medical_waste'
+    ? `Rekomendasi otomatis berdasarkan hasil perhitungan:\n${automaticRecommendations}\n\nTindakan atau rekomendasi tambahan yang dicatat petugas:\n${actions}`
+    : `Berdasarkan hasil evaluasi dan kondisi yang ditemukan, tindakan maupun rekomendasi yang perlu diperhatikan adalah sebagai berikut:\n${actions}`;
 
-  return `LAPORAN ${config.label.toUpperCase()}\nRSUD PROF. DR. W.Z. JOHANNES KUPANG\nPeriode: ${period}\n\nBAB I\nPENDAHULUAN\n\n1.1 Latar Belakang\n${narrative.background}\n\nLaporan ${config.label.toLowerCase()} ini disusun berdasarkan kegiatan dan data yang tersedia pada periode ${period}. Penyusunan laporan dimaksudkan untuk memberikan gambaran mengenai hasil pelaksanaan kegiatan sekaligus menjadi bahan evaluasi bagi Unit Sanitasi.\n\n1.2 Tujuan\n1. Mendokumentasikan pelaksanaan dan hasil ${config.label.toLowerCase()} selama periode pelaporan.\n2. Mengetahui capaian serta mengidentifikasi kondisi yang masih memerlukan perhatian.\n3. Menjadi dasar dalam menentukan tindakan perbaikan dan pemantauan selanjutnya.\n\n1.3 Manfaat\n${narrative.benefit}\n\nBAB II\nHASIL DAN PEMBAHASAN\n\n2.1 Waktu dan Ruang Lingkup\nKegiatan yang dilaporkan berlangsung pada periode ${period}. ${narrative.scope} Data bersumber dari catatan petugas dan rekap INSAN-J sesuai dengan periode yang dipilih.\n\n2.2 Hasil Kegiatan\nBerdasarkan pencatatan yang telah dilakukan, diperoleh hasil sebagai berikut:\n\n${detailLines}\n\n2.3 Analisis dan Evaluasi\n${analysis}\n\n2.4 Kendala dan Temuan\nDalam pelaksanaan kegiatan, kendala atau temuan yang dicatat adalah sebagai berikut:\n${constraints}\n\n2.5 Tindak Lanjut dan Rekomendasi\nBerdasarkan hasil evaluasi dan kondisi yang ditemukan, tindakan maupun rekomendasi yang perlu diperhatikan adalah sebagai berikut:\n${actions}\n\n2.6 Catatan Tambahan\n${notes}\n\n2.7 Penyajian Tabel dan Grafik\nData pada laporan ini juga disajikan dalam bentuk tabel dan grafik untuk memudahkan pembacaan pola, perbandingan, dan komposisi hasil. Angka pada tabel dan grafik tetap perlu dicocokkan kembali dengan sumber data sebelum laporan ditetapkan.\n\nBAB III\nPENUTUP\n\n3.1 Kesimpulan\n${conclusion}\n\n3.2 Saran\n1. Data dan uraian dalam laporan perlu diperiksa kembali sebelum disahkan atau digunakan sebagai dokumen resmi.\n2. Informasi yang masih bertanda [PERLU DILENGKAPI] agar dilengkapi berdasarkan catatan atau bukti pelaksanaan yang tersedia.\n3. Tindak lanjut yang telah ditetapkan perlu didokumentasikan dan dievaluasi kembali pada periode berikutnya.\n\nCatatan: Dokumen ini masih berupa draf dan harus diperiksa oleh petugas Unit Sanitasi sebelum digunakan.`;
+  return `LAPORAN ${config.label.toUpperCase()}\nRSUD PROF. DR. W.Z. JOHANNES KUPANG\nPeriode: ${period}\n\nBAB I\nPENDAHULUAN\n\n1.1 Latar Belakang\n${narrative.background}\n\nLaporan ${config.label.toLowerCase()} ini disusun berdasarkan kegiatan dan data yang tersedia pada periode ${period}. Penyusunan laporan dimaksudkan untuk memberikan gambaran mengenai hasil pelaksanaan kegiatan sekaligus menjadi bahan evaluasi bagi Unit Sanitasi.\n\n1.2 Tujuan\n1. Mendokumentasikan pelaksanaan dan hasil ${config.label.toLowerCase()} selama periode pelaporan.\n2. Mengetahui capaian serta mengidentifikasi kondisi yang masih memerlukan perhatian.\n3. Menjadi dasar dalam menentukan tindakan perbaikan dan pemantauan selanjutnya.\n\n1.3 Manfaat\n${narrative.benefit}\n\nBAB II\nHASIL DAN PEMBAHASAN\n\n2.1 Waktu dan Ruang Lingkup\nKegiatan yang dilaporkan berlangsung pada periode ${period}. ${narrative.scope} Data bersumber dari catatan petugas dan rekap INSAN-J sesuai dengan periode yang dipilih.\n\n2.2 Hasil Kegiatan\nBerdasarkan pencatatan yang telah dilakukan, diperoleh hasil sebagai berikut:\n\n${detailLines}\n\n2.3 Analisis dan Evaluasi\n${analysis}\n\n2.4 Kendala dan Temuan\nDalam pelaksanaan kegiatan, kendala atau temuan yang dicatat adalah sebagai berikut:\n${constraints}\n\n2.5 Tindak Lanjut dan Rekomendasi\n${recommendationSection}\n\n2.6 Catatan Tambahan\n${notes}\n\n2.7 Penyajian Tabel dan Grafik\nData pada laporan ini juga disajikan dalam bentuk tabel dan grafik untuk memudahkan pembacaan pola, perbandingan, dan komposisi hasil. Angka pada tabel dan grafik tetap perlu dicocokkan kembali dengan sumber data sebelum laporan ditetapkan.\n\nBAB III\nPENUTUP\n\n3.1 Kesimpulan\n${conclusion}\n\n3.2 Saran\n1. Data dan uraian dalam laporan perlu diperiksa kembali sebelum disahkan atau digunakan sebagai dokumen resmi.\n2. Informasi yang masih bertanda [PERLU DILENGKAPI] agar dilengkapi berdasarkan catatan atau bukti pelaksanaan yang tersedia.\n3. Tindak lanjut yang telah ditetapkan perlu didokumentasikan dan dievaluasi kembali pada periode berikutnya.\n\nCatatan: Dokumen ini masih berupa draf dan harus diperiksa oleh petugas Unit Sanitasi sebelum digunakan.`;
 }
 
 export function buildAutomaticAnalysis(payload = {}) {
   const facts = payload.facts || {};
   if (payload.reportType === 'medical_waste') {
+    if (payload.analytics) return buildMedicalWasteAnalysis(facts, payload.analytics);
     const generated = Number(facts.totalGeneratedKg) || 0;
     const transported = Number(facts.totalTransportedKg) || 0;
     const opening = Number(facts.openingBalanceKg) || 0;
@@ -190,6 +197,7 @@ export function buildAutomaticAnalysis(payload = {}) {
 export function buildReportConclusion(payload = {}) {
   const facts = payload.facts || {};
   if (payload.reportType === 'medical_waste') {
+    if (payload.analytics) return buildMedicalWasteConclusion(facts, payload.analytics);
     const difference = Number(facts.remainingKg) || 0;
     const opening = Number(facts.openingBalanceKg) || 0;
     const condition = difference > 0

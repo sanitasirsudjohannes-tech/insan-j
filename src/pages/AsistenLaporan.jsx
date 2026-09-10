@@ -22,6 +22,7 @@ const emptyState = {
   reportType: 'medical_waste',
   period: initialPeriod(),
   facts: {},
+  analytics: null,
   constraints: '',
   actions: '',
   additionalNotes: '',
@@ -181,7 +182,7 @@ export default function AsistenLaporan() {
     }));
 
   const handleTypeChange = reportType => {
-    setForm(current => ({ ...current, reportType, facts: {} }));
+    setForm(current => ({ ...current, reportType, facts: {}, analytics: null }));
     setErrors({});
     setChartData(null);
   };
@@ -195,7 +196,7 @@ export default function AsistenLaporan() {
     try {
       const recap = await fetchMedicalWasteRecap(form.period.start, form.period.end);
       const facts = Object.fromEntries(Object.entries(recap.facts).map(([key, value]) => [key, numberValue(value)]));
-      setForm(current => ({ ...current, facts }));
+      setForm(current => ({ ...current, facts, analytics: recap.analytics }));
       setChartData(recap.charts);
       await Swal.fire({
         icon: 'success',
