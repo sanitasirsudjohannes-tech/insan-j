@@ -14,6 +14,9 @@ export default function WasteDataChat({ className = '', hideHeader = false }) {
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const endRef = useRef(null);
+  const showSuggestions = messages.length === 1
+    && messages[0]?.role === initialMessage.role
+    && messages[0]?.text === initialMessage.text;
   useEffect(() => { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-30))); endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
   const ask = async value => {
@@ -42,7 +45,7 @@ export default function WasteDataChat({ className = '', hideHeader = false }) {
         {loading && <div className="flex justify-start"><div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500"><i className="fas fa-spinner fa-spin mr-2" />Menghitung dari data…</div></div>}
         <div ref={endRef} />
       </div>
-      <div className="mt-3 flex gap-2 overflow-x-auto pb-1">{QUESTION_SUGGESTIONS.map(item => <button key={item} type="button" onClick={() => ask(item)} className="shrink-0 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">{item}</button>)}</div>
+      {showSuggestions && <div className="mt-3 flex gap-2 overflow-x-auto pb-1">{QUESTION_SUGGESTIONS.map(item => <button key={item} type="button" onClick={() => ask(item)} className="shrink-0 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">{item}</button>)}</div>}
       <form onSubmit={event => { event.preventDefault(); ask(); }} className="mt-3 flex gap-2"><input value={question} onChange={event => setQuestion(event.target.value)} placeholder="Tanyakan data limbah…" className="min-w-0 flex-1 rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" /><button type="submit" disabled={!question.trim() || loading} className="rounded-2xl bg-blue-600 px-4 text-white disabled:opacity-50" aria-label="Kirim pertanyaan"><i className="fas fa-paper-plane" /></button></form>
     </section>
   );
