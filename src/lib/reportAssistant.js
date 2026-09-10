@@ -135,7 +135,6 @@ export function validateReportPayload(payload = {}) {
       errors[field.key] = `${field.label} harus berupa angka ${field.allowNegative ? 'yang valid' : 'nol atau lebih'}.`;
     }
   });
-  if (!payload.privacyConfirmed) errors.privacyConfirmed = 'Konfirmasi keamanan data wajib dicentang.';
   return errors;
 }
 

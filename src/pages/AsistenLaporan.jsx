@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import AppLayout from '../components/AppLayout';
 import ReportCharts from '../components/reports/ReportCharts';
+import WasteDataChat from '../components/reports/WasteDataChat';
 import { getLocalDateString } from '../lib/localDate';
 import { buildLocalReport, REPORT_TYPES, validateReportPayload } from '../lib/reportAssistant';
-import { generateAiReport } from '../lib/reportAssistantApi';
 import { fetchMedicalWasteRecap } from '../lib/reportRecap';
 import { buildDocxBlob, createReportChartPngs } from '../lib/docxExport';
 import { buildMedicalWasteTableModels } from '../lib/reportTableData';
@@ -26,7 +26,6 @@ const emptyState = {
   constraints: '',
   actions: '',
   additionalNotes: '',
-  privacyConfirmed: false
 };
 
 function loadSavedState() {
@@ -125,13 +124,6 @@ export default function AsistenLaporan() {
       return '';
     }
   });
-  const [provider, setProvider] = useState(() => {
-    try {
-      return JSON.parse(sessionStorage.getItem(STORAGE_KEY))?.provider || '';
-    } catch {
-      return '';
-    }
-  });
   const [chartData, setChartData] = useState(() => {
     try {
       return JSON.parse(sessionStorage.getItem(STORAGE_KEY))?.chartData || null;
@@ -140,39 +132,13 @@ export default function AsistenLaporan() {
     }
   });
   const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
   const [recapLoading, setRecapLoading] = useState(false);
   const [status, setStatus] = useState('');
-  const abortRef = useRef(null);
   const config = REPORT_TYPES[form.reportType];
 
   useEffect(() => {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ form, draft, provider, chartData }));
-  }, [form, draft, provider, chartData]);
-
-  useEffect(() => () => abortRef.current?.abort(), []);
-
-  const sourceInfo = useMemo(
-    () =>
-      ({
-        gemini: {
-          label: 'Disusun dengan Gemini',
-          icon: 'fa-wand-magic-sparkles',
-          color: 'bg-blue-50 text-blue-700 border-blue-200'
-        },
-        groq: {
-          label: 'Disusun dengan GroqCloud',
-          icon: 'fa-bolt',
-          color: 'bg-violet-50 text-violet-700 border-violet-200'
-        },
-        'local-template': {
-          label: 'Menggunakan template lokal',
-          icon: 'fa-file-lines',
-          color: 'bg-amber-50 text-amber-700 border-amber-200'
-        }
-      })[provider],
-    [provider]
-  );
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ form, draft, chartData }));
+  }, [form, draft, chartData]);
 
   const updateForm = (key, value) => setForm(current => ({ ...current, [key]: value }));
   const updateFact = (key, value) =>
@@ -189,7 +155,7 @@ export default function AsistenLaporan() {
 
   const handleRecap = async () => {
     if (!form.period.start || !form.period.end || form.period.start > form.period.end) {
-      setErrors(validateReportPayload({ ...form, privacyConfirmed: true }));
+      setErrors(validateReportPayload(form));
       return;
     }
     setRecapLoading(true);
@@ -218,15 +184,10 @@ export default function AsistenLaporan() {
   };
 
   const handleBuildLocal = () => {
-    const validationErrors = validateReportPayload({
-      ...form,
-      privacyConfirmed: true
-    });
-    delete validationErrors.privacyConfirmed;
+    const validationErrors = validateReportPayload(form);
     setErrors(validationErrors);
     if (Object.keys(validationErrors).length) return;
     setDraft(buildLocalReport(form));
-    setProvider('local-template');
     if (form.reportType === 'medical_waste' && !chartData) {
       setChartData({
         balanceFlow: [
@@ -252,40 +213,6 @@ export default function AsistenLaporan() {
       });
     }
     setStatus('Laporan lengkap dibuat dari template lokal. Periksa narasi, tabel, dan grafik sebelum digunakan.');
-  };
-
-  const handlePolishWithAi = async () => {
-    const validationErrors = validateReportPayload(form);
-    setErrors(validationErrors);
-    if (Object.keys(validationErrors).length) return;
-    setLoading(true);
-    setStatus(navigator.onLine ? 'Mengirim draft untuk dirapikan dengan Gemini…' : 'AI memerlukan koneksi internet. Template lokal tetap tersedia.');
-    abortRef.current = new AbortController();
-    try {
-      if (!navigator.onLine) {
-        return;
-      }
-      const statusTimer = window.setTimeout(() => setStatus('AI utama belum merespons, fallback akan dilakukan otomatis…'), 7000);
-      try {
-        const result = await generateAiReport({ ...form, sourceDraft: draft }, abortRef.current.signal);
-        setDraft(result.draft);
-        setProvider(result.provider);
-        if (result.isTemplateOnly || result.fallbackUsed) setStatus(result.warning);
-        else setStatus('Draft berhasil dibuat. Periksa seluruh isi sebelum digunakan.');
-      } finally {
-        window.clearTimeout(statusTimer);
-      }
-    } catch (error) {
-      if (error.name === 'AbortError') {
-        setStatus('Pembuatan draft dibatalkan. Isian Anda tetap tersimpan.');
-      } else {
-        setStatus(`${error.message} Draft template lokal tidak diubah.`);
-        if (error.errors) setErrors(error.errors);
-      }
-    } finally {
-      setLoading(false);
-      abortRef.current = null;
-    }
   };
 
   const handleCopy = async () => {
@@ -321,14 +248,13 @@ export default function AsistenLaporan() {
     sessionStorage.removeItem(STORAGE_KEY);
     setForm({ ...emptyState, period: initialPeriod(), facts: {} });
     setDraft('');
-    setProvider('');
     setChartData(null);
     setErrors({});
     setStatus('');
   };
 
   return (
-    <AppLayout title="Asisten Laporan AI" showBackButton>
+    <AppLayout title="Asisten Data dan Laporan" showBackButton>
       <div className="mx-auto max-w-5xl space-y-5 px-3 py-5 sm:px-6 sm:py-7">
         <section className="relative overflow-hidden rounded-3xl bg-linear-to-br from-slate-900 via-blue-950 to-blue-800 p-5 text-white shadow-xl sm:p-7">
           <div className="absolute -right-10 -top-10 h-36 w-36 rounded-full bg-cyan-400/20 blur-2xl" />
@@ -338,11 +264,13 @@ export default function AsistenLaporan() {
             </span>
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-300">INSAN-J</p>
-              <h1 className="mt-1 text-xl font-black sm:text-2xl">Asisten Penyusunan Laporan</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-blue-100">Buat laporan lengkap melalui template lokal dan grafik data. AI hanya digunakan bila Anda memilih untuk merapikan narasi.</p>
+              <h1 className="mt-1 text-xl font-black sm:text-2xl">Asisten Data dan Laporan</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-blue-100">Tanyakan data limbah melalui percakapan atau susun laporan lengkap menggunakan template lokal.</p>
             </div>
           </div>
         </section>
+
+        <WasteDataChat />
 
         <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           <div className="mb-5 flex items-center justify-between gap-3">
@@ -422,11 +350,11 @@ export default function AsistenLaporan() {
             ))}
           </div>
           <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-            <button type="button" onClick={handleBuildLocal} disabled={loading} className="flex-1 rounded-2xl bg-linear-to-r from-blue-600 to-cyan-500 px-5 py-3.5 font-black text-white shadow-lg shadow-blue-200 disabled:opacity-60">
+            <button type="button" onClick={handleBuildLocal} className="flex-1 rounded-2xl bg-linear-to-r from-blue-600 to-cyan-500 px-5 py-3.5 font-black text-white shadow-lg shadow-blue-200">
               <i className="fas fa-file-circle-plus mr-2" />
               Buat Laporan Lengkap
             </button>
-            <button type="button" onClick={handleReset} disabled={loading} className="rounded-2xl border border-slate-200 px-5 py-3 font-bold text-slate-600 disabled:opacity-50">
+            <button type="button" onClick={handleReset} className="rounded-2xl border border-slate-200 px-5 py-3 font-bold text-slate-600">
               Hapus Draft
             </button>
           </div>
@@ -438,19 +366,14 @@ export default function AsistenLaporan() {
           )}
         </section>
 
-        {(loading || draft) && (
+        {draft && (
           <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="font-black text-slate-800">3. Periksa dan edit draft</h2>
                 <p className="mt-1 text-xs text-slate-500">Perubahan tersimpan sementara pada tab ini.</p>
               </div>
-              {sourceInfo && (
-                <span className={`rounded-full border px-3 py-1.5 text-xs font-bold ${sourceInfo.color}`}>
-                  <i className={`fas ${sourceInfo.icon} mr-1.5`} />
-                  {sourceInfo.label}
-                </span>
-              )}
+              <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700"><i className="fas fa-file-lines mr-1.5" />Template lokal</span>
             </div>
             {chartData && form.reportType === 'medical_waste' && (
               <div className="mb-5">
@@ -460,25 +383,7 @@ export default function AsistenLaporan() {
             <textarea value={draft} onChange={event => setDraft(event.target.value)} rows="28" className="w-full resize-y rounded-2xl border border-slate-300 bg-slate-50 p-4 font-mono text-sm leading-relaxed text-slate-800 outline-none focus:bg-white focus:ring-2 focus:ring-blue-500" />
             {draft && (
               <>
-                <label className={`mt-4 flex cursor-pointer items-start gap-3 rounded-2xl border p-4 ${errors.privacyConfirmed ? 'border-red-300 bg-red-50' : 'border-violet-100 bg-violet-50/60'}`}>
-                  <input type="checkbox" checked={form.privacyConfirmed} onChange={event => updateForm('privacyConfirmed', event.target.checked)} className="mt-1 h-4 w-4 accent-violet-600" />
-                  <span className="text-sm text-slate-700">
-                    <strong>Saya memastikan isian tidak mengandung data pasien</strong>
-                    <span className="mt-1 block text-xs text-slate-500">Konfirmasi ini hanya diperlukan jika memakai tombol AI.</span>
-                    {errors.privacyConfirmed && <span className="mt-1 block text-xs text-red-600">{errors.privacyConfirmed}</span>}
-                  </span>
-                </label>
                 <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
-                  {loading ? (
-                    <button type="button" onClick={() => abortRef.current?.abort()} className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-bold text-red-600">
-                      Batalkan AI
-                    </button>
-                  ) : (
-                    <button type="button" onClick={handlePolishWithAi} className="rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white shadow-md">
-                      <i className="fas fa-wand-magic-sparkles mr-2" />
-                      Rapikan dengan AI
-                    </button>
-                  )}
                   <button type="button" onClick={handleCopy} className="rounded-xl border border-blue-200 px-4 py-2.5 text-sm font-bold text-blue-700">
                     <i className="fas fa-copy mr-2" />
                     Salin
