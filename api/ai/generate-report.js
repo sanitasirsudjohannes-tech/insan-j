@@ -7,10 +7,10 @@ import {
   serializePayload,
   validateReportPayload,
 } from '../../src/lib/reportAssistant.js';
+import { canFallbackFromProvider, describeProviderFailure, fallbackWarning, shouldCountProviderFailure } from '../../src/lib/aiProviderPolicy.js';
 
 const usageByUser = new Map();
 const breaker = new Map();
-const FALLBACK_STATUSES = new Set([429, 500, 502, 503, 504]);
 const ALLOWED_ROLES = new Set(['admin', 'petugas', 'user']);
 
 const json = (res, status, body) => res.status(status).json(body);
@@ -35,7 +35,7 @@ function recordProviderResult(provider, success, status) {
     breaker.delete(provider);
     return;
   }
-  if (!FALLBACK_STATUSES.has(status)) return;
+  if (!shouldCountProviderFailure(status)) return;
   const current = breaker.get(provider) || { failures: 0, blockedUntil: 0 };
   const failures = current.failures + 1;
   breaker.set(provider, { failures, blockedUntil: failures >= 3 ? Date.now() + 5 * 60_000 : 0 });
@@ -56,7 +56,7 @@ function providerError(provider, status, message = 'Layanan AI tidak tersedia.')
   const error = new Error(message);
   error.provider = provider;
   error.status = status;
-  error.canFallback = FALLBACK_STATUSES.has(status) || status === 408 || status === 0;
+  error.canFallback = canFallbackFromProvider(status);
   return error;
 }
 
@@ -75,7 +75,10 @@ async function callGemini(prompt) {
       generationConfig: { temperature: 0.2, maxOutputTokens: 3500 },
     }),
   });
-  if (!response.ok) throw providerError('gemini', response.status);
+  if (!response.ok) {
+    const details = await response.json().catch(() => ({}));
+    throw providerError('gemini', response.status, details?.error?.status || 'Gemini menolak permintaan.');
+  }
   const data = await response.json();
   const text = data.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();
   if (!text) throw providerError('gemini', 502, 'Respons Gemini kosong.');
@@ -96,7 +99,10 @@ async function callGroq(prompt) {
       messages: [{ role: 'system', content: systemInstruction }, { role: 'user', content: prompt }],
     }),
   });
-  if (!response.ok) throw providerError('groq', response.status);
+  if (!response.ok) {
+    const details = await response.json().catch(() => ({}));
+    throw providerError('groq', response.status, details?.error?.code || 'GroqCloud menolak permintaan.');
+  }
   const data = await response.json();
   const text = data.choices?.[0]?.message?.content?.trim();
   if (!text) throw providerError('groq', 502, 'Respons GroqCloud kosong.');
@@ -147,6 +153,7 @@ export default async function handler(req, res) {
     const configured = String(process.env.AI_PRIMARY_PROVIDER || 'gemini').toLowerCase();
     const providers = configured === 'groq' ? ['groq', 'gemini'] : ['gemini', 'groq'];
     let fallbackUsed = false;
+    const failures = [];
 
     for (const provider of providers) {
       if (!providerAvailable(provider)) {
@@ -159,18 +166,21 @@ export default async function handler(req, res) {
           throw providerError(provider, 502, 'Respons AI mengubah atau menghilangkan angka sumber.');
         }
         recordProviderResult(provider, true, 200);
-        return json(res, 200, { success: true, provider, fallbackUsed, isTemplateOnly: false, draft, warning: 'Periksa kembali seluruh angka dan isi sebelum digunakan.', requestId: id });
+        return json(res, 200, { success: true, provider, fallbackUsed, isTemplateOnly: false, draft, warning: fallbackUsed ? fallbackWarning(failures, provider) : 'Periksa kembali seluruh angka dan isi sebelum digunakan.', requestId: id });
       } catch (error) {
         const status = error.name === 'AbortError' ? 408 : (error.status || 0);
+        const failure = { provider, status, message: describeProviderFailure(provider, status) };
+        failures.push(failure);
+        console.warn('AI provider failed', { requestId: id, provider, status, reason: error.message });
         recordProviderResult(provider, false, status);
         if (!error.canFallback && status !== 408 && status !== 0) {
-          return json(res, 502, { success: false, code: 'PROVIDER_REJECTED', message: 'Permintaan ditolak layanan AI. Periksa konfigurasi atau isi laporan.', requestId: id });
+          return json(res, 502, { success: false, code: 'PROVIDER_REJECTED', message: failure.message, provider, providerStatus: status, requestId: id });
         }
         fallbackUsed = true;
       }
     }
 
-    return json(res, 200, { success: true, provider: 'local-template', fallbackUsed: true, isTemplateOnly: true, draft: localDraft, warning: 'Layanan AI tidak tersedia. Draft dibuat menggunakan template lokal.', requestId: id });
+    return json(res, 200, { success: true, provider: 'local-template', fallbackUsed: true, isTemplateOnly: true, draft: localDraft, warning: fallbackWarning(failures, 'local-template'), providerFailures: failures, requestId: id });
   } catch (error) {
     console.error('AI report request failed', { requestId: id, name: error?.name });
     return json(res, 500, { success: false, code: 'INTERNAL_ERROR', message: 'Terjadi kendala saat membuat laporan.', requestId: id });

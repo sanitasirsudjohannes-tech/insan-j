@@ -269,7 +269,7 @@ export default function AsistenLaporan() {
         const result = await generateAiReport({ ...form, sourceDraft: draft }, abortRef.current.signal);
         setDraft(result.draft);
         setProvider(result.provider);
-        if (result.isTemplateOnly) setStatus(result.warning);
+        if (result.isTemplateOnly || result.fallbackUsed) setStatus(result.warning);
         else setStatus('Draft berhasil dibuat. Periksa seluruh isi sebelum digunakan.');
       } finally {
         window.clearTimeout(statusTimer);
