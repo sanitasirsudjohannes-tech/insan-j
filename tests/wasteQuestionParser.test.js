@@ -38,3 +38,18 @@ test('tahun ini diterjemahkan sebagai tahun berjalan penuh', () => {
   assert.match(result.period.start, /^20\d{2}-01-01$/);
   assert.match(result.period.end, /^20\d{2}-12-31$/);
 });
+
+test('pertanyaan per tanggal hanya menggunakan satu hari', () => {
+  const result = parseWasteQuestion('Berapa timbulan limbah tanggal 5 September 2026?');
+  assert.equal(result.period.scope, 'day');
+  assert.equal(result.period.start, '2026-09-05');
+  assert.equal(result.period.end, '2026-09-05');
+  assert.equal(result.period.label, '5 September 2026');
+});
+
+test('tanggal berformat angka dikenali sebagai satu hari', () => {
+  const result = parseWasteQuestion('Total limbah per tanggal 05/09/2026');
+  assert.equal(result.period.scope, 'day');
+  assert.equal(result.period.start, '2026-09-05');
+  assert.equal(result.period.end, '2026-09-05');
+});

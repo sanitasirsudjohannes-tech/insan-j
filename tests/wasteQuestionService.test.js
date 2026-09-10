@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildWasteAnswer } from '../src/lib/wasteQuestionAnswer.js';
-import { parseWasteQuestion } from '../src/lib/wasteQuestionParser.js';
+import { normalizeAiWasteQuestion, parseWasteQuestion } from '../src/lib/wasteQuestionParser.js';
 
 const recap = {
   facts: { openingBalanceKg: 10, totalGeneratedKg: 40, totalTransportedKg: 35, remainingKg: 15, infectiousKg: 30 },
@@ -26,4 +26,15 @@ test('jawaban timbulan tahunan menyebut cakupan tahun penuh', () => {
   const answer = buildWasteAnswer(parseWasteQuestion('Timbulan limbah tahun 2026?'), recap);
   assert.match(answer.text, /selama tahun 2026/);
   assert.match(answer.text, /40,00 kg/);
+});
+
+test('hasil pemahaman AI divalidasi lalu dijawab dari data rekap', () => {
+  const parsed = normalizeAiWasteQuestion('Berapa yang belum sempat dibawa pada tanggal lima September?', {
+    intent: 'remaining', year: 2026, month: 9, day: 5, typeKey: null, inferredYear: true,
+  });
+  const answer = buildWasteAnswer(parsed, recap);
+  assert.equal(parsed.period.start, '2026-09-05');
+  assert.equal(parsed.period.end, '2026-09-05');
+  assert.equal(parsed.assistedByAi, true);
+  assert.match(answer.text, /15,00 kg/);
 });

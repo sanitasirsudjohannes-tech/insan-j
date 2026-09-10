@@ -24,7 +24,7 @@ export default function WasteDataChat({ className = '', hideHeader = false }) {
     setLoading(true);
     try {
       const answer = await answerWasteQuestion(text);
-      setMessages(current => [...current, { role: 'assistant', text: answer.text }]);
+      setMessages(current => [...current, { role: 'assistant', text: answer.text, assistedByAi: answer.assistedByAi }]);
     } catch {
       setMessages(current => [...current, { role: 'assistant', text: 'Data belum dapat diambil. Periksa koneksi dan status sinkronisasi, lalu coba kembali.', error: true }]);
     } finally { setLoading(false); }
@@ -37,7 +37,7 @@ export default function WasteDataChat({ className = '', hideHeader = false }) {
         <button type="button" onClick={() => setMessages([initialMessage])} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">Bersihkan</button>
       </div>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-2xl bg-slate-50 p-3" aria-live="polite">
-        {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${message.role === 'user' ? 'bg-blue-600 text-white' : message.error ? 'border border-red-200 bg-red-50 text-red-700' : 'border border-slate-200 bg-white text-slate-700'}`}>{message.text}</div></div>)}
+        {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[88%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${message.role === 'user' ? 'bg-blue-600 text-white' : message.error ? 'border border-red-200 bg-red-50 text-red-700' : 'border border-slate-200 bg-white text-slate-700'}`}>{message.assistedByAi && <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-violet-600"><i className="fas fa-wand-magic-sparkles mr-1" />Dipahami dengan bantuan AI</span>}{message.text}</div></div>)}
         {loading && <div className="flex justify-start"><div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500"><i className="fas fa-spinner fa-spin mr-2" />Menghitung dari data…</div></div>}
         <div ref={endRef} />
       </div>
