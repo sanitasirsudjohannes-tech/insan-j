@@ -45,7 +45,6 @@ export default function WasteDataChatLauncher() {
           aria-label="Buka Tanya INSAN-J"
           className="group fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-4 z-30 isolate flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-white/90 bg-linear-to-br from-white/80 via-blue-100/55 to-cyan-200/40 text-blue-700 shadow-[0_12px_32px_rgba(30,64,175,0.24),inset_0_1px_0_rgba(255,255,255,0.95),inset_0_-1px_0_rgba(59,130,246,0.16)] backdrop-blur-xl backdrop-saturate-150 transition duration-300 hover:-translate-y-1 hover:scale-105 hover:border-white hover:shadow-[0_16px_38px_rgba(30,64,175,0.3),inset_0_1px_0_white] active:translate-y-0 active:scale-95 md:bottom-6 md:right-6"
         >
-          <span className="absolute inset-0 -z-10 animate-ping rounded-full bg-blue-400/20 motion-reduce:hidden" />
           <span className="absolute -left-2 -top-3 h-9 w-9 rounded-full bg-white/90 blur-md" />
           <span className="absolute bottom-1 right-1 h-4 w-4 rounded-full bg-cyan-400/35 blur-sm" />
           <span className="relative flex h-10 w-10 items-center justify-center rounded-full border border-white/80 bg-blue-600/85 text-white shadow-[0_5px_14px_rgba(37,99,235,0.3),inset_0_1px_0_rgba(255,255,255,0.45)] backdrop-blur-md transition-transform duration-300 group-hover:rotate-[-4deg] group-hover:scale-105">
