@@ -11,6 +11,15 @@ function loadMessages() {
   try { return JSON.parse(sessionStorage.getItem(STORAGE_KEY)) || [initialMessage]; } catch { return [initialMessage]; }
 }
 
+function compactMessages(messages) {
+  return messages.slice(-30).map(message => {
+    const compact = { ...message };
+    delete compact.reportPayload;
+    compact.visualization = message.visualization?.items?.length ? { ...message.visualization, items: message.visualization.items.slice(0, 8) } : null;
+    return compact;
+  });
+}
+
 export default function WasteDataChat({ className = '', hideHeader = false }) {
   const navigate = useNavigate();
   const [messages, setMessages] = useState(loadMessages);
@@ -20,7 +29,11 @@ export default function WasteDataChat({ className = '', hideHeader = false }) {
   const showSuggestions = messages.length === 1
     && messages[0]?.role === initialMessage.role
     && messages[0]?.text === initialMessage.text;
-  useEffect(() => { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(messages.slice(-30))); endRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  useEffect(() => {
+    try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(compactMessages(messages))); }
+    catch (error) { console.warn('Riwayat chat lokal tidak dapat disimpan.', { reason: error?.name }); }
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const ask = async value => {
     const text = String(value || question).trim();

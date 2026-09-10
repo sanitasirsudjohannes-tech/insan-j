@@ -3,8 +3,10 @@ import { useMemo, useState } from 'react';
 const TEXT_LIMIT = 12;
 
 function MiniBars({ data }) {
-  const max = Math.max(...data.map(item => Number(item.value) || 0), 1);
-  return <div className="mt-3 rounded-2xl bg-slate-50 p-3"><p className="mb-2 text-[11px] font-black uppercase tracking-wide text-slate-500">{data.title}</p><div className="space-y-2">{data.items.slice(0, 8).map(item => <div key={item.label} className="grid grid-cols-[minmax(72px,1fr)_2fr_auto] items-center gap-2 text-[11px]"><span className="truncate text-slate-600">{item.label}</span><span className="h-2 overflow-hidden rounded-full bg-slate-200"><span className="block h-full rounded-full bg-blue-500" style={{ width: `${Math.max(((Number(item.value) || 0) / max) * 100, 2)}%` }} /></span><span className="font-bold text-slate-700">{new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(item.value || 0)}</span></div>)}</div></div>;
+  const items = Array.isArray(data?.items) ? data.items.filter(item => Number.isFinite(Number(item?.value))) : [];
+  if (!items.length) return null;
+  const max = Math.max(1, ...items.map(item => Math.max(Number(item.value), 0)));
+  return <div className="mt-3 rounded-2xl bg-slate-50 p-3"><p className="mb-2 text-[11px] font-black uppercase tracking-wide text-slate-500">{data.title}</p><div className="space-y-2">{items.slice(0, 8).map((item, index) => <div key={`${item.label}-${index}`} className="grid grid-cols-[minmax(72px,1fr)_2fr_auto] items-center gap-2 text-[11px]"><span className="truncate text-slate-600">{item.label}</span><span className="h-2 overflow-hidden rounded-full bg-slate-200"><span className="block h-full rounded-full bg-blue-500" style={{ width: `${Math.max((Math.max(Number(item.value), 0) / max) * 100, 2)}%` }} /></span><span className="font-bold text-slate-700">{new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(item.value || 0)}</span></div>)}</div></div>;
 }
 
 export default function WasteChatAnswer({ message, onAsk, onReport }) {
