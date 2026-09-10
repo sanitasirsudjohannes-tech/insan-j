@@ -108,6 +108,13 @@ test('parser mengenali pertanyaan analisis tambahan', () => {
   assert.equal(parseWasteQuestion('Berapa persen cakupan pengangkutan?').intent, 'transport_coverage');
 });
 
+test('parser membedakan permintaan daftar tanggal pengangkutan dari total pengangkutan', () => {
+  const result = parseWasteQuestion('Tgl berapa saja pengangkutan bulan April');
+  assert.equal(result.intent, 'transport_dates');
+  assert.equal(result.period.month, 4);
+  assert.match(result.period.label, /^April 20\d{2}$/);
+});
+
 test('parser mengenali total dan jenis limbah untuk ruangan tertentu', () => {
   const total = parseWasteQuestion('Berapa timbulan ruangan ICU tanggal 8?');
   const type = parseWasteQuestion('Berapa limbah infeksius ruangan ICU tanggal 8?');

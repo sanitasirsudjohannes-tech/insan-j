@@ -91,3 +91,24 @@ test('jawaban membandingkan dua bulan yang diminta secara langsung', () => {
   assert.match(answer.text, /sisa akhir 30 kg menjadi 35 kg/);
   assert.doesNotMatch(answer.text, /periode sebelumnya/);
 });
+
+test('jawaban tanggal pengangkutan memuat tanggal dan jumlah per hari', () => {
+  const aprilRecap = {
+    ...recap,
+    facts: { ...recap.facts, totalTransportedKg: 1731 },
+    charts: {
+      ...recap.charts,
+      timeline: [
+        { date: '2026-04-03', generated: 50, transported: 700 },
+        { date: '2026-04-10', generated: 40, transported: 1031 },
+        { date: '2026-04-11', generated: 20, transported: 0 },
+      ],
+    },
+  };
+  const answer = buildWasteAnswer(parseWasteQuestion('Tgl berapa saja pengangkutan bulan April 2026'), aprilRecap);
+  assert.match(answer.text, /tercatat pada 2 tanggal/);
+  assert.match(answer.text, /3 April 2026 \(700 kg\)/);
+  assert.match(answer.text, /10 April 2026 \(1\.031 kg\)/);
+  assert.match(answer.text, /Total pengangkutan 1\.731 kg/);
+  assert.doesNotMatch(answer.text, /11 April/);
+});

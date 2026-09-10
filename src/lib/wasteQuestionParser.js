@@ -8,7 +8,7 @@ export const WASTE_TYPES = [
   { pattern: /sitotoksik|cytotoxic|sitostatika/i, key: 'cytotoxicKg', label: 'limbah sitotoksik' },
 ];
 
-const ALLOWED_INTENTS = new Set(['waste_summary', 'remaining', 'opening_balance', 'available_total', 'generated', 'transported', 'transport_coverage', 'average', 'dominant_type', 'type_breakdown', 'top_rooms', 'bottom_room', 'room_total', 'room_type_total', 'peak_day', 'active_days', 'comparison', 'type_total']);
+const ALLOWED_INTENTS = new Set(['waste_summary', 'remaining', 'opening_balance', 'available_total', 'generated', 'transported', 'transport_dates', 'transport_coverage', 'average', 'dominant_type', 'type_breakdown', 'top_rooms', 'bottom_room', 'room_total', 'room_type_total', 'peak_day', 'active_days', 'comparison', 'type_total']);
 const iso = (year, month, day) => `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 const capitalize = value => `${value[0].toUpperCase()}${value.slice(1)}`;
 
@@ -172,6 +172,7 @@ export function parseWasteQuestion(question, contextPeriod = null) {
   const roomName = text.match(/(?:ruang(?:an)?|unit|bangsal)\s+(.+?)(?=\s+(?:tanggal|tgl\.?|pertanggal|bulan|tahun|dari|pada|berapa)\b|[?.,]|$)/i)?.[1]?.trim() || null;
   let intent = 'unknown';
   if (/banding|perbandingan|dibanding|naik|turun|perubahan|selisih|\bvs\.?\b/i.test(text)) intent = 'comparison';
+  else if (/(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?.*(?:diangkut|pengangkutan|angkut)|(?:diangkut|pengangkutan|angkut).*(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?/i.test(text)) intent = 'transport_dates';
   else if (/(?:ruang|unit|penghasil).*(?:terkecil|terendah|tersedikit|paling sedikit)|(?:terkecil|terendah|tersedikit|paling sedikit).*(?:ruang|unit|penghasil)/i.test(text)) intent = 'bottom_room';
   else if (/(?:ruang|unit|penghasil).*(?:terbesar|terbanyak|tertinggi|paling|ranking|urutan)|(?:terbesar|terbanyak|tertinggi|paling).*(?:ruang|unit|penghasil)/i.test(text)) intent = 'top_rooms';
   else if (roomName && type) intent = 'room_type_total';

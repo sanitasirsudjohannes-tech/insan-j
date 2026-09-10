@@ -1,4 +1,5 @@
 const format = value => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(Math.round(Number(value) || 0));
+const formatDate = value => new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`));
 const changeText = value => value === null || value === undefined ? 'belum dapat dibandingkan karena data periode sebelumnya tidak tersedia' : `${value >= 0 ? 'meningkat' : 'menurun'} ${format(Math.abs(value))}%`;
 const percentChange = (current, previous) => Number(previous) ? ((Number(current) - Number(previous)) / Number(previous)) * 100 : null;
 const directComparison = (parsed, current, previous) => {
@@ -16,6 +17,7 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null) {
   const { facts, charts, analytics } = recap;
   const roomTotals = charts.roomTotals || charts.rooms;
   const timeline = charts.timeline || [];
+  const transportDays = timeline.filter(item => item.transported > 0);
   const requestedRoom = (charts.roomDetails || []).find(item => item.name.toLocaleLowerCase('id-ID') === parsed.roomName?.toLocaleLowerCase('id-ID'));
   const suffix = parsed.period.inferredYear ? ' Tahun tidak disebutkan, sehingga digunakan tahun berjalan.' : '';
   const during = parsed.period.scope === 'day' ? `pada ${parsed.period.label}` : `selama ${parsed.period.label}`;
@@ -32,6 +34,9 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null) {
     available_total: `Total limbah yang tersedia untuk dikelola ${during} adalah ${format(facts.openingBalanceKg + facts.totalGeneratedKg)} kg, terdiri dari sisa awal ${format(facts.openingBalanceKg)} kg dan timbulan baru ${format(facts.totalGeneratedKg)} kg.${suffix}`,
     generated: `Total timbulan limbah ${during} adalah ${format(facts.totalGeneratedKg)} kg, dengan rata-rata ${format(analytics.performance.averageDailyKg)} kg per hari.${suffix}`,
     transported: `Total limbah yang diangkut ${during} adalah ${format(facts.totalTransportedKg)} kg atau ${format(analytics.performance.transportedCoveragePercent)}% dari seluruh limbah yang dikelola.${suffix}`,
+    transport_dates: transportDays.length
+      ? `Pengangkutan selama ${parsed.period.label} tercatat pada ${transportDays.length} tanggal: ${transportDays.map(item => `${formatDate(item.date)} (${format(item.transported)} kg)`).join('; ')}. Total pengangkutan ${format(facts.totalTransportedKg)} kg.${suffix}`
+      : `Belum ada pengangkutan yang tercatat selama ${parsed.period.label}.${suffix}`,
     transport_coverage: `Cakupan pengangkutan ${during} adalah ${format(analytics.performance.transportedCoveragePercent)}%. Sebanyak ${format(facts.totalTransportedKg)} kg telah diangkut dari ${format(facts.openingBalanceKg + facts.totalGeneratedKg)} kg limbah yang tersedia.${suffix}`,
     average: `Rata-rata timbulan limbah ${during} adalah ${format(analytics.performance.averageDailyKg)} kg per hari.${suffix}`,
     dominant_type: analytics.dominantType ? `Jenis limbah terbanyak ${during} adalah ${analytics.dominantType.name} sebanyak ${format(analytics.dominantType.current)} kg.${suffix}` : `Belum ada data jenis limbah untuk ${parsed.period.label}.`,
