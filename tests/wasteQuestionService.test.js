@@ -11,46 +11,46 @@ const recap = {
 
 test('jawaban sisa menjelaskan sumber perhitungan', () => {
   const answer = buildWasteAnswer(parseWasteQuestion('Sisa limbah Juli 2026?'), recap);
-  assert.match(answer.text, /15,00 kg/);
-  assert.match(answer.text, /sisa awal 10,00 kg/);
-  assert.match(answer.text, /pengangkutan 35,00 kg/);
+  assert.match(answer.text, /15 kg/);
+  assert.match(answer.text, /sisa awal 10 kg/);
+  assert.match(answer.text, /pengangkutan 35 kg/);
 });
 
 test('jawaban rincian jenis menampilkan seluruh jenis dan total', () => {
   const answer = buildWasteAnswer(parseWasteQuestion('Rincian limbah berdasarkan jenis tanggal 5 September 2026'), recap);
-  assert.match(answer.text, /limbah infeksius 30,00 kg/);
-  assert.match(answer.text, /limbah jarum suntik 5,00 kg/);
-  assert.match(answer.text, /limbah botol obat 3,00 kg/);
-  assert.match(answer.text, /limbah sitotoksik 2,00 kg/);
-  assert.match(answer.text, /Totalnya 40,00 kg/);
+  assert.match(answer.text, /limbah infeksius 30 kg/);
+  assert.match(answer.text, /limbah jarum suntik 5 kg/);
+  assert.match(answer.text, /limbah botol obat 3 kg/);
+  assert.match(answer.text, /limbah sitotoksik 2 kg/);
+  assert.match(answer.text, /Totalnya 40 kg/);
 });
 
 test('jawaban dapat menampilkan total jenis dari ruangan tertentu per tanggal', () => {
   const answer = buildWasteAnswer(parseWasteQuestion('Berapa infeksius ruangan ICU tanggal 5 September 2026?'), recap);
   assert.match(answer.text, /limbah infeksius dari ICU/);
-  assert.match(answer.text, /12,00 kg/);
+  assert.match(answer.text, /12 kg/);
   assert.match(answer.text, /5 September 2026/);
 });
 
 test('ringkasan data limbah memuat alur dan komposisi utama', () => {
   const answer = buildWasteAnswer(parseWasteQuestion('Rincian data limbah Juli 2026'), recap);
-  assert.match(answer.text, /sisa awal 10,00 kg/);
-  assert.match(answer.text, /timbulan 40,00 kg/);
-  assert.match(answer.text, /diangkut 35,00 kg/);
-  assert.match(answer.text, /sisa akhir 15,00 kg/);
-  assert.match(answer.text, /limbah infeksius 30,00 kg/);
+  assert.match(answer.text, /sisa awal 10 kg/);
+  assert.match(answer.text, /timbulan 40 kg/);
+  assert.match(answer.text, /diangkut 35 kg/);
+  assert.match(answer.text, /sisa akhir 15 kg/);
+  assert.match(answer.text, /limbah infeksius 30 kg/);
 });
 
 test('jawaban ruangan berasal dari data rekap terurut', () => {
   const answer = buildWasteAnswer(parseWasteQuestion('Ruangan terbesar Juli 2026?'), recap);
   assert.match(answer.text, /Ruang A/);
-  assert.match(answer.text, /20,00 kg/);
+  assert.match(answer.text, /20 kg/);
 });
 
 test('jawaban timbulan tahunan menyebut cakupan tahun penuh', () => {
   const answer = buildWasteAnswer(parseWasteQuestion('Timbulan limbah tahun 2026?'), recap);
   assert.match(answer.text, /selama tahun 2026/);
-  assert.match(answer.text, /40,00 kg/);
+  assert.match(answer.text, /40 kg/);
 });
 
 test('hasil pemahaman AI divalidasi lalu dijawab dari data rekap', () => {
@@ -61,5 +61,15 @@ test('hasil pemahaman AI divalidasi lalu dijawab dari data rekap', () => {
   assert.equal(parsed.period.start, '2026-09-05');
   assert.equal(parsed.period.end, '2026-09-05');
   assert.equal(parsed.assistedByAi, true);
-  assert.match(answer.text, /15,00 kg/);
+  assert.match(answer.text, /15 kg/);
+});
+
+test('angka pecahan pada jawaban dibulatkan tanpa desimal', () => {
+  const fractionalRecap = {
+    ...recap,
+    facts: { ...recap.facts, totalGeneratedKg: 40.6 },
+  };
+  const answer = buildWasteAnswer(parseWasteQuestion('Timbulan Juli 2026?'), fractionalRecap);
+  assert.match(answer.text, /41 kg/);
+  assert.doesNotMatch(answer.text, /40[,.]6/);
 });
