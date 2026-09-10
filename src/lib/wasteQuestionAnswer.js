@@ -1,46 +1,4 @@
-const format = value => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(Math.round(Number(value) || 0));
-const formatDate = value => new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`));
-const formatMonth = value => new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value.slice(0, 7)}-01T00:00:00Z`));
-const changeText = value => value === null || value === undefined ? 'belum dapat dibandingkan karena data periode sebelumnya tidak tersedia' : `${value >= 0 ? 'meningkat' : 'menurun'} ${format(Math.abs(value))}%`;
-const percentChange = (current, previous) => Number(previous) ? ((Number(current) - Number(previous)) / Number(previous)) * 100 : null;
-const directComparison = (parsed, current, previous) => {
-  const currentFacts = current.facts;
-  const previousFacts = previous.facts;
-  const generatedChange = currentFacts.totalGeneratedKg - previousFacts.totalGeneratedKg;
-  const transportedChange = currentFacts.totalTransportedKg - previousFacts.totalTransportedKg;
-  const remainingChange = currentFacts.remainingKg - previousFacts.remainingKg;
-  const describe = (value, percentage) => `${value >= 0 ? 'naik' : 'turun'} ${format(Math.abs(value))} kg${percentage === null ? '' : ` (${format(Math.abs(percentage))}%)`}`;
-  const suffix = parsed.period.inferredYear && parsed.comparisonPeriod.inferredYear ? ' Tahun tidak disebutkan, sehingga digunakan tahun berjalan.' : '';
-  return `Perbandingan ${parsed.comparisonPeriod.label} dan ${parsed.period.label}\n\n• Timbulan: ${format(previousFacts.totalGeneratedKg)} kg menjadi ${format(currentFacts.totalGeneratedKg)} kg, ${describe(generatedChange, percentChange(currentFacts.totalGeneratedKg, previousFacts.totalGeneratedKg))}.\n• Pengangkutan: ${format(previousFacts.totalTransportedKg)} kg menjadi ${format(currentFacts.totalTransportedKg)} kg, ${describe(transportedChange, percentChange(currentFacts.totalTransportedKg, previousFacts.totalTransportedKg))}.\n• Sisa akhir: ${format(previousFacts.remainingKg)} kg menjadi ${format(currentFacts.remainingKg)} kg, ${describe(remainingChange, percentChange(currentFacts.remainingKg, previousFacts.remainingKg))}.${suffix}`;
-};
-
-const groupTransportDays = days => {
-  const groups = new Map();
-  days.forEach(item => {
-    const key = item.date.slice(0, 7);
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(item);
-  });
-  return Array.from(groups, ([month, items]) => {
-    const total = items.reduce((sum, item) => sum + (Number(item.transported) || 0), 0);
-    const details = items.map(item => `• ${formatDate(item.date)}: ${format(item.transported)} kg`).join('\n');
-    return `${formatMonth(month)} — ${format(total)} kg\n${details}`;
-  }).join('\n\n');
-};
-
-const groupTypeDays = (days, type) => {
-  const groups = new Map();
-  days.forEach(item => {
-    const key = item.date.slice(0, 7);
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(item);
-  });
-  return Array.from(groups, ([month, items]) => {
-    const total = items.reduce((sum, item) => sum + (Number(item[type.key]) || 0), 0);
-    const details = items.map(item => `• ${formatDate(item.date)}: ${format(item[type.key])} kg`).join('\n');
-    return `${formatMonth(month)} — ${format(total)} kg\n${details}`;
-  }).join('\n\n');
-};
+import { buildDirectComparison, changeText, formatDate, formatNumber as format, groupTransportDays, groupTypeDays } from '../features/waste-chat/formatters/wasteAnswerFormatters.js';
 
 export function buildWasteAnswer(parsed, recap, comparisonRecap = null) {
   const { facts, charts, analytics } = recap;
@@ -87,7 +45,7 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null) {
     peak_day: timeline.filter(item => item.generated > 0).length ? (() => { const peak = [...timeline].sort((a, b) => b.generated - a.generated)[0]; return `Timbulan tertinggi selama ${parsed.period.label} terjadi pada ${peak.date.split('-').reverse().join('/')} sebanyak ${format(peak.generated)} kg.${suffix}`; })() : `Belum ada timbulan yang tercatat selama ${parsed.period.label}.`,
     active_days: `Terdapat ${timeline.filter(item => item.generated > 0).length} hari dengan timbulan limbah yang tercatat selama ${parsed.period.label}.${suffix}`,
     comparison: comparisonRecap
-      ? directComparison(parsed, recap, comparisonRecap)
+      ? buildDirectComparison(parsed, recap, comparisonRecap)
       : `Perbandingan ${parsed.period.label} dengan periode sebelumnya\n\n• Timbulan: ${changeText(analytics.changes.generatedPercent)}\n• Pengangkutan: ${changeText(analytics.changes.transportedPercent)}\n• Sisa limbah: ${analytics.changes.remainingKg >= 0 ? 'bertambah' : 'berkurang'} ${format(Math.abs(analytics.changes.remainingKg))} kg${suffix}`,
     type_total: `${parsed.type?.label || 'Jenis limbah tersebut'} ${during} berjumlah ${format(facts[parsed.type?.key])} kg.${suffix}`,
   };

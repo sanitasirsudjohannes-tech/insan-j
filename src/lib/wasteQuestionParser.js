@@ -1,14 +1,7 @@
-const MONTHS = ['januari', 'februari', 'maret', 'april', 'mei', 'juni', 'juli', 'agustus', 'september', 'oktober', 'november', 'desember'];
-const MONTH_PATTERN = MONTHS.join('|');
+import { ALLOWED_INTENTS, MONTH_PATTERN, MONTHS, QUESTION_SUGGESTIONS, WASTE_TYPES } from '../features/waste-chat/constants/wasteQuestionConstants.js';
+import { detectWasteIntent } from '../features/waste-chat/parsers/intentParser.js';
 
-export const WASTE_TYPES = [
-  { pattern: /infeksius|infectious/i, key: 'infectiousKg', label: 'limbah infeksius' },
-  { pattern: /jarum(?: suntik)?|benda tajam|spuit|syringe|safety\s*box/i, key: 'sharpsKg', label: 'limbah jarum suntik' },
-  { pattern: /botol(?: obat)?|vial|ampul/i, key: 'bottleKg', label: 'limbah botol obat' },
-  { pattern: /sitotoksik|cytotoxic|sitostatika/i, key: 'cytotoxicKg', label: 'limbah sitotoksik' },
-];
-
-const ALLOWED_INTENTS = new Set(['waste_summary', 'remaining', 'opening_balance', 'available_total', 'generated', 'transported', 'transport_dates', 'type_dates', 'transport_coverage', 'average', 'dominant_type', 'type_breakdown', 'top_rooms', 'bottom_room', 'type_rooms', 'room_total', 'room_type_total', 'peak_day', 'active_days', 'comparison', 'type_total']);
+export { QUESTION_SUGGESTIONS, WASTE_TYPES };
 const iso = (year, month, day) => `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 const capitalize = value => `${value[0].toUpperCase()}${value.slice(1)}`;
 
@@ -170,37 +163,6 @@ export function parseWasteQuestion(question, contextPeriod = null) {
   const types = WASTE_TYPES.filter(item => item.pattern.test(text));
   const type = types[0];
   const roomName = text.match(/(?:ruang(?:an)?|unit|bangsal)\s+(.+?)(?=\s+(?:tanggal|tgl\.?|pertanggal|bulan|tahun|dari|pada|berapa)\b|[?.,]|$)/i)?.[1]?.trim() || null;
-  let intent = 'unknown';
-  if (/banding|perbandingan|dibanding|naik|turun|perubahan|selisih|\bvs\.?\b/i.test(text)) intent = 'comparison';
-  else if (/(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?.*(?:diangkut|pengangkutan|angkut)|(?:diangkut|pengangkutan|angkut).*(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?/i.test(text)) intent = 'transport_dates';
-  else if (type && /(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?.*(?:ada|terdapat|tercatat|timbul|dihasilkan)|(?:ada|terdapat|tercatat|timbul|dihasilkan).*(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?/i.test(text)) intent = 'type_dates';
-  else if (type && /(?:ruang(?:an)?|unit|bangsal).*(?:yang\s+)?(?:ada|memiliki|menghasilkan|terdapat|punya)|(?:ruang(?:an)?|unit|bangsal)\s+(?:apa|mana)(?:\s+saja)?/i.test(text)) intent = 'type_rooms';
-  else if (/(?:ruang|unit|penghasil).*(?:terkecil|terendah|tersedikit|paling sedikit)|(?:terkecil|terendah|tersedikit|paling sedikit).*(?:ruang|unit|penghasil)/i.test(text)) intent = 'bottom_room';
-  else if (/(?:ruang|unit|penghasil).*(?:terbesar|terbanyak|tertinggi|paling|ranking|urutan)|(?:terbesar|terbanyak|tertinggi|paling).*(?:ruang|unit|penghasil)/i.test(text)) intent = 'top_rooms';
-  else if (roomName && type) intent = 'room_type_total';
-  else if (roomName && /berapa|jumlah|total|timbulan|dihasilkan/i.test(text)) intent = 'room_total';
-  else if (/(?:tanggal|hari).*(?:timbulan|limbah).*(?:terbesar|terbanyak|tertinggi|paling banyak)|(?:timbulan|limbah).*(?:terbesar|terbanyak|tertinggi|paling banyak).*(?:tanggal|hari)/i.test(text)) intent = 'peak_day';
-  else if (/berapa\s+hari|jumlah\s+hari|hari.*(?:tercatat|ada data|ada timbulan)/i.test(text)) intent = 'active_days';
-  else if (/jenis.*(?:dominan|terbesar|tertinggi|terbanyak|paling)|dominan/i.test(text)) intent = 'dominant_type';
-  else if (types.length > 1 || /(?:rincian.*jenis)|(?:rincian|jumlah|timbulan|data).*(?:berdasarkan|per|masing[ -]?masing)\s+jenis|semua jenis|komposisi|jenis\s+limbah/i.test(text)) intent = 'type_breakdown';
-  else if (type) intent = 'type_total';
-  else if (/(?:rincian|ringkasan|rekap|ikhtisar|gambaran|detail|data)\s+(?:data\s+)?limbah|limbah\s+secara\s+keseluruhan/i.test(text)) intent = 'waste_summary';
-  else if (/sisa\s+awal|awal\s+periode/i.test(text)) intent = 'opening_balance';
-  else if (/limbah.*(?:tersedia|dikelola)|total.*(?:tersedia|dikelola)/i.test(text)) intent = 'available_total';
-  else if (/persen.*(?:angkut|pengangkutan)|cakupan.*(?:angkut|pengangkutan)/i.test(text)) intent = 'transport_coverage';
-  else if (/rata[ -]?rata|rerata|rataan|per\s*hari/i.test(text)) intent = 'average';
-  else if (/sisa|tersisa|tersimpan|penumpukan|menumpuk|belum.*(?:angkut|dibawa|dikirim|keluar)/i.test(text)) intent = 'remaining';
-  else if (/diangkut|terangkut|pengangkutan|angkut|dibawa|dikirim|pengiriman|keluar/i.test(text)) intent = 'transported';
-  else if (/timbulan|dihasilkan|menghasilkan|produksi|terkumpul|hasil\s+timbang|berat\s+limbah|total limbah|limbah masuk/i.test(text)) intent = 'generated';
+  const intent = detectWasteIntent(text, { type, types, roomName });
   return { intent, period, comparisonPeriod: explicitComparison?.comparisonPeriod || null, type, types, roomName, question: text };
 }
-
-export const QUESTION_SUGGESTIONS = [
-  'Rincian data limbah bulan ini',
-  'Timbulan limbah tanggal 8',
-  'Ruangan dengan timbulan terbesar tanggal 8',
-  'Rincian limbah berdasarkan jenis tanggal 8',
-  'Timbulan 7 Juli sampai hari ini',
-  'Berapa sisa limbah bulan ini?',
-  'Bandingkan timbulan bulan ini dengan sebelumnya',
-];
