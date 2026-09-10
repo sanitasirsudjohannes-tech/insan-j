@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import AppLayout from '../components/AppLayout';
 import ReportCharts from '../components/reports/ReportCharts';
-import WasteDataChat from '../components/reports/WasteDataChat';
 import { getLocalDateString } from '../lib/localDate';
 import { buildLocalReport, REPORT_TYPES, validateReportPayload } from '../lib/reportAssistant';
 import { fetchMedicalWasteRecap } from '../lib/reportRecap';
@@ -254,7 +253,7 @@ export default function AsistenLaporan() {
   };
 
   return (
-    <AppLayout title="Asisten Data dan Laporan" showBackButton>
+    <AppLayout title="Asisten Laporan" showBackButton>
       <div className="mx-auto max-w-5xl space-y-5 px-3 py-5 sm:px-6 sm:py-7">
         <section className="relative overflow-hidden rounded-3xl bg-linear-to-br from-slate-900 via-blue-950 to-blue-800 p-5 text-white shadow-xl sm:p-7">
           <div className="absolute -right-10 -top-10 h-36 w-36 rounded-full bg-cyan-400/20 blur-2xl" />
@@ -264,13 +263,11 @@ export default function AsistenLaporan() {
             </span>
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.2em] text-cyan-300">INSAN-J</p>
-              <h1 className="mt-1 text-xl font-black sm:text-2xl">Asisten Data dan Laporan</h1>
-              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-blue-100">Tanyakan data limbah melalui percakapan atau susun laporan lengkap menggunakan template lokal.</p>
+              <h1 className="mt-1 text-xl font-black sm:text-2xl">Asisten Laporan</h1>
+              <p className="mt-2 max-w-2xl text-sm leading-relaxed text-blue-100">Susun laporan lengkap menggunakan template lokal berdasarkan data yang telah diverifikasi.</p>
             </div>
           </div>
         </section>
-
-        <WasteDataChat />
 
         <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           <div className="mb-5 flex items-center justify-between gap-3">
