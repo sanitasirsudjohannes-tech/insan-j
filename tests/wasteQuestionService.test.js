@@ -4,8 +4,8 @@ import { buildWasteAnswer } from '../src/lib/wasteQuestionAnswer.js';
 import { normalizeAiWasteQuestion, parseWasteQuestion } from '../src/lib/wasteQuestionParser.js';
 
 const recap = {
-  facts: { openingBalanceKg: 10, totalGeneratedKg: 40, totalTransportedKg: 35, remainingKg: 15, infectiousKg: 30 },
-  charts: { rooms: [{ name: 'Ruang A', value: 20 }] },
+  facts: { openingBalanceKg: 10, totalGeneratedKg: 40, totalTransportedKg: 35, remainingKg: 15, infectiousKg: 30, sharpsKg: 5, bottleKg: 3, cytotoxicKg: 2 },
+  charts: { rooms: [{ name: 'Ruang A', value: 20 }], roomDetails: [{ name: 'ICU', infectiousKg: 12, sharpsKg: 3, bottleKg: 2, cytotoxicKg: 1, totalKg: 18 }] },
   analytics: { performance: { averageDailyKg: 1.29, transportedCoveragePercent: 70 }, changes: { generatedPercent: 10, transportedPercent: -5, remainingKg: 5 }, dominantType: { name: 'limbah infeksius', current: 30 } },
 };
 
@@ -14,6 +14,22 @@ test('jawaban sisa menjelaskan sumber perhitungan', () => {
   assert.match(answer.text, /15,00 kg/);
   assert.match(answer.text, /sisa awal 10,00 kg/);
   assert.match(answer.text, /pengangkutan 35,00 kg/);
+});
+
+test('jawaban rincian jenis menampilkan seluruh jenis dan total', () => {
+  const answer = buildWasteAnswer(parseWasteQuestion('Rincian limbah berdasarkan jenis tanggal 5 September 2026'), recap);
+  assert.match(answer.text, /limbah infeksius 30,00 kg/);
+  assert.match(answer.text, /limbah jarum suntik 5,00 kg/);
+  assert.match(answer.text, /limbah botol obat 3,00 kg/);
+  assert.match(answer.text, /limbah sitotoksik 2,00 kg/);
+  assert.match(answer.text, /Totalnya 40,00 kg/);
+});
+
+test('jawaban dapat menampilkan total jenis dari ruangan tertentu per tanggal', () => {
+  const answer = buildWasteAnswer(parseWasteQuestion('Berapa infeksius ruangan ICU tanggal 5 September 2026?'), recap);
+  assert.match(answer.text, /limbah infeksius dari ICU/);
+  assert.match(answer.text, /12,00 kg/);
+  assert.match(answer.text, /5 September 2026/);
 });
 
 test('jawaban ruangan berasal dari data rekap terurut', () => {

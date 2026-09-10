@@ -57,10 +57,18 @@ export async function fetchMedicalWasteRecap(start, end) {
   });
   transportRows.forEach(row => { ensureDay(row.tanggal).transported += Number(row.jumlah_kg) || 0; });
   const rooms = new Map();
+  const roomDetails = new Map();
   ruanganRows.forEach(row => {
     const name = row.ruangan || 'Tanpa nama';
     const total = ['infeksius', 'jarum_suntik', 'botol_obat', 'sitotoksik'].reduce((value, key) => value + (Number(row[key]) || 0), 0);
     rooms.set(name, (rooms.get(name) || 0) + total);
+    const detail = roomDetails.get(name) || { name, infectiousKg: 0, sharpsKg: 0, bottleKg: 0, cytotoxicKg: 0, totalKg: 0 };
+    detail.infectiousKg += Number(row.infeksius) || 0;
+    detail.sharpsKg += Number(row.jarum_suntik) || 0;
+    detail.bottleKg += Number(row.botol_obat) || 0;
+    detail.cytotoxicKg += Number(row.sitotoksik) || 0;
+    detail.totalKg += total;
+    roomDetails.set(name, detail);
   });
   let runningBalance = openingBalanceKg;
   const timeline = Array.from(daily.values()).sort((a, b) => a.date.localeCompare(b.date)).map(row => {
@@ -72,6 +80,7 @@ export async function fetchMedicalWasteRecap(start, end) {
     previousWasteRows: [...previousPadatRows, ...previousRuanganRows], previousRoomRows: previousRuanganRows,
     previousTransportRows, openingBalanceKg, days: comparisonPeriod.days,
   });
+  const roomTotals = Array.from(rooms, ([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
   return {
     facts: { openingBalanceKg, totalGeneratedKg, totalTransportedKg, remainingKg: openingBalanceKg + totalGeneratedKg - totalTransportedKg, infectiousKg, sharpsKg, bottleKg, cytotoxicKg },
     charts: {
@@ -86,7 +95,9 @@ export async function fetchMedicalWasteRecap(start, end) {
         { name: 'Infeksius', value: infectiousKg }, { name: 'Jarum', value: sharpsKg },
         { name: 'Botol', value: bottleKg }, { name: 'Sitotoksik', value: cytotoxicKg },
       ],
-      rooms: Array.from(rooms, ([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10),
+      rooms: roomTotals.slice(0, 10),
+      roomTotals,
+      roomDetails: Array.from(roomDetails.values()).sort((a, b) => b.totalKg - a.totalKg),
     },
     analytics: { ...analytics, comparisonPeriod: { start: comparisonPeriod.start, end: comparisonPeriod.end } },
   };

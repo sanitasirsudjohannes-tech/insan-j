@@ -3,11 +3,11 @@ import { normalizeAiWasteQuestion, parseWasteQuestion } from './wasteQuestionPar
 import { buildWasteAnswer } from './wasteQuestionAnswer.js';
 import { interpretWasteQuestionWithAi } from './wasteQuestionAiApi.js';
 
-export async function answerWasteQuestion(question, { signal, interpretWithAi = interpretWasteQuestionWithAi, fetchRecap = fetchMedicalWasteRecap } = {}) {
-  let parsed = parseWasteQuestion(question);
+export async function answerWasteQuestion(question, { signal, contextPeriod = null, interpretWithAi = interpretWasteQuestionWithAi, fetchRecap = fetchMedicalWasteRecap } = {}) {
+  let parsed = parseWasteQuestion(question, contextPeriod);
   if (parsed.intent === 'unknown') {
     try {
-      const interpretation = await interpretWithAi(question, signal);
+      const interpretation = await interpretWithAi(question, signal, contextPeriod);
       parsed = normalizeAiWasteQuestion(question, interpretation);
     } catch (error) {
       return { text: `${error.message || 'AI belum dapat memahami pertanyaan.'} Coba tanyakan sisa limbah, timbulan, pengangkutan, jenis limbah, ruangan terbesar, rata-rata, atau perbandingan periode.`, parsed, aiUnavailable: true };

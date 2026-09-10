@@ -53,3 +53,50 @@ test('tanggal berformat angka dikenali sebagai satu hari', () => {
   assert.equal(result.period.start, '2026-09-05');
   assert.equal(result.period.end, '2026-09-05');
 });
+
+test('singkatan tgl dan pertanggal menggunakan satu hari bulan berjalan', () => {
+  assert.equal(parseWasteQuestion('Timbulan limbah tgl 8').period.scope, 'day');
+  assert.equal(parseWasteQuestion('Timbulan limbah pertanggal 8').period.scope, 'day');
+});
+
+test('rentang tanggal sampai hari ini tidak berubah menjadi rekap bulanan', () => {
+  const result = parseWasteQuestion('Timbulan limbah 7 Juli sampai hari ini');
+  assert.equal(result.intent, 'generated');
+  assert.equal(result.period.scope, 'range');
+  assert.match(result.period.start, /^20\d{2}-07-07$/);
+  assert.match(result.period.end, /^20\d{2}-\d{2}-\d{2}$/);
+});
+
+test('pertanyaan ruangan dan rincian jenis mendukung tanggal tertentu', () => {
+  const rooms = parseWasteQuestion('Ruangan apa paling banyak timbulannya tgl 8?');
+  const types = parseWasteQuestion('Jumlah limbah berdasarkan jenis tanggal 8');
+  assert.equal(rooms.intent, 'top_rooms');
+  assert.equal(rooms.period.scope, 'day');
+  assert.equal(types.intent, 'type_breakdown');
+  assert.equal(types.period.scope, 'day');
+});
+
+test('pertanyaan lanjutan memakai konteks periode sebelumnya', () => {
+  const previous = parseWasteQuestion('Timbulan tanggal 8 September 2026').period;
+  const followUp = parseWasteQuestion('Bagaimana rincian jenis pada tanggal tersebut?', previous);
+  assert.equal(followUp.intent, 'type_breakdown');
+  assert.equal(followUp.period.start, '2026-09-08');
+  assert.equal(followUp.period.end, '2026-09-08');
+});
+
+test('parser mengenali pertanyaan analisis tambahan', () => {
+  assert.equal(parseWasteQuestion('Tanggal berapa timbulan paling banyak bulan ini?').intent, 'peak_day');
+  assert.equal(parseWasteQuestion('Berapa hari ada timbulan bulan ini?').intent, 'active_days');
+  assert.equal(parseWasteQuestion('Ruangan dengan timbulan paling sedikit bulan ini?').intent, 'bottom_room');
+  assert.equal(parseWasteQuestion('Berapa total limbah yang tersedia untuk dikelola?').intent, 'available_total');
+  assert.equal(parseWasteQuestion('Berapa persen cakupan pengangkutan?').intent, 'transport_coverage');
+});
+
+test('parser mengenali total dan jenis limbah untuk ruangan tertentu', () => {
+  const total = parseWasteQuestion('Berapa timbulan ruangan ICU tanggal 8?');
+  const type = parseWasteQuestion('Berapa limbah infeksius ruangan ICU tanggal 8?');
+  assert.equal(total.intent, 'room_total');
+  assert.equal(total.roomName, 'ICU');
+  assert.equal(type.intent, 'room_type_total');
+  assert.equal(type.type.key, 'infectiousKg');
+});

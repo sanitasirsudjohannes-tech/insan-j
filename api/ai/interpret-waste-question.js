@@ -34,12 +34,12 @@ async function fetchWithTimeout(url, options) {
   finally { clearTimeout(timer); }
 }
 
-async function callGemini(question) {
+async function callGemini(question, contextPeriod) {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('Gemini belum dikonfigurasi.');
   const model = String(process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite').replace(/^models\//, '');
   const now = witaNow();
-  const prompt = `Tanggal acuan WITA: tahun ${now.year}, bulan ${now.month}. Pahami pertanyaan pengguna tentang data limbah medis INSAN-J. Kembalikan JSON saja dengan properti: intent, year, month, day, typeKey, inferredYear. intent hanya boleh remaining, generated, transported, average, dominant_type, top_rooms, comparison, type_total, atau unknown. month berupa 1-12; gunakan null bila pertanyaan meminta satu tahun penuh. day berupa 1-31 jika pertanyaan menyebut satu tanggal tertentu dan selain itu null. typeKey hanya infectiousKg, sharpsKg, bottleKg, cytotoxicKg, atau null. Jika periode tidak disebutkan, gunakan bulan dan tahun acuan serta inferredYear true. Jangan menjawab angka dan jangan menambah properti lain. Pertanyaan: ${JSON.stringify(question)}`;
+  const prompt = `Tanggal acuan WITA: tahun ${now.year}, bulan ${now.month}. Pahami pertanyaan pengguna tentang data limbah medis INSAN-J. Kembalikan JSON saja dengan properti: intent, year, month, day, startDate, endDate, typeKey, typeKeys, roomName, inferredYear. intent hanya boleh remaining, opening_balance, available_total, generated, transported, transport_coverage, average, dominant_type, type_breakdown, top_rooms, bottom_room, room_total, room_type_total, peak_day, active_days, comparison, type_total, atau unknown. Gunakan room_total untuk jumlah seluruh jenis dari satu ruangan dan room_type_total untuk satu jenis limbah dari satu ruangan; salin nama ruang ke roomName tanpa mengarang nama. Untuk rentang tanggal isi startDate dan endDate dalam YYYY-MM-DD. Untuk satu tanggal isi year, month, day. Untuk bulan isi year dan month dengan day null. Untuk satu tahun isi year dengan month dan day null. typeKey hanya infectiousKg, sharpsKg, bottleKg, cytotoxicKg, atau null; typeKeys boleh memuat beberapa jenis untuk type_breakdown. Jika pengguna merujuk “tanggal tersebut” atau “periode itu”, gunakan konteks periode sebelumnya berikut: ${JSON.stringify(contextPeriod)}. Jika periode tidak disebutkan, gunakan bulan dan tahun acuan serta inferredYear true. Jangan menjawab angka dan jangan menambah fakta. Pertanyaan: ${JSON.stringify(question)}`;
   const response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -71,7 +71,10 @@ export default async function handler(req, res) {
     if (count >= limit) return json(res, 429, { success: false, message: 'Batas bantuan AI hari ini telah tercapai.' });
     usageByUser.set(usageKey, count + 1);
 
-    const interpretation = await callGemini(question);
+    const contextPeriod = req.body?.contextPeriod && typeof req.body.contextPeriod === 'object'
+      ? { start: String(req.body.contextPeriod.start || ''), end: String(req.body.contextPeriod.end || '') }
+      : null;
+    const interpretation = await callGemini(question, contextPeriod);
     return json(res, 200, { success: true, interpretation });
   } catch (error) {
     console.warn('AI question interpretation failed', { reason: error?.message });

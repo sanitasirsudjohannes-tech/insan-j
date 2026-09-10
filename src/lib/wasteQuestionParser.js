@@ -1,4 +1,6 @@
 const MONTHS = ['januari', 'februari', 'maret', 'april', 'mei', 'juni', 'juli', 'agustus', 'september', 'oktober', 'november', 'desember'];
+const MONTH_PATTERN = MONTHS.join('|');
+
 export const WASTE_TYPES = [
   { pattern: /infeksius/i, key: 'infectiousKg', label: 'limbah infeksius' },
   { pattern: /jarum|benda tajam/i, key: 'sharpsKg', label: 'limbah jarum suntik' },
@@ -6,110 +8,142 @@ export const WASTE_TYPES = [
   { pattern: /sitotoksik/i, key: 'cytotoxicKg', label: 'limbah sitotoksik' },
 ];
 
-const ALLOWED_INTENTS = new Set(['remaining', 'generated', 'transported', 'average', 'dominant_type', 'top_rooms', 'comparison', 'type_total']);
+const ALLOWED_INTENTS = new Set(['remaining', 'opening_balance', 'available_total', 'generated', 'transported', 'transport_coverage', 'average', 'dominant_type', 'type_breakdown', 'top_rooms', 'bottom_room', 'room_total', 'room_type_total', 'peak_day', 'active_days', 'comparison', 'type_total']);
+const iso = (year, month, day) => `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+const capitalize = value => `${value[0].toUpperCase()}${value.slice(1)}`;
 
 const currentWita = () => {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en', { timeZone: 'Asia/Makassar', year: 'numeric', month: '2-digit' }).formatToParts(new Date()).map(part => [part.type, part.value]));
-  return { year: Number(parts.year), month: Number(parts.month) };
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en', { timeZone: 'Asia/Makassar', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date()).map(part => [part.type, part.value]));
+  return { year: Number(parts.year), month: Number(parts.month), day: Number(parts.day) };
 };
+
+function validDate(year, month, day) {
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
+
+function dateLabel(value) {
+  const [year, month, day] = value.split('-').map(Number);
+  return `${day} ${capitalize(MONTHS[month - 1])} ${year}`;
+}
+
+function makeRange(start, end, inferredYear = false) {
+  if (!/^20\d{2}-\d{2}-\d{2}$/.test(start) || !/^20\d{2}-\d{2}-\d{2}$/.test(end) || start > end) return null;
+  if (start === end) {
+    const [year, month, day] = start.split('-').map(Number);
+    return { year, month, day, start, end, label: dateLabel(start), scope: 'day', inferredYear };
+  }
+  return { year: Number(start.slice(0, 4)), month: null, day: null, start, end, label: `${dateLabel(start)} sampai ${dateLabel(end)}`, scope: 'range', inferredYear };
+}
+
+function parsePointDate(text, now, fallbackYear) {
+  if (/hari\s+ini|sekarang/i.test(text)) return iso(now.year, now.month, now.day);
+  const numeric = text.match(/\b([0-2]?\d|3[01])[/-](0?\d|1[0-2])(?:[/-](20\d{2}))?\b/);
+  if (numeric) {
+    const year = Number(numeric[3] || fallbackYear || now.year);
+    const month = Number(numeric[2]);
+    const day = Number(numeric[1]);
+    return validDate(year, month, day) ? iso(year, month, day) : null;
+  }
+  const named = text.match(new RegExp(`\\b([0-2]?\\d|3[01])\\s+(${MONTH_PATTERN})(?:\\s+(20\\d{2}))?\\b`, 'i'));
+  if (named) {
+    const year = Number(named[3] || fallbackYear || now.year);
+    const month = MONTHS.indexOf(named[2].toLowerCase()) + 1;
+    const day = Number(named[1]);
+    return validDate(year, month, day) ? iso(year, month, day) : null;
+  }
+  const tagged = text.match(/(?:per\s*tanggal|pertanggal|tanggal|tgl\.?)\s*([0-2]?\d|3[01])\b/i);
+  if (tagged) {
+    const year = Number(fallbackYear || now.year);
+    const day = Number(tagged[1]);
+    return validDate(year, now.month, day) ? iso(year, now.month, day) : null;
+  }
+  return null;
+}
 
 function extractPeriod(question) {
   const lower = question.toLowerCase();
   const now = currentWita();
-  const numericDate = lower.match(/\b([0-2]?\d|3[01])[/-](0?\d|1[0-2])[/-](20\d{2})\b/);
+  const globalYear = Number(lower.match(/\b(20\d{2})\b/)?.[1] || now.year);
+  const rangeParts = lower.split(/\s+(?:sampai(?:\s+dengan)?|hingga|s\.?d\.?)\s+|\s+-\s+/i);
+  if (rangeParts.length === 2) {
+    const start = parsePointDate(rangeParts[0], now, globalYear);
+    const end = parsePointDate(rangeParts[1], now, globalYear);
+    const range = start && end ? makeRange(start, end, !/\b20\d{2}\b/.test(lower)) : null;
+    if (range) return range;
+  }
+  const pointDate = parsePointDate(lower, now, globalYear);
+  if (pointDate) return makeRange(pointDate, pointDate, !/\b20\d{2}\b/.test(lower));
+
   const namedMonth = MONTHS.findIndex(name => lower.includes(name));
   const numericMonth = lower.match(/bulan\s+(1[0-2]|0?[1-9])\b/i);
-  const yearMatch = numericDate || lower.match(/\b(20\d{2})\b/);
-  const mentionedDay = numericDate ? Number(numericDate[1]) : Number(lower.match(/(?:per\s+)?tanggal\s+([0-2]?\d|3[01])\b/i)?.[1] || 0);
-  const mentionsCurrentMonth = /bulan\s+ini/i.test(lower);
-  const mentionsCurrentYear = /tahun\s+(?:ini|berjalan)/i.test(lower);
-  const hasExplicitMonth = Boolean(numericDate) || namedMonth >= 0 || Boolean(numericMonth) || mentionsCurrentMonth;
-  const year = numericDate ? Number(numericDate[3]) : yearMatch ? Number(yearMatch[1]) : now.year;
+  const yearMatch = lower.match(/\b(20\d{2})\b/);
+  const hasExplicitMonth = namedMonth >= 0 || Boolean(numericMonth) || /bulan\s+ini/i.test(lower);
+  const year = yearMatch ? Number(yearMatch[1]) : now.year;
+  if ((yearMatch || /tahun\s+(?:ini|berjalan)/i.test(lower)) && !hasExplicitMonth) return { year, month: null, day: null, start: `${year}-01-01`, end: `${year}-12-31`, label: `tahun ${year}`, scope: 'year', inferredYear: false };
+  const month = namedMonth >= 0 ? namedMonth + 1 : numericMonth ? Number(numericMonth[1]) : now.month;
+  return { year, month, day: null, start: iso(year, month, 1), end: iso(year, month, new Date(Date.UTC(year, month, 0)).getUTCDate()), label: `${capitalize(MONTHS[month - 1])} ${year}`, scope: 'month', inferredYear: !yearMatch };
+}
 
-  if ((yearMatch || mentionsCurrentYear) && !hasExplicitMonth) {
-    return {
-      year,
-      month: null,
-      start: `${year}-01-01`,
-      end: `${year}-12-31`,
-      label: `tahun ${year}`,
-      scope: 'year',
-      inferredYear: false,
-    };
-  }
-
-  const month = numericDate ? Number(numericDate[2]) : namedMonth >= 0 ? namedMonth + 1 : numericMonth ? Number(numericMonth[1]) : now.month;
-  if (mentionedDay) {
-    const exactDate = new Date(Date.UTC(year, month - 1, mentionedDay));
-    const validDay = exactDate.getUTCFullYear() === year && exactDate.getUTCMonth() === month - 1 && exactDate.getUTCDate() === mentionedDay;
-    if (validDay) {
-      const date = `${year}-${String(month).padStart(2, '0')}-${String(mentionedDay).padStart(2, '0')}`;
-      return { year, month, day: mentionedDay, start: date, end: date, label: `${mentionedDay} ${MONTHS[month - 1][0].toUpperCase()}${MONTHS[month - 1].slice(1)} ${year}`, scope: 'day', inferredYear: !yearMatch };
-    }
-  }
-  const start = `${year}-${String(month).padStart(2, '0')}-01`;
-  const end = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
-  return { year, month, start, end, label: `${MONTHS[month - 1][0].toUpperCase()}${MONTHS[month - 1].slice(1)} ${year}`, scope: 'month', inferredYear: !yearMatch };
+function aiPeriod(interpretation) {
+  if (interpretation?.startDate && interpretation?.endDate) return makeRange(String(interpretation.startDate), String(interpretation.endDate), Boolean(interpretation.inferredYear));
+  const year = Number(interpretation?.year);
+  const month = interpretation?.month === null ? null : Number(interpretation?.month);
+  const day = interpretation?.day === null || interpretation?.day === undefined ? null : Number(interpretation.day);
+  if (!Number.isInteger(year) || year < 2000 || year > 2100) return null;
+  if (month === null) return { year, month: null, day: null, start: `${year}-01-01`, end: `${year}-12-31`, label: `tahun ${year}`, scope: 'year', inferredYear: Boolean(interpretation.inferredYear) };
+  if (!Number.isInteger(month) || month < 1 || month > 12) return null;
+  if (day !== null) return validDate(year, month, day) ? makeRange(iso(year, month, day), iso(year, month, day), Boolean(interpretation.inferredYear)) : null;
+  return { year, month, day: null, start: iso(year, month, 1), end: iso(year, month, new Date(Date.UTC(year, month, 0)).getUTCDate()), label: `${capitalize(MONTHS[month - 1])} ${year}`, scope: 'month', inferredYear: Boolean(interpretation.inferredYear) };
 }
 
 export function normalizeAiWasteQuestion(question, interpretation) {
   const intent = ALLOWED_INTENTS.has(interpretation?.intent) ? interpretation.intent : 'unknown';
   if (intent === 'unknown') return parseWasteQuestion(question);
-
-  const year = Number(interpretation.year);
-  const monthValue = interpretation.month === null ? null : Number(interpretation.month);
-  const dayValue = interpretation.day === null || interpretation.day === undefined ? null : Number(interpretation.day);
-  if (!Number.isInteger(year) || year < 2000 || year > 2100) return parseWasteQuestion(question);
-  if (monthValue !== null && (!Number.isInteger(monthValue) || monthValue < 1 || monthValue > 12)) return parseWasteQuestion(question);
-  if (dayValue !== null && (monthValue === null || !Number.isInteger(dayValue) || dayValue < 1 || dayValue > 31)) return parseWasteQuestion(question);
-
-  const exactDate = dayValue === null ? null : new Date(Date.UTC(year, monthValue - 1, dayValue));
-  if (exactDate && (exactDate.getUTCMonth() !== monthValue - 1 || exactDate.getUTCDate() !== dayValue)) return parseWasteQuestion(question);
-  const dayDate = dayValue === null ? null : `${year}-${String(monthValue).padStart(2, '0')}-${String(dayValue).padStart(2, '0')}`;
-  const start = dayDate || (monthValue === null ? `${year}-01-01` : `${year}-${String(monthValue).padStart(2, '0')}-01`);
-  const end = dayDate || (monthValue === null ? `${year}-12-31` : new Date(Date.UTC(year, monthValue, 0)).toISOString().slice(0, 10));
-  const type = WASTE_TYPES.find(item => item.key === interpretation.typeKey);
-  if (intent === 'type_total' && !type) return parseWasteQuestion(question);
-
-  return {
-    intent,
-    type,
-    question: String(question || '').trim(),
-    assistedByAi: true,
-    period: {
-      year,
-      month: monthValue,
-      day: dayValue,
-      start,
-      end,
-      label: dayValue !== null ? `${dayValue} ${MONTHS[monthValue - 1][0].toUpperCase()}${MONTHS[monthValue - 1].slice(1)} ${year}` : monthValue === null ? `tahun ${year}` : `${MONTHS[monthValue - 1][0].toUpperCase()}${MONTHS[monthValue - 1].slice(1)} ${year}`,
-      scope: dayValue !== null ? 'day' : monthValue === null ? 'year' : 'month',
-      inferredYear: Boolean(interpretation.inferredYear),
-    },
-  };
+  const period = aiPeriod(interpretation);
+  if (!period) return parseWasteQuestion(question);
+  const requestedKeys = interpretation.typeKeys || [interpretation.typeKey];
+  const types = WASTE_TYPES.filter(item => requestedKeys.includes(item.key));
+  if (intent === 'type_total' && types.length !== 1) return parseWasteQuestion(question);
+  const roomName = String(interpretation.roomName || '').trim() || null;
+  if ((intent === 'room_total' || intent === 'room_type_total') && !roomName) return parseWasteQuestion(question);
+  if (intent === 'room_type_total' && types.length !== 1) return parseWasteQuestion(question);
+  return { intent, type: types[0], types, roomName, question: String(question || '').trim(), assistedByAi: true, period };
 }
 
-export function parseWasteQuestion(question) {
+export function parseWasteQuestion(question, contextPeriod = null) {
   const text = String(question || '').trim();
-  const period = extractPeriod(text);
-  const type = WASTE_TYPES.find(item => item.pattern.test(text));
+  const referencesPreviousPeriod = /(?:tanggal|tgl|periode|waktu)\s+(?:itu|tersebut)|di\s+sana/i.test(text);
+  const period = referencesPreviousPeriod && contextPeriod ? { ...contextPeriod } : extractPeriod(text);
+  const types = WASTE_TYPES.filter(item => item.pattern.test(text));
+  const type = types[0];
+  const roomName = text.match(/(?:ruang(?:an)?|unit)\s+(.+?)(?=\s+(?:tanggal|tgl\.?|pertanggal|bulan|tahun|dari|pada|berapa)\b|[?.,]|$)/i)?.[1]?.trim() || null;
   let intent = 'unknown';
-  if (/banding|perbandingan|naik|turun|perubahan/i.test(text)) intent = 'comparison';
-  else if (/ruang|unit.*(?:besar|tinggi|banyak)|penghasil.*(?:besar|tinggi|banyak)/i.test(text)) intent = 'top_rooms';
+  if (/banding|perbandingan|naik|turun|perubahan|selisih/i.test(text)) intent = 'comparison';
+  else if (/(?:ruang|unit|penghasil).*(?:terkecil|terendah|tersedikit|paling sedikit)|(?:terkecil|terendah|tersedikit|paling sedikit).*(?:ruang|unit|penghasil)/i.test(text)) intent = 'bottom_room';
+  else if (/(?:ruang|unit|penghasil).*(?:terbesar|terbanyak|tertinggi|paling|ranking|urutan)|(?:terbesar|terbanyak|tertinggi|paling).*(?:ruang|unit|penghasil)/i.test(text)) intent = 'top_rooms';
+  else if (roomName && type) intent = 'room_type_total';
+  else if (roomName && /berapa|jumlah|total|timbulan|dihasilkan/i.test(text)) intent = 'room_total';
+  else if (/(?:tanggal|hari).*(?:timbulan|limbah).*(?:terbesar|terbanyak|tertinggi|paling banyak)|(?:timbulan|limbah).*(?:terbesar|terbanyak|tertinggi|paling banyak).*(?:tanggal|hari)/i.test(text)) intent = 'peak_day';
+  else if (/berapa\s+hari|jumlah\s+hari|hari.*(?:tercatat|ada data|ada timbulan)/i.test(text)) intent = 'active_days';
+  else if (/jenis.*(?:dominan|terbesar|tertinggi|terbanyak|paling)|dominan/i.test(text)) intent = 'dominant_type';
+  else if (types.length > 1 || /(?:rincian.*jenis)|(?:rincian|jumlah|timbulan|data).*(?:berdasarkan|per|masing[ -]?masing)\s+jenis|semua jenis|komposisi|jenis\s+limbah/i.test(text)) intent = 'type_breakdown';
   else if (type) intent = 'type_total';
-  else if (/jenis.*(?:dominan|besar|tinggi|banyak)|dominan/i.test(text)) intent = 'dominant_type';
+  else if (/sisa\s+awal|awal\s+periode/i.test(text)) intent = 'opening_balance';
+  else if (/limbah.*(?:tersedia|dikelola)|total.*(?:tersedia|dikelola)/i.test(text)) intent = 'available_total';
+  else if (/persen.*(?:angkut|pengangkutan)|cakupan.*(?:angkut|pengangkutan)/i.test(text)) intent = 'transport_coverage';
   else if (/rata[ -]?rata|rerata/i.test(text)) intent = 'average';
-  else if (/diangkut|pengangkutan|angkut/i.test(text)) intent = 'transported';
-  else if (/timbulan|dihasilkan|menghasilkan|total limbah/i.test(text)) intent = 'generated';
-  else if (/sisa|tersimpan|penumpukan/i.test(text)) intent = 'remaining';
-  return { intent, period, type, question: text };
+  else if (/sisa|tersimpan|penumpukan|belum.*(?:angkut|dibawa)/i.test(text)) intent = 'remaining';
+  else if (/diangkut|pengangkutan|angkut|dibawa|keluar/i.test(text)) intent = 'transported';
+  else if (/timbulan|dihasilkan|menghasilkan|total limbah|limbah masuk/i.test(text)) intent = 'generated';
+  return { intent, period, type, types, roomName, question: text };
 }
 
 export const QUESTION_SUGGESTIONS = [
+  'Timbulan limbah tanggal 8',
+  'Ruangan dengan timbulan terbesar tanggal 8',
+  'Rincian limbah berdasarkan jenis tanggal 8',
+  'Timbulan 7 Juli sampai hari ini',
   'Berapa sisa limbah bulan ini?',
-  'Berapa timbulan limbah bulan ini?',
-  'Berapa timbulan limbah tahun ini?',
-  'Jenis limbah apa yang paling banyak?',
-  'Ruangan mana penghasil limbah terbesar?',
-  'Bandingkan timbulan bulan ini dengan periode sebelumnya',
+  'Bandingkan timbulan bulan ini dengan sebelumnya',
 ];
