@@ -21,3 +21,9 @@ test('jawaban ruangan berasal dari data rekap terurut', () => {
   assert.match(answer.text, /Ruang A/);
   assert.match(answer.text, /20,00 kg/);
 });
+
+test('jawaban timbulan tahunan menyebut cakupan tahun penuh', () => {
+  const answer = buildWasteAnswer(parseWasteQuestion('Timbulan limbah tahun 2026?'), recap);
+  assert.match(answer.text, /selama tahun 2026/);
+  assert.match(answer.text, /40,00 kg/);
+});

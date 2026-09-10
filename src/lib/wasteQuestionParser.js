@@ -17,11 +17,27 @@ function extractPeriod(question) {
   const namedMonth = MONTHS.findIndex(name => lower.includes(name));
   const numericMonth = lower.match(/bulan\s+(1[0-2]|0?[1-9])\b/i);
   const yearMatch = lower.match(/\b(20\d{2})\b/);
-  const month = namedMonth >= 0 ? namedMonth + 1 : numericMonth ? Number(numericMonth[1]) : now.month;
+  const mentionsCurrentMonth = /bulan\s+ini/i.test(lower);
+  const mentionsCurrentYear = /tahun\s+(?:ini|berjalan)/i.test(lower);
+  const hasExplicitMonth = namedMonth >= 0 || Boolean(numericMonth) || mentionsCurrentMonth;
   const year = yearMatch ? Number(yearMatch[1]) : now.year;
+
+  if ((yearMatch || mentionsCurrentYear) && !hasExplicitMonth) {
+    return {
+      year,
+      month: null,
+      start: `${year}-01-01`,
+      end: `${year}-12-31`,
+      label: `tahun ${year}`,
+      scope: 'year',
+      inferredYear: false,
+    };
+  }
+
+  const month = namedMonth >= 0 ? namedMonth + 1 : numericMonth ? Number(numericMonth[1]) : now.month;
   const start = `${year}-${String(month).padStart(2, '0')}-01`;
   const end = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
-  return { year, month, start, end, label: `${MONTHS[month - 1][0].toUpperCase()}${MONTHS[month - 1].slice(1)} ${year}`, inferredYear: !yearMatch };
+  return { year, month, start, end, label: `${MONTHS[month - 1][0].toUpperCase()}${MONTHS[month - 1].slice(1)} ${year}`, scope: 'month', inferredYear: !yearMatch };
 }
 
 export function parseWasteQuestion(question) {
@@ -43,6 +59,7 @@ export function parseWasteQuestion(question) {
 export const QUESTION_SUGGESTIONS = [
   'Berapa sisa limbah bulan ini?',
   'Berapa timbulan limbah bulan ini?',
+  'Berapa timbulan limbah tahun ini?',
   'Jenis limbah apa yang paling banyak?',
   'Ruangan mana penghasil limbah terbesar?',
   'Bandingkan timbulan bulan ini dengan periode sebelumnya',

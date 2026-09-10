@@ -3,7 +3,7 @@ import { answerWasteQuestion } from '../../lib/wasteQuestionService';
 import { QUESTION_SUGGESTIONS } from '../../lib/wasteQuestionParser';
 
 const STORAGE_KEY = 'insan_j_data_chat';
-const initialMessage = { role: 'assistant', text: 'Silakan tanyakan data limbah, misalnya “Sisa limbah bulan Juli 2026 berapa?” Angka jawaban dihitung langsung dari data INSAN-J.' };
+const initialMessage = { role: 'assistant', text: 'Selamat datang di Tanya INSAN-J. Silakan tanyakan data limbah, misalnya “Sisa limbah bulan Juli 2026 berapa?” Angka jawaban dihitung langsung dari data INSAN-J.' };
 
 function loadMessages() {
   try { return JSON.parse(sessionStorage.getItem(STORAGE_KEY)) || [initialMessage]; } catch { return [initialMessage]; }
@@ -33,7 +33,7 @@ export default function WasteDataChat({ className = '', hideHeader = false }) {
   return (
     <section className={`flex min-h-0 flex-1 flex-col bg-white ${className}`}>
       <div className={`flex items-start justify-between gap-3 ${hideHeader ? 'mb-2 justify-end' : 'mb-4'}`}>
-        {!hideHeader && <div><h2 className="font-black text-slate-800"><i className="fas fa-comments mr-2 text-blue-600" />Tanya Data INSAN-J</h2><p className="mt-1 text-xs text-slate-500">Jawaban dihitung dari data yang tersinkron. Percakapan tidak disimpan ke database.</p></div>}
+        {!hideHeader && <div><h2 className="font-black text-slate-800"><i className="fas fa-comments mr-2 text-blue-600" />Tanya INSAN-J</h2><p className="mt-1 text-xs text-slate-500">Jawaban dihitung dari data yang tersinkron. Percakapan tidak disimpan ke database.</p></div>}
         <button type="button" onClick={() => setMessages([initialMessage])} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">Bersihkan</button>
       </div>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-2xl bg-slate-50 p-3" aria-live="polite">

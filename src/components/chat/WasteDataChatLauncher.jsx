@@ -42,7 +42,7 @@ export default function WasteDataChatLauncher() {
         <button
           type="button"
           onClick={showChat}
-          aria-label="Buka Tanya Data INSAN-J"
+          aria-label="Buka Tanya INSAN-J"
           className="group fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-4 z-30 flex h-14 w-14 items-center justify-center rounded-full border border-white/80 bg-linear-to-br from-blue-500 to-blue-700 text-white shadow-[0_10px_25px_rgba(37,99,235,0.38),0_4px_0_#1e40af] transition duration-200 hover:-translate-y-0.5 active:translate-y-1 active:shadow-md md:bottom-6 md:right-6"
         >
           <span className="absolute inset-0 animate-ping rounded-full bg-blue-400 opacity-20 motion-reduce:hidden" />
@@ -54,7 +54,7 @@ export default function WasteDataChatLauncher() {
         <div className="fixed inset-0 z-[70] print:hidden" role="dialog" aria-modal="true" aria-labelledby="waste-chat-title">
           <button
             type="button"
-            aria-label="Tutup Tanya Data"
+            aria-label="Tutup Tanya INSAN-J"
             onClick={hideChat}
             className={`absolute inset-0 bg-slate-950/45 backdrop-blur-[2px] transition-opacity duration-200 ${open ? 'opacity-100' : 'opacity-0'}`}
           />
@@ -63,7 +63,7 @@ export default function WasteDataChatLauncher() {
               <div className="flex min-w-0 items-center gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-blue-500 to-blue-700 text-white shadow-md"><i className="fas fa-comments" /></span>
                 <div className="min-w-0">
-                  <h2 id="waste-chat-title" className="truncate font-black text-slate-800">Tanya Data INSAN-J</h2>
+                  <h2 id="waste-chat-title" className="truncate font-black text-slate-800">Tanya INSAN-J</h2>
                   <p className="text-xs text-emerald-600"><span className="mr-1 inline-block h-2 w-2 rounded-full bg-emerald-500" />Berdasarkan data tersinkron</p>
                 </div>
               </div>
