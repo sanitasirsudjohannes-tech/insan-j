@@ -2,13 +2,13 @@ const MONTHS = ['januari', 'februari', 'maret', 'april', 'mei', 'juni', 'juli', 
 const MONTH_PATTERN = MONTHS.join('|');
 
 export const WASTE_TYPES = [
-  { pattern: /infeksius/i, key: 'infectiousKg', label: 'limbah infeksius' },
-  { pattern: /jarum|benda tajam/i, key: 'sharpsKg', label: 'limbah jarum suntik' },
-  { pattern: /botol(?: obat)?/i, key: 'bottleKg', label: 'limbah botol obat' },
-  { pattern: /sitotoksik/i, key: 'cytotoxicKg', label: 'limbah sitotoksik' },
+  { pattern: /infeksius|infectious/i, key: 'infectiousKg', label: 'limbah infeksius' },
+  { pattern: /jarum(?: suntik)?|benda tajam|spuit|syringe|safety\s*box/i, key: 'sharpsKg', label: 'limbah jarum suntik' },
+  { pattern: /botol(?: obat)?|vial|ampul/i, key: 'bottleKg', label: 'limbah botol obat' },
+  { pattern: /sitotoksik|cytotoxic|sitostatika/i, key: 'cytotoxicKg', label: 'limbah sitotoksik' },
 ];
 
-const ALLOWED_INTENTS = new Set(['remaining', 'opening_balance', 'available_total', 'generated', 'transported', 'transport_coverage', 'average', 'dominant_type', 'type_breakdown', 'top_rooms', 'bottom_room', 'room_total', 'room_type_total', 'peak_day', 'active_days', 'comparison', 'type_total']);
+const ALLOWED_INTENTS = new Set(['waste_summary', 'remaining', 'opening_balance', 'available_total', 'generated', 'transported', 'transport_coverage', 'average', 'dominant_type', 'type_breakdown', 'top_rooms', 'bottom_room', 'room_total', 'room_type_total', 'peak_day', 'active_days', 'comparison', 'type_total']);
 const iso = (year, month, day) => `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 const capitalize = value => `${value[0].toUpperCase()}${value.slice(1)}`;
 
@@ -38,6 +38,7 @@ function makeRange(start, end, inferredYear = false) {
 
 function parsePointDate(text, now, fallbackYear) {
   if (/hari\s+ini|sekarang/i.test(text)) return iso(now.year, now.month, now.day);
+  if (/\bkemarin\b/i.test(text) && !/(?:\bbulan|\btahun)\s+kemarin/i.test(text)) return new Date(Date.UTC(now.year, now.month - 1, now.day - 1)).toISOString().slice(0, 10);
   const numeric = text.match(/\b([0-2]?\d|3[01])[/-](0?\d|1[0-2])(?:[/-](20\d{2}))?\b/);
   if (numeric) {
     const year = Number(numeric[3] || fallbackYear || now.year);
@@ -65,6 +66,29 @@ function extractPeriod(question) {
   const lower = question.toLowerCase();
   const now = currentWita();
   const globalYear = Number(lower.match(/\b(20\d{2})\b/)?.[1] || now.year);
+  const today = iso(now.year, now.month, now.day);
+  const lastDays = lower.match(/(?:dalam\s+)?(\d{1,3})\s+hari\s+terakhir/i);
+  if (lastDays) {
+    const days = Math.min(Math.max(Number(lastDays[1]), 1), 366);
+    const start = new Date(Date.UTC(now.year, now.month - 1, now.day - days + 1)).toISOString().slice(0, 10);
+    return makeRange(start, today, true);
+  }
+  if (/minggu\s+ini|pekan\s+ini/i.test(lower)) {
+    const todayDate = new Date(`${today}T00:00:00Z`);
+    const daysSinceMonday = (todayDate.getUTCDay() + 6) % 7;
+    const start = new Date(todayDate.getTime() - daysSinceMonday * 86400000).toISOString().slice(0, 10);
+    return makeRange(start, today, true);
+  }
+  if (/(?:\bbulan\s+(?:lalu|kemarin)|\bbulan\s+sebelumnya)/i.test(lower)) {
+    const previous = new Date(Date.UTC(now.year, now.month - 2, 1));
+    const year = previous.getUTCFullYear();
+    const month = previous.getUTCMonth() + 1;
+    return { year, month, day: null, start: iso(year, month, 1), end: iso(year, month, new Date(Date.UTC(year, month, 0)).getUTCDate()), label: `${capitalize(MONTHS[month - 1])} ${year}`, scope: 'month', inferredYear: true };
+  }
+  if (/(?:\btahun\s+(?:lalu|kemarin)|\btahun\s+sebelumnya)/i.test(lower)) {
+    const year = now.year - 1;
+    return { year, month: null, day: null, start: `${year}-01-01`, end: `${year}-12-31`, label: `tahun ${year}`, scope: 'year', inferredYear: true };
+  }
   const rangeParts = lower.split(/\s+(?:sampai(?:\s+dengan)?|hingga|s\.?d\.?)\s+|\s+-\s+/i);
   if (rangeParts.length === 2) {
     const start = parsePointDate(rangeParts[0], now, globalYear);
@@ -117,9 +141,9 @@ export function parseWasteQuestion(question, contextPeriod = null) {
   const period = referencesPreviousPeriod && contextPeriod ? { ...contextPeriod } : extractPeriod(text);
   const types = WASTE_TYPES.filter(item => item.pattern.test(text));
   const type = types[0];
-  const roomName = text.match(/(?:ruang(?:an)?|unit)\s+(.+?)(?=\s+(?:tanggal|tgl\.?|pertanggal|bulan|tahun|dari|pada|berapa)\b|[?.,]|$)/i)?.[1]?.trim() || null;
+  const roomName = text.match(/(?:ruang(?:an)?|unit|bangsal)\s+(.+?)(?=\s+(?:tanggal|tgl\.?|pertanggal|bulan|tahun|dari|pada|berapa)\b|[?.,]|$)/i)?.[1]?.trim() || null;
   let intent = 'unknown';
-  if (/banding|perbandingan|naik|turun|perubahan|selisih/i.test(text)) intent = 'comparison';
+  if (/banding|perbandingan|dibanding|naik|turun|perubahan|selisih|\bvs\.?\b/i.test(text)) intent = 'comparison';
   else if (/(?:ruang|unit|penghasil).*(?:terkecil|terendah|tersedikit|paling sedikit)|(?:terkecil|terendah|tersedikit|paling sedikit).*(?:ruang|unit|penghasil)/i.test(text)) intent = 'bottom_room';
   else if (/(?:ruang|unit|penghasil).*(?:terbesar|terbanyak|tertinggi|paling|ranking|urutan)|(?:terbesar|terbanyak|tertinggi|paling).*(?:ruang|unit|penghasil)/i.test(text)) intent = 'top_rooms';
   else if (roomName && type) intent = 'room_type_total';
@@ -129,17 +153,19 @@ export function parseWasteQuestion(question, contextPeriod = null) {
   else if (/jenis.*(?:dominan|terbesar|tertinggi|terbanyak|paling)|dominan/i.test(text)) intent = 'dominant_type';
   else if (types.length > 1 || /(?:rincian.*jenis)|(?:rincian|jumlah|timbulan|data).*(?:berdasarkan|per|masing[ -]?masing)\s+jenis|semua jenis|komposisi|jenis\s+limbah/i.test(text)) intent = 'type_breakdown';
   else if (type) intent = 'type_total';
+  else if (/(?:rincian|ringkasan|rekap|ikhtisar|gambaran|detail|data)\s+(?:data\s+)?limbah|limbah\s+secara\s+keseluruhan/i.test(text)) intent = 'waste_summary';
   else if (/sisa\s+awal|awal\s+periode/i.test(text)) intent = 'opening_balance';
   else if (/limbah.*(?:tersedia|dikelola)|total.*(?:tersedia|dikelola)/i.test(text)) intent = 'available_total';
   else if (/persen.*(?:angkut|pengangkutan)|cakupan.*(?:angkut|pengangkutan)/i.test(text)) intent = 'transport_coverage';
-  else if (/rata[ -]?rata|rerata/i.test(text)) intent = 'average';
-  else if (/sisa|tersimpan|penumpukan|belum.*(?:angkut|dibawa)/i.test(text)) intent = 'remaining';
-  else if (/diangkut|pengangkutan|angkut|dibawa|keluar/i.test(text)) intent = 'transported';
-  else if (/timbulan|dihasilkan|menghasilkan|total limbah|limbah masuk/i.test(text)) intent = 'generated';
+  else if (/rata[ -]?rata|rerata|rataan|per\s*hari/i.test(text)) intent = 'average';
+  else if (/sisa|tersisa|tersimpan|penumpukan|menumpuk|belum.*(?:angkut|dibawa|dikirim|keluar)/i.test(text)) intent = 'remaining';
+  else if (/diangkut|terangkut|pengangkutan|angkut|dibawa|dikirim|pengiriman|keluar/i.test(text)) intent = 'transported';
+  else if (/timbulan|dihasilkan|menghasilkan|produksi|terkumpul|hasil\s+timbang|berat\s+limbah|total limbah|limbah masuk/i.test(text)) intent = 'generated';
   return { intent, period, type, types, roomName, question: text };
 }
 
 export const QUESTION_SUGGESTIONS = [
+  'Rincian data limbah bulan ini',
   'Timbulan limbah tanggal 8',
   'Ruangan dengan timbulan terbesar tanggal 8',
   'Rincian limbah berdasarkan jenis tanggal 8',

@@ -32,6 +32,15 @@ test('jawaban dapat menampilkan total jenis dari ruangan tertentu per tanggal', 
   assert.match(answer.text, /5 September 2026/);
 });
 
+test('ringkasan data limbah memuat alur dan komposisi utama', () => {
+  const answer = buildWasteAnswer(parseWasteQuestion('Rincian data limbah Juli 2026'), recap);
+  assert.match(answer.text, /sisa awal 10,00 kg/);
+  assert.match(answer.text, /timbulan 40,00 kg/);
+  assert.match(answer.text, /diangkut 35,00 kg/);
+  assert.match(answer.text, /sisa akhir 15,00 kg/);
+  assert.match(answer.text, /limbah infeksius 30,00 kg/);
+});
+
 test('jawaban ruangan berasal dari data rekap terurut', () => {
   const answer = buildWasteAnswer(parseWasteQuestion('Ruangan terbesar Juli 2026?'), recap);
   assert.match(answer.text, /Ruang A/);

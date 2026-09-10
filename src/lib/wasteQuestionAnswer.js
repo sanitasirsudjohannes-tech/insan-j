@@ -15,6 +15,7 @@ export function buildWasteAnswer(parsed, recap) {
     { key: 'cytotoxicKg', label: 'limbah sitotoksik' },
   ];
   const answers = {
+    waste_summary: `Rincian data limbah ${during}: sisa awal ${format(facts.openingBalanceKg)} kg; timbulan ${format(facts.totalGeneratedKg)} kg; diangkut ${format(facts.totalTransportedKg)} kg; dan sisa akhir ${format(facts.remainingKg)} kg. Komposisi timbulan terdiri dari limbah infeksius ${format(facts.infectiousKg)} kg, limbah jarum suntik ${format(facts.sharpsKg)} kg, limbah botol obat ${format(facts.bottleKg)} kg, serta limbah sitotoksik ${format(facts.cytotoxicKg)} kg.${roomTotals.length ? ` Ruangan dengan timbulan terbesar adalah ${roomTotals[0].name} sebanyak ${format(roomTotals[0].value)} kg.` : ''}${suffix}`,
     remaining: `Sisa limbah pada akhir ${parsed.period.label} adalah ${format(facts.remainingKg)} kg. Nilai ini berasal dari sisa awal ${format(facts.openingBalanceKg)} kg, ditambah timbulan ${format(facts.totalGeneratedKg)} kg, kemudian dikurangi pengangkutan ${format(facts.totalTransportedKg)} kg.${suffix}`,
     opening_balance: `Sisa limbah pada awal ${parsed.period.label} adalah ${format(facts.openingBalanceKg)} kg.${suffix}`,
     available_total: `Total limbah yang tersedia untuk dikelola ${during} adalah ${format(facts.openingBalanceKg + facts.totalGeneratedKg)} kg, terdiri dari sisa awal ${format(facts.openingBalanceKg)} kg dan timbulan baru ${format(facts.totalGeneratedKg)} kg.${suffix}`,

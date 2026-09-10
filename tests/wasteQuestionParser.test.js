@@ -100,3 +100,31 @@ test('parser mengenali total dan jenis limbah untuk ruangan tertentu', () => {
   assert.equal(type.intent, 'room_type_total');
   assert.equal(type.type.key, 'infectiousKg');
 });
+
+test('rincian dan data limbah dikenali sebagai ringkasan menyeluruh', () => {
+  assert.equal(parseWasteQuestion('Rincian limbah bulan ini').intent, 'waste_summary');
+  assert.equal(parseWasteQuestion('Tampilkan data limbah tahun 2026').intent, 'waste_summary');
+  assert.equal(parseWasteQuestion('Gambaran limbah minggu ini').intent, 'waste_summary');
+});
+
+test('parser memahami kosakata sehari-hari terkait limbah', () => {
+  assert.equal(parseWasteQuestion('Berapa hasil timbang limbah hari ini?').intent, 'generated');
+  assert.equal(parseWasteQuestion('Berapa limbah yang terkumpul kemarin?').intent, 'generated');
+  assert.equal(parseWasteQuestion('Berapa yang sudah dikirim bulan lalu?').intent, 'transported');
+  assert.equal(parseWasteQuestion('Apakah limbah yang menumpuk masih banyak?').intent, 'remaining');
+  assert.equal(parseWasteQuestion('Rataan timbulan per hari bulan ini').intent, 'average');
+  assert.equal(parseWasteQuestion('Jumlah safety box tahun ini').type.key, 'sharpsKg');
+});
+
+test('periode relatif menggunakan rentang yang sesuai', () => {
+  const yesterday = parseWasteQuestion('Timbulan kemarin').period;
+  const week = parseWasteQuestion('Data limbah minggu ini').period;
+  const lastSevenDays = parseWasteQuestion('Data limbah 7 hari terakhir').period;
+  const lastMonth = parseWasteQuestion('Data limbah bulan lalu').period;
+  const lastYear = parseWasteQuestion('Data limbah tahun lalu').period;
+  assert.equal(yesterday.scope, 'day');
+  assert.ok(['day', 'range'].includes(week.scope));
+  assert.equal(lastSevenDays.scope, 'range');
+  assert.equal(lastMonth.scope, 'month');
+  assert.equal(lastYear.scope, 'year');
+});
