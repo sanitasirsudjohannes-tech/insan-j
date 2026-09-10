@@ -1,6 +1,6 @@
 import { forwardRef } from 'react';
 import {
-  Bar, BarChart, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie, PieChart,
+  Bar, BarChart, CartesianGrid, Cell, LabelList, Legend, Pie, PieChart,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
 
@@ -16,22 +16,22 @@ const ChartCard = ({ title, subtitle, children }) => (
 );
 
 const ReportCharts = forwardRef(function ReportCharts({ data }, ref) {
-  if (!data || (!data.timeline?.length && !data.composition?.some(item => item.value > 0))) return null;
+  if (!data || (!data.balanceFlow?.length && !data.composition?.some(item => item.value > 0))) return null;
   return (
     <section ref={ref} className="space-y-3" aria-label="Grafik laporan limbah">
       <div className="grid gap-3 lg:grid-cols-2">
-        {data.timeline?.length > 0 && <ChartCard title="Timbulan dan Pengangkutan" subtitle="Per tanggal pada periode yang dipilih">
+        {data.balanceFlow?.length > 0 && <ChartCard title="Ringkasan Neraca Limbah" subtitle="Saldo awal + timbulan − diangkut = saldo akhir">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={data.timeline} margin={{ top: 8, right: 8, left: -15, bottom: 0 }}>
+            <BarChart data={data.balanceFlow} margin={{ top: 24, right: 8, left: -15, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-              <XAxis dataKey="label" tick={{ fontSize: 10 }} />
+              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip formatter={kg} labelFormatter={label => `Tanggal ${label}`} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar name="Timbulan" dataKey="generated" fill="#2563eb" radius={[4, 4, 0, 0]} />
-              <Bar name="Diangkut" dataKey="transported" fill="#10b981" radius={[4, 4, 0, 0]} />
-              <Line name="Sisa Akumulasi" type="monotone" dataKey="balance" stroke="#ef4444" strokeWidth={2} dot={false} />
-            </ComposedChart>
+              <Tooltip formatter={kg} />
+              <Bar name="Jumlah" dataKey="value" radius={[5, 5, 0, 0]}>
+                {data.balanceFlow.map((item, index) => <Cell key={item.name} fill={COLORS[index % COLORS.length]} />)}
+                <LabelList dataKey="value" position="top" formatter={value => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(value)} style={{ fontSize: 10, fill: '#475569' }} />
+              </Bar>
+            </BarChart>
           </ResponsiveContainer>
         </ChartCard>}
         <ChartCard title="Komposisi Jenis Limbah" subtitle="Proporsi berat setiap jenis limbah">

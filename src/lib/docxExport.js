@@ -1,4 +1,4 @@
-import { AlignmentType, Document, HeadingLevel, ImageRun, Packer, PageBreak, Paragraph, TextRun } from 'docx';
+import { AlignmentType, BorderStyle, Document, HeadingLevel, ImageRun, Packer, PageBreak, Paragraph, ShadingType, Table, TableCell, TableRow, TextRun, WidthType } from 'docx';
 
 function reportParagraph(line, index) {
   const text = line.trim();
@@ -17,8 +17,29 @@ function reportParagraph(line, index) {
   });
 }
 
-export async function buildDocxBlob(draft, chartImages = []) {
+const tableBorder = { style: BorderStyle.SINGLE, size: 2, color: 'CBD5E1' };
+const tableCell = (value, header = false) => new TableCell({
+  shading: header ? { fill: 'DCE6F1', type: ShadingType.CLEAR } : undefined,
+  borders: { top: tableBorder, bottom: tableBorder, left: tableBorder, right: tableBorder },
+  children: [new Paragraph({ spacing: { before: 40, after: 40 }, children: [new TextRun({ text: String(value), bold: header, size: 18, font: 'Arial' })] })],
+});
+
+function reportTable(model) {
+  return [
+    new Paragraph({ spacing: { before: 240, after: 100 }, children: [new TextRun({ text: model.title, bold: true, size: 20, font: 'Arial' })] }),
+    new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: [
+      new TableRow({ tableHeader: true, children: model.headers.map(value => tableCell(value, true)) }),
+      ...model.rows.map(row => new TableRow({ children: row.map(value => tableCell(value)) })),
+    ] }),
+  ];
+}
+
+export async function buildDocxBlob(draft, chartImages = [], tableModels = []) {
   const paragraphs = String(draft || '').split('\n').map(reportParagraph);
+  if (tableModels.length) {
+    paragraphs.push(new Paragraph({ children: [new PageBreak()] }), new Paragraph({ alignment: AlignmentType.CENTER, heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: 'LAMPIRAN TABEL DATA LIMBAH', bold: true, size: 28, font: 'Arial' })] }));
+    tableModels.forEach(model => paragraphs.push(...reportTable(model)));
+  }
   if (chartImages.length) {
     paragraphs.push(new Paragraph({ children: [new PageBreak()] }), new Paragraph({ alignment: AlignmentType.CENTER, heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: 'LAMPIRAN GRAFIK', bold: true, size: 28, font: 'Arial' })] }));
     chartImages.forEach((image, index) => {
@@ -41,7 +62,7 @@ const formatKg = value => `${new Intl.NumberFormat('id-ID', { maximumFractionDig
 
 export function getExpectedReportChartCount(data) {
   if (!data) return 0;
-  return Number(Boolean(data.timeline?.length))
+  return Number(Boolean(data.balanceFlow?.length))
     + Number(Boolean(data.composition?.some(item => Number(item.value) > 0)))
     + Number(Boolean(data.rooms?.length));
 }
@@ -67,10 +88,10 @@ async function canvasBytes(canvas) {
   return new Uint8Array(await blob.arrayBuffer());
 }
 
-async function timelineChart(rows) {
-  const { canvas, context } = createCanvas('Timbulan, Pengangkutan, dan Sisa', 'Per tanggal pada periode yang dipilih');
-  const area = { left: 85, top: 135, width: 1060, height: 440 };
-  const maxValue = Math.max(1, ...rows.flatMap(row => [row.generated, row.transported, Math.max(0, row.balance)].map(Number)));
+async function balanceChart(rows) {
+  const { canvas, context } = createCanvas('Ringkasan Neraca Limbah', 'Saldo awal + timbulan - diangkut = saldo akhir');
+  const area = { left: 100, top: 140, width: 1000, height: 390 };
+  const maxValue = Math.max(1, ...rows.map(row => Math.max(0, Number(row.value) || 0)));
   context.strokeStyle = '#cbd5e1';
   context.lineWidth = 1;
   for (let i = 0; i <= 4; i += 1) {
@@ -78,25 +99,17 @@ async function timelineChart(rows) {
     context.beginPath(); context.moveTo(area.left, y); context.lineTo(area.left + area.width, y); context.stroke();
   }
   const groupWidth = area.width / rows.length;
-  const barWidth = Math.max(3, Math.min(16, groupWidth * 0.28));
+  const barWidth = Math.min(130, groupWidth * 0.5);
   rows.forEach((row, index) => {
     const x = area.left + groupWidth * index + groupWidth / 2;
-    [['generated', '#2563eb', -barWidth], ['transported', '#10b981', 0]].forEach(([key, color, offset]) => {
-      const height = (Math.max(0, Number(row[key])) / maxValue) * area.height;
-      context.fillStyle = color; context.fillRect(x + offset, area.top + area.height - height, barWidth, height);
-    });
+    const height = (Math.max(0, Number(row.value) || 0) / maxValue) * area.height;
+    context.fillStyle = COLORS[index % COLORS.length];
+    context.fillRect(x - barWidth / 2, area.top + area.height - height, barWidth, height);
+    context.fillStyle = '#0f172a'; context.font = 'bold 19px Arial'; context.textAlign = 'center';
+    context.fillText(formatKg(row.value), x, area.top + area.height - height - 14);
+    context.fillStyle = '#475569'; context.font = '19px Arial'; context.fillText(row.name, x, area.top + area.height + 38);
   });
-  context.strokeStyle = '#ef4444'; context.lineWidth = 4; context.beginPath();
-  rows.forEach((row, index) => {
-    const x = area.left + groupWidth * index + groupWidth / 2;
-    const y = area.top + area.height - (Math.max(0, Number(row.balance)) / maxValue) * area.height;
-    if (index === 0) context.moveTo(x, y); else context.lineTo(x, y);
-  });
-  context.stroke();
-  context.font = '17px Arial';
-  [['Timbulan', '#2563eb'], ['Diangkut', '#10b981'], ['Sisa Akumulasi', '#ef4444']].forEach(([label, color], index) => {
-    const x = 380 + index * 190; context.fillStyle = color; context.fillRect(x, 620, 24, 12); context.fillStyle = '#334155'; context.fillText(label, x + 32, 632);
-  });
+  context.textAlign = 'left';
   return canvasBytes(canvas);
 }
 
@@ -138,7 +151,7 @@ async function roomsChart(rows) {
 export async function createReportChartPngs(data) {
   if (!data) return [];
   const charts = [];
-  if (data.timeline?.length) charts.push(await timelineChart(data.timeline));
+  if (data.balanceFlow?.length) charts.push(await balanceChart(data.balanceFlow));
   if (data.composition?.some(item => Number(item.value) > 0)) charts.push(await compositionChart(data.composition));
   if (data.rooms?.length) charts.push(await roomsChart(data.rooms));
   if (charts.length !== getExpectedReportChartCount(data)) throw new Error('Jumlah grafik yang dibuat tidak lengkap.');
