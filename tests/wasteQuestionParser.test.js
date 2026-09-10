@@ -15,6 +15,22 @@ test('parser mengenali jenis, ruangan, dan perbandingan', () => {
   assert.equal(parseWasteQuestion('Bandingkan Juli 2026 dengan sebelumnya').intent, 'comparison');
 });
 
+test('parser mempertahankan dua bulan yang disebutkan untuk perbandingan langsung', () => {
+  const result = parseWasteQuestion('Lakukan perbandingan limbah bulan Februari dan Juli');
+  assert.equal(result.intent, 'comparison');
+  assert.match(result.comparisonPeriod.start, /^20\d{2}-02-01$/);
+  assert.match(result.comparisonPeriod.end, /^20\d{2}-02-28$/);
+  assert.match(result.period.start, /^20\d{2}-07-01$/);
+  assert.match(result.period.end, /^20\d{2}-07-31$/);
+});
+
+test('tahun pada perbandingan dua bulan diterapkan ke kedua periode', () => {
+  const result = parseWasteQuestion('Bandingkan Februari dengan Juli 2026');
+  assert.equal(result.comparisonPeriod.label, 'Februari 2026');
+  assert.equal(result.period.label, 'Juli 2026');
+  assert.equal(result.period.inferredYear, false);
+});
+
 test('pertanyaan yang hanya menyebut tahun menggunakan satu tahun penuh', () => {
   const result = parseWasteQuestion('Berapa data timbulan limbah tahun 2026?');
   assert.equal(result.intent, 'generated');

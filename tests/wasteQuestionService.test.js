@@ -73,3 +73,21 @@ test('angka pecahan pada jawaban dibulatkan tanpa desimal', () => {
   assert.match(answer.text, /41 kg/);
   assert.doesNotMatch(answer.text, /40[,.]6/);
 });
+
+test('jawaban membandingkan dua bulan yang diminta secara langsung', () => {
+  const parsed = parseWasteQuestion('Lakukan perbandingan limbah Februari dan Juli 2026');
+  const february = {
+    ...recap,
+    facts: { ...recap.facts, totalGeneratedKg: 100, totalTransportedKg: 80, remainingKg: 30 },
+  };
+  const july = {
+    ...recap,
+    facts: { ...recap.facts, totalGeneratedKg: 125, totalTransportedKg: 100, remainingKg: 35 },
+  };
+  const answer = buildWasteAnswer(parsed, july, february);
+  assert.match(answer.text, /Perbandingan Februari 2026 dan Juli 2026/);
+  assert.match(answer.text, /timbulan 100 kg menjadi 125 kg, naik 25 kg \(25%\)/);
+  assert.match(answer.text, /pengangkutan 80 kg menjadi 100 kg/);
+  assert.match(answer.text, /sisa akhir 30 kg menjadi 35 kg/);
+  assert.doesNotMatch(answer.text, /periode sebelumnya/);
+});

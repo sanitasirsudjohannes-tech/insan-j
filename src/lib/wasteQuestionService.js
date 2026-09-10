@@ -14,6 +14,11 @@ export async function answerWasteQuestion(question, { signal, contextPeriod = nu
     }
   }
   if (parsed.intent === 'unknown') return { text: 'Pertanyaan tersebut belum dapat dijawab dari data INSAN-J. Coba tanyakan sisa limbah, timbulan, pengangkutan, jenis limbah, ruangan terbesar, rata-rata, atau perbandingan periode.', parsed, assistedByAi: true };
-  const recap = await fetchRecap(parsed.period.start, parsed.period.end);
-  return { ...buildWasteAnswer(parsed, recap), assistedByAi: Boolean(parsed.assistedByAi) };
+  const [recap, comparisonRecap] = await Promise.all([
+    fetchRecap(parsed.period.start, parsed.period.end),
+    parsed.intent === 'comparison' && parsed.comparisonPeriod
+      ? fetchRecap(parsed.comparisonPeriod.start, parsed.comparisonPeriod.end)
+      : null,
+  ]);
+  return { ...buildWasteAnswer(parsed, recap, comparisonRecap), assistedByAi: Boolean(parsed.assistedByAi) };
 }

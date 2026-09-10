@@ -1,7 +1,18 @@
 const format = value => new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(Math.round(Number(value) || 0));
 const changeText = value => value === null || value === undefined ? 'belum dapat dibandingkan karena data periode sebelumnya tidak tersedia' : `${value >= 0 ? 'meningkat' : 'menurun'} ${format(Math.abs(value))}%`;
+const percentChange = (current, previous) => Number(previous) ? ((Number(current) - Number(previous)) / Number(previous)) * 100 : null;
+const directComparison = (parsed, current, previous) => {
+  const currentFacts = current.facts;
+  const previousFacts = previous.facts;
+  const generatedChange = currentFacts.totalGeneratedKg - previousFacts.totalGeneratedKg;
+  const transportedChange = currentFacts.totalTransportedKg - previousFacts.totalTransportedKg;
+  const remainingChange = currentFacts.remainingKg - previousFacts.remainingKg;
+  const describe = (value, percentage) => `${value >= 0 ? 'naik' : 'turun'} ${format(Math.abs(value))} kg${percentage === null ? '' : ` (${format(Math.abs(percentage))}%)`}`;
+  const suffix = parsed.period.inferredYear && parsed.comparisonPeriod.inferredYear ? ' Tahun tidak disebutkan, sehingga digunakan tahun berjalan.' : '';
+  return `Perbandingan ${parsed.comparisonPeriod.label} dan ${parsed.period.label}: timbulan ${format(previousFacts.totalGeneratedKg)} kg menjadi ${format(currentFacts.totalGeneratedKg)} kg, ${describe(generatedChange, percentChange(currentFacts.totalGeneratedKg, previousFacts.totalGeneratedKg))}; pengangkutan ${format(previousFacts.totalTransportedKg)} kg menjadi ${format(currentFacts.totalTransportedKg)} kg, ${describe(transportedChange, percentChange(currentFacts.totalTransportedKg, previousFacts.totalTransportedKg))}; dan sisa akhir ${format(previousFacts.remainingKg)} kg menjadi ${format(currentFacts.remainingKg)} kg, ${describe(remainingChange, percentChange(currentFacts.remainingKg, previousFacts.remainingKg))}.${suffix}`;
+};
 
-export function buildWasteAnswer(parsed, recap) {
+export function buildWasteAnswer(parsed, recap, comparisonRecap = null) {
   const { facts, charts, analytics } = recap;
   const roomTotals = charts.roomTotals || charts.rooms;
   const timeline = charts.timeline || [];
@@ -31,7 +42,9 @@ export function buildWasteAnswer(parsed, recap) {
     room_type_total: requestedRoom ? `${parsed.type?.label || 'Jenis limbah tersebut'} dari ${requestedRoom.name} ${during} berjumlah ${format(requestedRoom[parsed.type?.key])} kg.${suffix}` : `Data untuk ruangan “${parsed.roomName}” tidak ditemukan pada ${parsed.period.label}. Periksa kembali penulisan nama ruangan.`,
     peak_day: timeline.filter(item => item.generated > 0).length ? (() => { const peak = [...timeline].sort((a, b) => b.generated - a.generated)[0]; return `Timbulan tertinggi selama ${parsed.period.label} terjadi pada ${peak.date.split('-').reverse().join('/')} sebanyak ${format(peak.generated)} kg.${suffix}`; })() : `Belum ada timbulan yang tercatat selama ${parsed.period.label}.`,
     active_days: `Terdapat ${timeline.filter(item => item.generated > 0).length} hari dengan timbulan limbah yang tercatat selama ${parsed.period.label}.${suffix}`,
-    comparison: `Dibandingkan periode sebelumnya, timbulan ${parsed.period.label} ${changeText(analytics.changes.generatedPercent)}, sedangkan pengangkutan ${changeText(analytics.changes.transportedPercent)}. Sisa limbah berubah ${format(Math.abs(analytics.changes.remainingKg))} kg (${analytics.changes.remainingKg >= 0 ? 'bertambah' : 'berkurang'}).${suffix}`,
+    comparison: comparisonRecap
+      ? directComparison(parsed, recap, comparisonRecap)
+      : `Dibandingkan periode sebelumnya, timbulan ${parsed.period.label} ${changeText(analytics.changes.generatedPercent)}, sedangkan pengangkutan ${changeText(analytics.changes.transportedPercent)}. Sisa limbah berubah ${format(Math.abs(analytics.changes.remainingKg))} kg (${analytics.changes.remainingKg >= 0 ? 'bertambah' : 'berkurang'}).${suffix}`,
     type_total: `${parsed.type?.label || 'Jenis limbah tersebut'} ${during} berjumlah ${format(facts[parsed.type?.key])} kg.${suffix}`,
   };
   return { text: answers[parsed.intent], parsed, period: parsed.period, facts };

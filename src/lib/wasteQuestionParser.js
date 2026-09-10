@@ -36,6 +36,33 @@ function makeRange(start, end, inferredYear = false) {
   return { year: Number(start.slice(0, 4)), month: null, day: null, start, end, label: `${dateLabel(start)} sampai ${dateLabel(end)}`, scope: 'range', inferredYear };
 }
 
+function makeMonthPeriod(year, month, inferredYear) {
+  return {
+    year,
+    month,
+    day: null,
+    start: iso(year, month, 1),
+    end: iso(year, month, new Date(Date.UTC(year, month, 0)).getUTCDate()),
+    label: `${capitalize(MONTHS[month - 1])} ${year}`,
+    scope: 'month',
+    inferredYear,
+  };
+}
+
+function extractExplicitComparisonPeriods(question) {
+  if (!/banding|perbandingan|dibanding|selisih|\bvs\.?\b/i.test(question)) return null;
+  const now = currentWita();
+  const sharedYear = Number(question.match(/\b(20\d{2})\b/)?.[1] || now.year);
+  const matches = [...question.matchAll(new RegExp(`\\b(${MONTH_PATTERN})(?:\\s+(20\\d{2}))?\\b`, 'gi'))];
+  if (matches.length < 2) return null;
+  const periods = matches.slice(0, 2).map(match => {
+    const month = MONTHS.indexOf(match[1].toLowerCase()) + 1;
+    const explicitYear = match[2] ? Number(match[2]) : null;
+    return makeMonthPeriod(explicitYear || sharedYear, month, !explicitYear && !/\b20\d{2}\b/.test(question));
+  });
+  return { comparisonPeriod: periods[0], period: periods[1] };
+}
+
 function parsePointDate(text, now, fallbackYear) {
   if (/hari\s+ini|sekarang/i.test(text)) return iso(now.year, now.month, now.day);
   if (/\bkemarin\b/i.test(text) && !/(?:\bbulan|\btahun)\s+kemarin/i.test(text)) return new Date(Date.UTC(now.year, now.month - 1, now.day - 1)).toISOString().slice(0, 10);
@@ -137,8 +164,9 @@ export function normalizeAiWasteQuestion(question, interpretation) {
 
 export function parseWasteQuestion(question, contextPeriod = null) {
   const text = String(question || '').trim();
+  const explicitComparison = extractExplicitComparisonPeriods(text);
   const referencesPreviousPeriod = /(?:tanggal|tgl|periode|waktu)\s+(?:itu|tersebut)|di\s+sana/i.test(text);
-  const period = referencesPreviousPeriod && contextPeriod ? { ...contextPeriod } : extractPeriod(text);
+  const period = explicitComparison?.period || (referencesPreviousPeriod && contextPeriod ? { ...contextPeriod } : extractPeriod(text));
   const types = WASTE_TYPES.filter(item => item.pattern.test(text));
   const type = types[0];
   const roomName = text.match(/(?:ruang(?:an)?|unit|bangsal)\s+(.+?)(?=\s+(?:tanggal|tgl\.?|pertanggal|bulan|tahun|dari|pada|berapa)\b|[?.,]|$)/i)?.[1]?.trim() || null;
@@ -161,7 +189,7 @@ export function parseWasteQuestion(question, contextPeriod = null) {
   else if (/sisa|tersisa|tersimpan|penumpukan|menumpuk|belum.*(?:angkut|dibawa|dikirim|keluar)/i.test(text)) intent = 'remaining';
   else if (/diangkut|terangkut|pengangkutan|angkut|dibawa|dikirim|pengiriman|keluar/i.test(text)) intent = 'transported';
   else if (/timbulan|dihasilkan|menghasilkan|produksi|terkumpul|hasil\s+timbang|berat\s+limbah|total limbah|limbah masuk/i.test(text)) intent = 'generated';
-  return { intent, period, type, types, roomName, question: text };
+  return { intent, period, comparisonPeriod: explicitComparison?.comparisonPeriod || null, type, types, roomName, question: text };
 }
 
 export const QUESTION_SUGGESTIONS = [
