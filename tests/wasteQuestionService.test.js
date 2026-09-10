@@ -12,17 +12,17 @@ const recap = {
 test('jawaban sisa menjelaskan sumber perhitungan', () => {
   const answer = buildWasteAnswer(parseWasteQuestion('Sisa limbah Juli 2026?'), recap);
   assert.match(answer.text, /15 kg/);
-  assert.match(answer.text, /sisa awal 10 kg/);
-  assert.match(answer.text, /pengangkutan 35 kg/);
+  assert.match(answer.text, /Sisa awal: 10 kg/);
+  assert.match(answer.text, /pengangkutan: 35 kg/);
 });
 
 test('jawaban rincian jenis menampilkan seluruh jenis dan total', () => {
   const answer = buildWasteAnswer(parseWasteQuestion('Rincian limbah berdasarkan jenis tanggal 5 September 2026'), recap);
-  assert.match(answer.text, /limbah infeksius 30 kg/);
-  assert.match(answer.text, /limbah jarum suntik 5 kg/);
-  assert.match(answer.text, /limbah botol obat 3 kg/);
-  assert.match(answer.text, /limbah sitotoksik 2 kg/);
-  assert.match(answer.text, /Totalnya 40 kg/);
+  assert.match(answer.text, /limbah infeksius: 30 kg/);
+  assert.match(answer.text, /limbah jarum suntik: 5 kg/);
+  assert.match(answer.text, /limbah botol obat: 3 kg/);
+  assert.match(answer.text, /limbah sitotoksik: 2 kg/);
+  assert.match(answer.text, /Total: 40 kg/);
 });
 
 test('jawaban dapat menampilkan total jenis dari ruangan tertentu per tanggal', () => {
@@ -34,11 +34,11 @@ test('jawaban dapat menampilkan total jenis dari ruangan tertentu per tanggal', 
 
 test('ringkasan data limbah memuat alur dan komposisi utama', () => {
   const answer = buildWasteAnswer(parseWasteQuestion('Rincian data limbah Juli 2026'), recap);
-  assert.match(answer.text, /sisa awal 10 kg/);
-  assert.match(answer.text, /timbulan 40 kg/);
-  assert.match(answer.text, /diangkut 35 kg/);
-  assert.match(answer.text, /sisa akhir 15 kg/);
-  assert.match(answer.text, /limbah infeksius 30 kg/);
+  assert.match(answer.text, /Sisa awal: 10 kg/);
+  assert.match(answer.text, /Timbulan: 40 kg/);
+  assert.match(answer.text, /Diangkut: 35 kg/);
+  assert.match(answer.text, /Sisa akhir: 15 kg/);
+  assert.match(answer.text, /limbah infeksius: 30 kg/);
 });
 
 test('jawaban ruangan berasal dari data rekap terurut', () => {
@@ -86,9 +86,9 @@ test('jawaban membandingkan dua bulan yang diminta secara langsung', () => {
   };
   const answer = buildWasteAnswer(parsed, july, february);
   assert.match(answer.text, /Perbandingan Februari 2026 dan Juli 2026/);
-  assert.match(answer.text, /timbulan 100 kg menjadi 125 kg, naik 25 kg \(25%\)/);
-  assert.match(answer.text, /pengangkutan 80 kg menjadi 100 kg/);
-  assert.match(answer.text, /sisa akhir 30 kg menjadi 35 kg/);
+  assert.match(answer.text, /Timbulan: 100 kg menjadi 125 kg, naik 25 kg \(25%\)/);
+  assert.match(answer.text, /Pengangkutan: 80 kg menjadi 100 kg/);
+  assert.match(answer.text, /Sisa akhir: 30 kg menjadi 35 kg/);
   assert.doesNotMatch(answer.text, /periode sebelumnya/);
 });
 
@@ -106,9 +106,28 @@ test('jawaban tanggal pengangkutan memuat tanggal dan jumlah per hari', () => {
     },
   };
   const answer = buildWasteAnswer(parseWasteQuestion('Tgl berapa saja pengangkutan bulan April 2026'), aprilRecap);
-  assert.match(answer.text, /tercatat pada 2 tanggal/);
-  assert.match(answer.text, /3 April 2026 \(700 kg\)/);
-  assert.match(answer.text, /10 April 2026 \(1\.031 kg\)/);
-  assert.match(answer.text, /Total pengangkutan 1\.731 kg/);
+  assert.match(answer.text, /Tercatat pada 2 tanggal/);
+  assert.match(answer.text, /3 April 2026: 700 kg/);
+  assert.match(answer.text, /10 April 2026: 1\.031 kg/);
+  assert.match(answer.text, /Total 1\.731 kg/);
   assert.doesNotMatch(answer.text, /11 April/);
+});
+
+test('daftar pengangkutan lintas bulan dikelompokkan dan diberi subtotal', () => {
+  const yearlyRecap = {
+    ...recap,
+    facts: { ...recap.facts, totalTransportedKg: 6000 },
+    charts: {
+      ...recap.charts,
+      timeline: [
+        { date: '2026-02-12', transported: 2000 },
+        { date: '2026-02-19', transported: 1000 },
+        { date: '2026-07-02', transported: 3000 },
+      ],
+    },
+  };
+  const answer = buildWasteAnswer(parseWasteQuestion('Tgl berapa saja pengangkutan tahun 2026'), yearlyRecap);
+  assert.match(answer.text, /Februari 2026 — 3\.000 kg/);
+  assert.match(answer.text, /Juli 2026 — 3\.000 kg/);
+  assert.match(answer.text, /\n\nJuli 2026/);
 });
