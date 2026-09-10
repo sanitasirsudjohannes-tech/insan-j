@@ -1,5 +1,11 @@
 export function detectWasteIntent(text, { type, types, roomName }) {
   if (/banding|perbandingan|dibanding|naik|turun|perubahan|selisih|\bvs\.?\b/i.test(text)) return 'comparison';
+  if (/data\s+ganda|duplikat|dobel|double|tercatat\s+(?:dua|2)\s+kali/i.test(text)) return 'duplicate_data';
+  if (/(?:ruang|ruangan|unit|bangsal|siapa).*(?:belum|tidak)\s+(?:input|isi|mengisi|mencatat|melakukan\s+pencatatan)|berapa\s+hari.*(?:belum|tidak)\s+(?:input|isi|mengisi|mencatat)/i.test(text)) return 'missing_rooms';
+  if (/(?:tanggal|hari|data).*(?:kosong|terlewat|belum\s+di(?:input|isi|catat)|tidak\s+ada\s+(?:input|data))|kelengkapan\s+data|data\s+(?:belum|tidak)\s+lengkap|seluruh\s+ruangan.*(?:sudah|belum).*(?:input|mencatat|pencatatan)|seluruh\s+(?:nilai|angka).*(?:nol|0)/i.test(text)) return 'data_completeness';
+  if (/(?:kapan|tanggal|tgl|hari).*(?:terakhir).*(?:angkut|pengangkutan|dibawa)|(?:angkut|pengangkutan).*(?:terakhir)/i.test(text)) return 'last_transport';
+  if (/(?:jarak|jeda|berapa\s+hari|sudah\s+berapa\s+lama).*(?:angkut|pengangkutan)|(?:terlalu\s+lama|lama).*(?:belum|tidak).*(?:angkut|dibawa)/i.test(text)) return 'transport_gap';
+  if (/data.*(?:aneh|janggal|tidak\s+wajar|bermasalah|perlu\s+(?:dicek|diperiksa|konfirmasi))|(?:angka\s+negatif|nilai\s+negatif|lonjakan|penurunan).*(?:tidak\s+biasa|tajam|drastis|terbesar)?|validasi\s+data/i.test(text)) return 'data_anomalies';
   if (/analisis|analisa|evaluasi|temuan|tidak\s+biasa|anomali|apakah.*(?:jadwal|pengangkutan).*(?:cukup|sesuai)/i.test(text)) return 'analysis';
   if (/(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?.*(?:diangkut|pengangkutan|angkut)|(?:diangkut|pengangkutan|angkut).*(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?/i.test(text)) return 'transport_dates';
   if (type && /(?:per|berdasarkan)\s+(?:ruang|ruangan|unit|bangsal)/i.test(text)) return 'type_rooms';

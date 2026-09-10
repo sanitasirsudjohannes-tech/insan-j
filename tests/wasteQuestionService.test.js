@@ -202,3 +202,39 @@ test('jawaban analisis menyediakan kartu, grafik, sumber, dan pertanyaan lanjuta
   assert.ok(answer.followUps.length >= 3);
   assert.equal(answer.reportPayload.period.start, '2026-07-01');
 });
+
+test('parser mengenali pertanyaan operasional pemeriksaan data', () => {
+  assert.equal(parseWasteQuestion('Apakah ada tanggal yang belum diinput bulan Agustus 2026?').intent, 'data_completeness');
+  assert.equal(parseWasteQuestion('Ruangan mana yang belum input tanggal 8 Agustus 2026?').intent, 'missing_rooms');
+  assert.equal(parseWasteQuestion('Apakah ada data ganda bulan Agustus 2026?').intent, 'duplicate_data');
+  assert.equal(parseWasteQuestion('Apakah ada data yang tidak wajar bulan Agustus 2026?').intent, 'data_anomalies');
+  assert.equal(parseWasteQuestion('Kapan pengangkutan terakhir bulan Agustus 2026?').intent, 'last_transport');
+  assert.equal(parseWasteQuestion('Berapa hari jeda pengangkutan bulan Agustus 2026?').intent, 'transport_gap');
+});
+
+test('jawaban kelengkapan membedakan tanggal tanpa input dan seluruh nilai nol', () => {
+  const diagnosticRecap = {
+    ...recap,
+    diagnostics: {
+      checkedThrough: '2026-08-03', missingDates: ['2026-08-02'], zeroOnlyDates: ['2026-08-03'],
+      missingRoomDays: [{ date: '2026-08-02', rooms: ['ICU'] }], roomMissingCounts: [{ name: 'ICU', days: 1 }],
+      duplicateRoomDates: [], negativeRows: [], transport: { dates: [], lastDate: null, daysSinceLast: null, longestGap: null },
+    },
+  };
+  const answer = buildWasteAnswer(parseWasteQuestion('Apakah ada tanggal yang belum diinput bulan Agustus 2026?'), diagnosticRecap);
+  assert.match(answer.text, /2 Agustus 2026/);
+  assert.match(answer.text, /3 Agustus 2026/);
+  assert.match(answer.text, /belum tentu merupakan kesalahan/);
+});
+
+test('jawaban pengangkutan terakhir menyebut tanggal, jumlah, dan jeda', () => {
+  const diagnosticRecap = {
+    ...recap,
+    charts: { ...recap.charts, timeline: [{ date: '2026-08-20', transported: 2000 }] },
+    diagnostics: { transport: { lastDate: '2026-08-20', daysSinceLast: 11, longestGap: null } },
+  };
+  const answer = buildWasteAnswer(parseWasteQuestion('Kapan pengangkutan terakhir bulan Agustus 2026?'), diagnosticRecap);
+  assert.match(answer.text, /20 Agustus 2026/);
+  assert.match(answer.text, /2\.000 kg/);
+  assert.match(answer.text, /11 hari/);
+});

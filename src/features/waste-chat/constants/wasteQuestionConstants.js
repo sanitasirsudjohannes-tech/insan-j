@@ -8,7 +8,7 @@ export const WASTE_TYPES = [
   { pattern: /sitotoksik|cytotoxic|sitostatika/i, key: 'cytotoxicKg', label: 'limbah sitotoksik' },
 ];
 
-export const ALLOWED_INTENTS = new Set(['waste_summary', 'analysis', 'remaining', 'opening_balance', 'available_total', 'generated', 'transported', 'transport_dates', 'type_dates', 'transport_coverage', 'average', 'dominant_type', 'type_breakdown', 'top_rooms', 'bottom_room', 'type_rooms', 'room_total', 'room_type_dates', 'room_type_total', 'peak_day', 'active_days', 'comparison', 'type_total']);
+export const ALLOWED_INTENTS = new Set(['waste_summary', 'analysis', 'remaining', 'opening_balance', 'available_total', 'generated', 'transported', 'transport_dates', 'last_transport', 'transport_gap', 'type_dates', 'transport_coverage', 'average', 'dominant_type', 'type_breakdown', 'top_rooms', 'bottom_room', 'type_rooms', 'room_total', 'room_type_dates', 'room_type_total', 'peak_day', 'active_days', 'comparison', 'type_total', 'data_completeness', 'missing_rooms', 'duplicate_data', 'data_anomalies']);
 
 export const QUESTION_SUGGESTIONS = [
   'Rincian data limbah bulan ini',
@@ -18,4 +18,7 @@ export const QUESTION_SUGGESTIONS = [
   'Timbulan 7 Juli sampai hari ini',
   'Berapa sisa limbah bulan ini?',
   'Bandingkan timbulan bulan ini dengan sebelumnya',
+  'Apakah ada tanggal yang belum diinput bulan ini?',
+  'Kapan pengangkutan terakhir?',
+  'Apakah ada data yang perlu diperiksa bulan ini?',
 ];

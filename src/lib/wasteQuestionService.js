@@ -24,14 +24,14 @@ export async function answerWasteQuestion(question, { signal, context = null, co
       const interpretation = await interpretWithAi(question, signal, conversationContext?.period || null);
       parsed = normalizeAiWasteQuestion(question, interpretation);
     } catch (error) {
-      return { text: `${error.message || 'AI belum dapat memahami pertanyaan.'} Coba tanyakan sisa limbah, timbulan, pengangkutan, jenis limbah, ruangan terbesar, rata-rata, atau perbandingan periode.`, parsed, aiUnavailable: true };
+      return { text: `${error.message || 'AI belum dapat memahami pertanyaan.'} Coba tanyakan sisa limbah, timbulan, pengangkutan, kelengkapan data, pengangkutan terakhir, data ganda, atau data yang perlu diperiksa.`, parsed, aiUnavailable: true };
     }
   }
-  if (parsed.intent === 'unknown') return { text: 'Pertanyaan tersebut belum dapat dijawab dari data INSAN-J. Coba tanyakan sisa limbah, timbulan, pengangkutan, jenis limbah, ruangan terbesar, rata-rata, atau perbandingan periode.', parsed, assistedByAi: true };
+  if (parsed.intent === 'unknown') return { text: 'Pertanyaan tersebut belum dapat dijawab dari data INSAN-J. Coba tanyakan sisa limbah, timbulan, pengangkutan, kelengkapan data, pengangkutan terakhir, data ganda, atau data yang perlu diperiksa.', parsed, assistedByAi: true };
   const [recap, comparisonRecap] = await Promise.all([
-    fetchRecap(parsed.period.start, parsed.period.end),
+    fetchRecap(parsed.period.start, parsed.period.end, { knownRooms: roomNames }),
     parsed.intent === 'comparison' && parsed.comparisonPeriod
-      ? fetchRecap(parsed.comparisonPeriod.start, parsed.comparisonPeriod.end)
+      ? fetchRecap(parsed.comparisonPeriod.start, parsed.comparisonPeriod.end, { knownRooms: roomNames })
       : null,
   ]);
   return { ...buildWasteAnswer(parsed, recap, comparisonRecap), assistedByAi: Boolean(parsed.assistedByAi) };

@@ -3,9 +3,10 @@ import { fetchAllSupabaseRows } from './supabasePagination';
 import { fetchDatabaseAggregation } from './databaseAggregations';
 import { calculateOpeningBalance } from './reportRecapCalculations';
 import { buildMedicalWasteAnalytics, previousPeriod } from './medicalWasteAnalytics';
+import { buildWasteDataDiagnostics } from '../features/waste-chat/diagnostics/wasteDataDiagnostics.js';
 
 const sum = (rows, key) => rows.reduce((total, row) => total + (Number(row[key]) || 0), 0);
-export async function fetchMedicalWasteRecap(start, end) {
+export async function fetchMedicalWasteRecap(start, end, { knownRooms = [] } = {}) {
   const wasteColumns = 'tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik';
   const range = query => query.gte('tanggal', start).lte('tanggal', end).order('tanggal', { ascending: true });
   const monthStart = `${start.slice(0, 7)}-01`;
@@ -97,6 +98,7 @@ export async function fetchMedicalWasteRecap(start, end) {
     previousTransportRows, openingBalanceKg, days: comparisonPeriod.days,
   });
   const roomTotals = Array.from(rooms, ([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  const diagnostics = buildWasteDataDiagnostics({ start, end, wasteRows, roomRows: ruanganRows, transportRows, knownRooms });
   return {
     facts: { openingBalanceKg, totalGeneratedKg, totalTransportedKg, remainingKg: openingBalanceKg + totalGeneratedKg - totalTransportedKg, infectiousKg, sharpsKg, bottleKg, cytotoxicKg },
     charts: {
@@ -117,5 +119,6 @@ export async function fetchMedicalWasteRecap(start, end) {
       roomDetails: Array.from(roomDetails.values()).sort((a, b) => b.totalKg - a.totalKg),
     },
     analytics: { ...analytics, comparisonPeriod: { start: comparisonPeriod.start, end: comparisonPeriod.end } },
+    diagnostics,
   };
 }
