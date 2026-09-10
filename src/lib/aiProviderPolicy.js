@@ -4,6 +4,16 @@ const FALLBACK_STATUSES = new Set([400, 401, 403, 404, ...RETRYABLE_STATUSES]);
 export const canFallbackFromProvider = status => FALLBACK_STATUSES.has(Number(status));
 export const shouldCountProviderFailure = status => RETRYABLE_STATUSES.has(Number(status));
 
+export const normalizeGeminiModel = value => String(value || '').trim().replace(/^models\//, '');
+
+export function selectGeminiTextModels(models = []) {
+  return models
+    .filter(model => model.supportedGenerationMethods?.includes('generateContent'))
+    .map(model => normalizeGeminiModel(model.name))
+    .filter(name => name && /flash/i.test(name) && !/(image|live|tts|audio)/i.test(name))
+    .sort((a, b) => Number(/lite/i.test(b)) - Number(/lite/i.test(a)));
+}
+
 export function describeProviderFailure(provider, status) {
   const label = provider === 'gemini' ? 'Gemini' : 'GroqCloud';
   const code = Number(status) || 0;

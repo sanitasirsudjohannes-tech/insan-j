@@ -7,7 +7,7 @@ import {
   serializePayload,
   validateReportPayload,
 } from '../../src/lib/reportAssistant.js';
-import { canFallbackFromProvider, describeProviderFailure, fallbackWarning, shouldCountProviderFailure } from '../../src/lib/aiProviderPolicy.js';
+import { canFallbackFromProvider, describeProviderFailure, fallbackWarning, normalizeGeminiModel, selectGeminiTextModels, shouldCountProviderFailure } from '../../src/lib/aiProviderPolicy.js';
 
 const usageByUser = new Map();
 const breaker = new Map();
@@ -62,10 +62,7 @@ function providerError(provider, status, message = 'Layanan AI tidak tersedia.')
 
 const systemInstruction = `Anda membantu petugas Unit Sanitasi menyunting draf laporan rumah sakit. Gunakan Bahasa Indonesia baku yang tetap alami, mengalir, dan terasa ditulis oleh petugas yang memahami kegiatan di lapangan. Hindari kalimat kaku, berulang, berlebihan, serta ungkapan yang menyebut bahwa teks dibuat oleh mesin atau dianalisis otomatis. Gunakan hanya fakta yang diberikan. Jangan mengarang angka, kegiatan, regulasi, hasil pemeriksaan, penyebab, atau tindakan. Tandai informasi yang belum tersedia dengan [PERLU DILENGKAPI]. Pertahankan seluruh angka sama persis dengan input. Jangan menambahkan nama pejabat atau tanda tangan. Pertahankan susunan BAB I Pendahuluan, BAB II Hasil dan Pembahasan, serta BAB III Penutup. Hasil tetap berupa draf yang harus diperiksa petugas.`;
 
-async function callGemini(prompt) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw providerError('gemini', 503, 'Gemini belum dikonfigurasi.');
-  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite';
+async function callGeminiModel(prompt, apiKey, model) {
   const response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -83,6 +80,33 @@ async function callGemini(prompt) {
   const text = data.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();
   if (!text) throw providerError('gemini', 502, 'Respons Gemini kosong.');
   return text;
+}
+
+async function availableGeminiModels(apiKey) {
+  const response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`, { method: 'GET' });
+  if (!response.ok) throw providerError('gemini', response.status, 'Daftar model Gemini tidak dapat diakses.');
+  const data = await response.json();
+  return selectGeminiTextModels(data.models);
+}
+
+async function callGemini(prompt) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw providerError('gemini', 503, 'Gemini belum dikonfigurasi.');
+  const configuredModel = normalizeGeminiModel(process.env.GEMINI_MODEL || 'gemini-2.5-flash-lite');
+  try {
+    return await callGeminiModel(prompt, apiKey, configuredModel);
+  } catch (error) {
+    if (error.status !== 404) throw error;
+    const alternatives = (await availableGeminiModels(apiKey)).filter(model => model !== configuredModel);
+    for (const model of alternatives) {
+      try {
+        return await callGeminiModel(prompt, apiKey, model);
+      } catch (alternativeError) {
+        if (alternativeError.status !== 404) throw alternativeError;
+      }
+    }
+    throw error;
+  }
 }
 
 async function callGroq(prompt) {
