@@ -1,7 +1,8 @@
 export function detectWasteIntent(text, { type, types, roomName }) {
   if (/banding|perbandingan|dibanding|naik|turun|perubahan|selisih|\bvs\.?\b/i.test(text)) return 'comparison';
   if (/(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?.*(?:diangkut|pengangkutan|angkut)|(?:diangkut|pengangkutan|angkut).*(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?/i.test(text)) return 'transport_dates';
-  if (roomName && type && /(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?|(?:pada|di)\s+(?:ruang|ruangan|unit|bangsal)/i.test(text)) return 'room_type_dates';
+  if (type && /(?:per|berdasarkan)\s+(?:ruang|ruangan|unit|bangsal)/i.test(text)) return 'type_rooms';
+  if (roomName && type && /(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?/i.test(text)) return 'room_type_dates';
   if (type && /(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?.*(?:ada|terdapat|tercatat|timbul|dihasilkan)|(?:ada|terdapat|tercatat|timbul|dihasilkan).*(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?/i.test(text)) return 'type_dates';
   if (type && /(?:ruang(?:an)?|unit|bangsal).*(?:yang\s+)?(?:ada|memiliki|menghasilkan|terdapat|punya)|(?:ruang(?:an)?|unit|bangsal)\s+(?:apa|mana)(?:\s+saja)?/i.test(text)) return 'type_rooms';
   if (/(?:ruang|unit|penghasil).*(?:terkecil|terendah|tersedikit|paling sedikit)|(?:terkecil|terendah|tersedikit|paling sedikit).*(?:ruang|unit|penghasil)/i.test(text)) return 'bottom_room';
@@ -20,6 +21,7 @@ export function detectWasteIntent(text, { type, types, roomName }) {
   if (/rata[ -]?rata|rerata|rataan|per\s*hari/i.test(text)) return 'average';
   if (/sisa|tersisa|tersimpan|penumpukan|menumpuk|belum.*(?:angkut|dibawa|dikirim|keluar)/i.test(text)) return 'remaining';
   if (/diangkut|terangkut|pengangkutan|angkut|dibawa|dikirim|pengiriman|keluar/i.test(text)) return 'transported';
+  if (/\blimbah\b.*(?:tanggal|tgl|hari)|(?:tanggal|tgl|hari).*\blimbah\b/i.test(text)) return 'generated';
   if (/timbulan|dihasilkan|menghasilkan|produksi|terkumpul|hasil\s+timbang|berat\s+limbah|total limbah|limbah masuk/i.test(text)) return 'generated';
   return 'unknown';
 }

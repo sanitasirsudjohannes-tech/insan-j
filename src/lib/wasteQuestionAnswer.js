@@ -55,5 +55,5 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null) {
       : `Perbandingan ${parsed.period.label} dengan periode sebelumnya\n\n• Timbulan: ${changeText(analytics.changes.generatedPercent)}\n• Pengangkutan: ${changeText(analytics.changes.transportedPercent)}\n• Sisa limbah: ${analytics.changes.remainingKg >= 0 ? 'bertambah' : 'berkurang'} ${format(Math.abs(analytics.changes.remainingKg))} kg${suffix}`,
     type_total: `${parsed.type?.label || 'Jenis limbah tersebut'} ${during} berjumlah ${format(facts[parsed.type?.key])} kg.${suffix}`,
   };
-  return { text: answers[parsed.intent], parsed, period: parsed.period, facts };
+  return { text: answers[parsed.intent], parsed, period: parsed.period, context: { period: parsed.period, intent: parsed.intent, roomName: parsed.roomName, type: parsed.type }, facts };
 }

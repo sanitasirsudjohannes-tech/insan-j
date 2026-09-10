@@ -26,9 +26,9 @@ export default function WasteDataChat({ className = '', hideHeader = false }) {
     setMessages(current => [...current, { role: 'user', text }]);
     setLoading(true);
     try {
-      const contextPeriod = [...messages].reverse().find(message => message.role === 'assistant' && message.period)?.period || null;
-      const answer = await answerWasteQuestion(text, { contextPeriod });
-      setMessages(current => [...current, { role: 'assistant', text: answer.text, assistedByAi: answer.assistedByAi, period: answer.period }]);
+      const context = [...messages].reverse().find(message => message.role === 'assistant' && message.context)?.context || null;
+      const answer = await answerWasteQuestion(text, { context });
+      setMessages(current => [...current, { role: 'assistant', text: answer.text, assistedByAi: answer.assistedByAi, period: answer.period, context: answer.context }]);
     } catch {
       setMessages(current => [...current, { role: 'assistant', text: 'Data belum dapat diambil. Periksa koneksi dan status sinkronisasi, lalu coba kembali.', error: true }]);
     } finally { setLoading(false); }

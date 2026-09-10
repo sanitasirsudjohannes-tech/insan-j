@@ -31,6 +31,15 @@ test('tahun pada perbandingan dua bulan diterapkan ke kedua periode', () => {
   assert.equal(result.period.inferredYear, false);
 });
 
+test('parser mendukung perbandingan dua tanggal dan dua tahun', () => {
+  const dates = parseWasteQuestion('Bandingkan limbah tanggal 8 April 2026 dengan 10 April 2026');
+  const years = parseWasteQuestion('Bandingkan limbah tahun 2025 dengan tahun 2026');
+  assert.equal(dates.comparisonPeriod.start, '2026-04-08');
+  assert.equal(dates.period.start, '2026-04-10');
+  assert.equal(years.comparisonPeriod.start, '2025-01-01');
+  assert.equal(years.period.end, '2026-12-31');
+});
+
 test('pertanyaan yang hanya menyebut tahun menggunakan satu tahun penuh', () => {
   const result = parseWasteQuestion('Berapa data timbulan limbah tahun 2026?');
   assert.equal(result.intent, 'generated');
@@ -143,6 +152,45 @@ test('parser mempertahankan filter ruangan dan jenis saat meminta tanggal', () =
   assert.equal(result.intent, 'room_type_dates');
   assert.equal(result.type.key, 'cytotoxicKg');
   assert.equal(result.roomName, 'Bugenvil 2');
+});
+
+test('parser mengenali nama resmi ruangan tanpa awalan dan variasi angka Romawi', () => {
+  const rooms = ['Bugenvil 2', 'ICU'];
+  assert.equal(parseWasteQuestion('Tanggal berapa sitotoksik di Bugenvil 2 bulan Agustus', null, rooms).roomName, 'Bugenvil 2');
+  assert.equal(parseWasteQuestion('Berapa sitotoksik Bugenvil II bulan Agustus', null, rooms).roomName, 'Bugenvil 2');
+  assert.equal(parseWasteQuestion('Berapa sitotoksik Bugenvl 2 bulan Agustus', null, rooms).roomName, 'Bugenvil 2');
+});
+
+test('parser membedakan daftar per ruangan dari nama ruangan', () => {
+  const byRoom = parseWasteQuestion('Berapa limbah infeksius per ruangan bulan Juli');
+  const whichRoom = parseWasteQuestion('Ruangan mana ada sitotoksik bulan Agustus');
+  assert.equal(byRoom.intent, 'type_rooms');
+  assert.equal(byRoom.roomName, null);
+  assert.equal(whichRoom.intent, 'type_rooms');
+  assert.equal(whichRoom.roomName, null);
+});
+
+test('parser memakai konteks jenis dan ruangan untuk pertanyaan lanjutan', () => {
+  const context = {
+    period: parseWasteQuestion('Data Agustus 2026').period,
+    intent: 'room_type_dates',
+    roomName: 'Bugenvil 2',
+    type: { key: 'cytotoxicKg', label: 'limbah sitotoksik' },
+  };
+  const followUp = parseWasteQuestion('Bagaimana tanggal lainnya untuk limbah tersebut di ruangan itu?', context);
+  assert.equal(followUp.intent, 'room_type_dates');
+  assert.equal(followUp.roomName, 'Bugenvil 2');
+  assert.equal(followUp.type.key, 'cytotoxicKg');
+  assert.equal(followUp.period.start, '2026-08-01');
+});
+
+test('parser menganggap pertanyaan limbah pada tanggal tertentu sebagai timbulan', () => {
+  assert.equal(parseWasteQuestion('Limbah tanggal 8 April 2026').intent, 'generated');
+});
+
+test('pertanyaan jumlah jenis pada ruangan tidak berubah menjadi daftar tanggal', () => {
+  const parsed = parseWasteQuestion('Berapa sitotoksik pada ruangan Bugenvil 2 bulan Agustus');
+  assert.equal(parsed.intent, 'room_type_total');
 });
 
 test('rincian dan data limbah dikenali sebagai ringkasan menyeluruh', () => {
