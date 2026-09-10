@@ -131,3 +131,41 @@ test('daftar pengangkutan lintas bulan dikelompokkan dan diberi subtotal', () =>
   assert.match(answer.text, /Juli 2026 — 3\.000 kg/);
   assert.match(answer.text, /\n\nJuli 2026/);
 });
+
+test('jawaban menampilkan daftar ruangan untuk jenis limbah tertentu', () => {
+  const roomRecap = {
+    ...recap,
+    charts: {
+      ...recap.charts,
+      roomDetails: [
+        { name: 'Kemoterapi', cytotoxicKg: 25 },
+        { name: 'Farmasi', cytotoxicKg: 10 },
+        { name: 'ICU', cytotoxicKg: 0 },
+      ],
+    },
+  };
+  const answer = buildWasteAnswer(parseWasteQuestion('Ruangan yg ada limbah sitotoksik nya bulan Agustus 2026'), roomRecap);
+  assert.match(answer.text, /1\. Kemoterapi: 25 kg/);
+  assert.match(answer.text, /2\. Farmasi: 10 kg/);
+  assert.match(answer.text, /Total: 35 kg dari 2 ruangan/);
+  assert.doesNotMatch(answer.text, /ICU/);
+});
+
+test('jawaban menampilkan tanggal untuk jenis limbah tertentu', () => {
+  const typeRecap = {
+    ...recap,
+    charts: {
+      ...recap.charts,
+      timeline: [
+        { date: '2026-08-04', cytotoxicKg: 12 },
+        { date: '2026-08-09', cytotoxicKg: 8 },
+        { date: '2026-08-10', cytotoxicKg: 0 },
+      ],
+    },
+  };
+  const answer = buildWasteAnswer(parseWasteQuestion('Tgl berapa saja adanya limbah sitotoksik bulan Agustus 2026'), typeRecap);
+  assert.match(answer.text, /Tercatat pada 2 tanggal • Total 20 kg/);
+  assert.match(answer.text, /4 Agustus 2026: 12 kg/);
+  assert.match(answer.text, /9 Agustus 2026: 8 kg/);
+  assert.doesNotMatch(answer.text, /10 Agustus/);
+});

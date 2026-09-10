@@ -124,6 +124,20 @@ test('parser mengenali total dan jenis limbah untuk ruangan tertentu', () => {
   assert.equal(type.type.key, 'infectiousKg');
 });
 
+test('parser mengenali permintaan daftar ruangan berdasarkan jenis limbah', () => {
+  const result = parseWasteQuestion('Ruangan yg ada limbah sitotoksik nya bulan Agustus');
+  assert.equal(result.intent, 'type_rooms');
+  assert.equal(result.type.key, 'cytotoxicKg');
+  assert.equal(result.period.month, 8);
+});
+
+test('parser mengenali permintaan tanggal berdasarkan jenis limbah', () => {
+  const result = parseWasteQuestion('Tgl berapa saja adanya limbah sitotoksik bulan Agustus');
+  assert.equal(result.intent, 'type_dates');
+  assert.equal(result.type.key, 'cytotoxicKg');
+  assert.equal(result.period.month, 8);
+});
+
 test('rincian dan data limbah dikenali sebagai ringkasan menyeluruh', () => {
   assert.equal(parseWasteQuestion('Rincian limbah bulan ini').intent, 'waste_summary');
   assert.equal(parseWasteQuestion('Tampilkan data limbah tahun 2026').intent, 'waste_summary');

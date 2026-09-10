@@ -48,12 +48,17 @@ export async function fetchMedicalWasteRecap(start, end) {
   const totalTransportedKg = sum(transportRows, 'jumlah_kg');
   const daily = new Map();
   const ensureDay = tanggal => {
-    if (!daily.has(tanggal)) daily.set(tanggal, { date: tanggal, generated: 0, transported: 0 });
+    if (!daily.has(tanggal)) daily.set(tanggal, { date: tanggal, generated: 0, transported: 0, infectiousKg: 0, sharpsKg: 0, bottleKg: 0, cytotoxicKg: 0 });
     return daily.get(tanggal);
   };
   wasteRows.forEach(row => {
-    ensureDay(row.tanggal).generated += ['infeksius', 'jarum_suntik', 'botol_obat', 'sitotoksik']
+    const day = ensureDay(row.tanggal);
+    day.generated += ['infeksius', 'jarum_suntik', 'botol_obat', 'sitotoksik']
       .reduce((total, key) => total + (Number(row[key]) || 0), 0);
+    day.infectiousKg += Number(row.infeksius) || 0;
+    day.sharpsKg += Number(row.jarum_suntik) || 0;
+    day.bottleKg += Number(row.botol_obat) || 0;
+    day.cytotoxicKg += Number(row.sitotoksik) || 0;
   });
   transportRows.forEach(row => { ensureDay(row.tanggal).transported += Number(row.jumlah_kg) || 0; });
   const rooms = new Map();
