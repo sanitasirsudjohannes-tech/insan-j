@@ -1,5 +1,6 @@
 export function detectWasteIntent(text, { type, types, roomName }) {
   if (/banding|perbandingan|dibanding|naik|turun|perubahan|selisih|\bvs\.?\b/i.test(text)) return 'comparison';
+  if (/analisis|analisa|evaluasi|temuan|tidak\s+biasa|anomali|apakah.*(?:jadwal|pengangkutan).*(?:cukup|sesuai)/i.test(text)) return 'analysis';
   if (/(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?.*(?:diangkut|pengangkutan|angkut)|(?:diangkut|pengangkutan|angkut).*(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?/i.test(text)) return 'transport_dates';
   if (type && /(?:per|berdasarkan)\s+(?:ruang|ruangan|unit|bangsal)/i.test(text)) return 'type_rooms';
   if (roomName && type && /(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?/i.test(text)) return 'room_type_dates';

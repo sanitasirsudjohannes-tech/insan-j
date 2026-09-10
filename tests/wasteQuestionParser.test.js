@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseWasteQuestion } from '../src/lib/wasteQuestionParser.js';
+import { findRoomCandidates } from '../src/features/waste-chat/parsers/roomNameResolver.js';
 
 test('pertanyaan sisa dengan bulan angka diterjemahkan menjadi periode penuh', () => {
   const result = parseWasteQuestion('Sisa limbah bulan 7 tahun 2026 berapa?');
@@ -159,6 +160,10 @@ test('parser mengenali nama resmi ruangan tanpa awalan dan variasi angka Romawi'
   assert.equal(parseWasteQuestion('Tanggal berapa sitotoksik di Bugenvil 2 bulan Agustus', null, rooms).roomName, 'Bugenvil 2');
   assert.equal(parseWasteQuestion('Berapa sitotoksik Bugenvil II bulan Agustus', null, rooms).roomName, 'Bugenvil 2');
   assert.equal(parseWasteQuestion('Berapa sitotoksik Bugenvl 2 bulan Agustus', null, rooms).roomName, 'Bugenvil 2');
+});
+
+test('resolver meminta pilihan ketika nama ruangan belum spesifik', () => {
+  assert.deepEqual(findRoomCandidates('Berapa sitotoksik Bugenvil?', ['Bugenvil 1', 'Bugenvil 2', 'ICU']), ['Bugenvil 1', 'Bugenvil 2']);
 });
 
 test('parser membedakan daftar per ruangan dari nama ruangan', () => {

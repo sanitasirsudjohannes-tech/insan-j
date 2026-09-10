@@ -189,3 +189,13 @@ test('jawaban tanggal jenis limbah memfilter ruangan tertentu', () => {
   assert.match(answer.text, /Total 10 kg/);
   assert.doesNotMatch(answer.text, /50 kg/);
 });
+
+test('jawaban analisis menyediakan kartu, grafik, sumber, dan pertanyaan lanjutan', () => {
+  const answer = buildWasteAnswer(parseWasteQuestion('Analisis data limbah Juli 2026'), recap);
+  assert.match(answer.text, /Analisis data limbah selama Juli 2026/);
+  assert.equal(answer.cards.length, 3);
+  assert.equal(answer.visualization.title, 'Tren timbulan');
+  assert.match(answer.source, /data INSAN-J yang telah tersinkron/);
+  assert.ok(answer.followUps.length >= 3);
+  assert.equal(answer.reportPayload.period.start, '2026-07-01');
+});

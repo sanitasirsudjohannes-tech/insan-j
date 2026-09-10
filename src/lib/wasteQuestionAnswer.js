@@ -1,4 +1,5 @@
 import { buildDirectComparison, changeText, formatDate, formatNumber as format, groupTransportDays, groupTypeDays } from '../features/waste-chat/formatters/wasteAnswerFormatters.js';
+import { buildAnalysisAnswer, buildAnswerPresentation } from '../features/waste-chat/answers/answerPresentation.js';
 
 export function buildWasteAnswer(parsed, recap, comparisonRecap = null) {
   const { facts, charts, analytics } = recap;
@@ -23,6 +24,7 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null) {
   ];
   const answers = {
     waste_summary: `Rincian data limbah ${during}\n\nAlur limbah\n• Sisa awal: ${format(facts.openingBalanceKg)} kg\n• Timbulan: ${format(facts.totalGeneratedKg)} kg\n• Diangkut: ${format(facts.totalTransportedKg)} kg\n• Sisa akhir: ${format(facts.remainingKg)} kg\n\nKomposisi timbulan\n${selectedTypes.map(item => `• ${item.label}: ${format(facts[item.key])} kg`).join('\n')}${roomTotals.length ? `\n\nRuangan terbesar\n• ${roomTotals[0].name}: ${format(roomTotals[0].value)} kg` : ''}${suffix}`,
+    analysis: buildAnalysisAnswer(parsed, recap),
     remaining: `Sisa limbah pada akhir ${parsed.period.label}: ${format(facts.remainingKg)} kg\n\nPerhitungan\n• Sisa awal: ${format(facts.openingBalanceKg)} kg\n• Ditambah timbulan: ${format(facts.totalGeneratedKg)} kg\n• Dikurangi pengangkutan: ${format(facts.totalTransportedKg)} kg${suffix}`,
     opening_balance: `Sisa limbah pada awal ${parsed.period.label} adalah ${format(facts.openingBalanceKg)} kg.${suffix}`,
     available_total: `Total limbah yang tersedia untuk dikelola ${during}: ${format(facts.openingBalanceKg + facts.totalGeneratedKg)} kg\n\n• Sisa awal: ${format(facts.openingBalanceKg)} kg\n• Timbulan baru: ${format(facts.totalGeneratedKg)} kg${suffix}`,
@@ -55,5 +57,5 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null) {
       : `Perbandingan ${parsed.period.label} dengan periode sebelumnya\n\n• Timbulan: ${changeText(analytics.changes.generatedPercent)}\n• Pengangkutan: ${changeText(analytics.changes.transportedPercent)}\n• Sisa limbah: ${analytics.changes.remainingKg >= 0 ? 'bertambah' : 'berkurang'} ${format(Math.abs(analytics.changes.remainingKg))} kg${suffix}`,
     type_total: `${parsed.type?.label || 'Jenis limbah tersebut'} ${during} berjumlah ${format(facts[parsed.type?.key])} kg.${suffix}`,
   };
-  return { text: answers[parsed.intent], parsed, period: parsed.period, context: { period: parsed.period, intent: parsed.intent, roomName: parsed.roomName, type: parsed.type }, facts };
+  return { text: answers[parsed.intent], parsed, period: parsed.period, context: { period: parsed.period, intent: parsed.intent, roomName: parsed.roomName, type: parsed.type }, facts, ...buildAnswerPresentation(parsed, recap, comparisonRecap) };
 }

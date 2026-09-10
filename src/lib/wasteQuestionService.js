@@ -1,13 +1,23 @@
-import { fetchMedicalWasteRecap } from './reportRecap';
+import { fetchMedicalWasteRecap } from './reportRecap.js';
 import { normalizeAiWasteQuestion, parseWasteQuestion } from './wasteQuestionParser.js';
 import { buildWasteAnswer } from './wasteQuestionAnswer.js';
 import { interpretWasteQuestionWithAi } from './wasteQuestionAiApi.js';
 import { fetchDaftarRuangan, getCachedRuangan } from './api.js';
+import { findRoomCandidates, resolveKnownRoom } from '../features/waste-chat/parsers/roomNameResolver.js';
 
 export async function answerWasteQuestion(question, { signal, context = null, contextPeriod = null, interpretWithAi = interpretWasteQuestionWithAi, fetchRecap = fetchMedicalWasteRecap, fetchRooms = fetchDaftarRuangan } = {}) {
   const conversationContext = context || (contextPeriod ? { period: contextPeriod } : null);
   let roomNames = typeof localStorage === 'undefined' ? [] : getCachedRuangan();
   if (!roomNames.length) roomNames = await fetchRooms();
+  const roomCandidates = findRoomCandidates(question, roomNames);
+  const resolvedRoom = resolveKnownRoom(question, roomNames);
+  if (!resolvedRoom && roomCandidates.length > 1) {
+    return {
+      text: 'Nama ruangan belum spesifik. Pilih ruangan yang dimaksud agar data yang dihitung tepat.',
+      clarification: true,
+      actions: roomCandidates.slice(0, 6).map(name => ({ label: name, question: `${question} ruangan ${name}` })),
+    };
+  }
   let parsed = parseWasteQuestion(question, conversationContext, roomNames);
   if (parsed.intent === 'unknown') {
     try {

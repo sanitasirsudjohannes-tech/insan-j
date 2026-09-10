@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { answerWasteQuestion } from '../../lib/wasteQuestionService';
 import { QUESTION_SUGGESTIONS } from '../../lib/wasteQuestionParser';
+import WasteChatAnswer from './WasteChatAnswer';
 
 const STORAGE_KEY = 'insan_j_data_chat';
 const initialMessage = { role: 'assistant', text: 'Selamat datang di Tanya INSAN-J. Silakan tanyakan data limbah, misalnya “Sisa limbah bulan Juli 2026 berapa?” Angka jawaban dihitung langsung dari data INSAN-J.' };
@@ -10,6 +12,7 @@ function loadMessages() {
 }
 
 export default function WasteDataChat({ className = '', hideHeader = false }) {
+  const navigate = useNavigate();
   const [messages, setMessages] = useState(loadMessages);
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,10 +31,20 @@ export default function WasteDataChat({ className = '', hideHeader = false }) {
     try {
       const context = [...messages].reverse().find(message => message.role === 'assistant' && message.context)?.context || null;
       const answer = await answerWasteQuestion(text, { context });
-      setMessages(current => [...current, { role: 'assistant', text: answer.text, assistedByAi: answer.assistedByAi, period: answer.period, context: answer.context }]);
+      setMessages(current => [...current, { role: 'assistant', text: answer.text, assistedByAi: answer.assistedByAi, period: answer.period, context: answer.context, cards: answer.cards, visualization: answer.visualization, warnings: answer.warnings, followUps: answer.followUps, source: answer.source, reportPayload: answer.reportPayload, actions: answer.actions, clarification: answer.clarification }]);
     } catch {
       setMessages(current => [...current, { role: 'assistant', text: 'Data belum dapat diambil. Periksa koneksi dan status sinkronisasi, lalu coba kembali.', error: true }]);
     } finally { setLoading(false); }
+  };
+
+  const sendToReport = message => {
+    const payload = message.reportPayload;
+    if (!payload) return;
+    sessionStorage.setItem('insan_j_ai_report_draft', JSON.stringify({
+      form: { reportType: 'medical_waste', period: payload.period, facts: payload.facts, analytics: payload.analytics, constraints: '', actions: '', additionalNotes: `Ringkasan dari Tanya INSAN-J:\n${message.text}` },
+      draft: '', chartData: payload.chartData,
+    }));
+    navigate('/asisten-laporan');
   };
 
   return (
@@ -41,7 +54,7 @@ export default function WasteDataChat({ className = '', hideHeader = false }) {
         <button type="button" onClick={() => setMessages([initialMessage])} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">Bersihkan</button>
       </div>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-2xl bg-slate-50 p-3" aria-live="polite">
-        {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[88%] whitespace-pre-line rounded-2xl px-4 py-3 text-sm leading-relaxed ${message.role === 'user' ? 'bg-blue-600 text-white' : message.error ? 'border border-red-200 bg-red-50 text-red-700' : 'border border-slate-200 bg-white text-slate-700'}`}>{message.assistedByAi && <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-violet-600"><i className="fas fa-wand-magic-sparkles mr-1" />Dipahami dengan bantuan AI</span>}{message.text}</div></div>)}
+        {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[92%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${message.role === 'user' ? 'whitespace-pre-line bg-blue-600 text-white' : message.error ? 'border border-red-200 bg-red-50 text-red-700' : 'border border-slate-200 bg-white text-slate-700'}`}>{message.role === 'assistant' ? <WasteChatAnswer message={message} onAsk={ask} onReport={sendToReport} /> : message.text}</div></div>)}
         {loading && <div className="flex justify-start"><div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500"><i className="fas fa-spinner fa-spin mr-2" />Menghitung dari data…</div></div>}
         <div ref={endRef} />
       </div>

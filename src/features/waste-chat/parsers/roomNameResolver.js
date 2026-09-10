@@ -16,6 +16,16 @@ export function cleanRoomCandidate(value) {
   return !candidate || GENERIC_ROOM_WORDS.test(candidate) ? null : candidate;
 }
 
+export function findRoomCandidates(question, roomNames = []) {
+  const normalizedQuestion = ` ${normalizeRoomName(question)} `;
+  const exact = roomNames.filter(name => normalizedQuestion.includes(` ${normalizeRoomName(name)} `));
+  if (exact.length) return exact;
+  return roomNames.filter(name => {
+    const firstDistinctiveWord = normalizeRoomName(name).split(' ').find(word => word.length >= 4);
+    return firstDistinctiveWord && normalizedQuestion.includes(` ${firstDistinctiveWord} `);
+  });
+}
+
 function editDistance(left, right) {
   const row = Array.from({ length: right.length + 1 }, (_, index) => index);
   for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
@@ -37,6 +47,9 @@ export function resolveKnownRoom(question, roomNames = []) {
     .sort((left, right) => normalizeRoomName(right).length - normalizeRoomName(left).length);
   const exact = sortedRooms.find(name => normalizedQuestion.includes(` ${normalizeRoomName(name)} `));
   if (exact) return exact;
+  const namedCandidates = findRoomCandidates(question, sortedRooms);
+  if (namedCandidates.length === 1) return namedCandidates[0];
+  if (namedCandidates.length > 1) return null;
   const questionTokens = normalizedQuestion.trim().split(/\s+/);
   return sortedRooms.find(name => {
     const normalizedName = normalizeRoomName(name);
