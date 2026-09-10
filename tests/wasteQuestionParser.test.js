@@ -138,6 +138,13 @@ test('parser mengenali permintaan tanggal berdasarkan jenis limbah', () => {
   assert.equal(result.period.month, 8);
 });
 
+test('parser mempertahankan filter ruangan dan jenis saat meminta tanggal', () => {
+  const result = parseWasteQuestion('Tanggal berapa limbah sitotoksik pada ruangan Bugenvil 2');
+  assert.equal(result.intent, 'room_type_dates');
+  assert.equal(result.type.key, 'cytotoxicKg');
+  assert.equal(result.roomName, 'Bugenvil 2');
+});
+
 test('rincian dan data limbah dikenali sebagai ringkasan menyeluruh', () => {
   assert.equal(parseWasteQuestion('Rincian limbah bulan ini').intent, 'waste_summary');
   assert.equal(parseWasteQuestion('Tampilkan data limbah tahun 2026').intent, 'waste_summary');

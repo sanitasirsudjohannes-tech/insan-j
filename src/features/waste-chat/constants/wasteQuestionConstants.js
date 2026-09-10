@@ -8,7 +8,7 @@ export const WASTE_TYPES = [
   { pattern: /sitotoksik|cytotoxic|sitostatika/i, key: 'cytotoxicKg', label: 'limbah sitotoksik' },
 ];
 
-export const ALLOWED_INTENTS = new Set(['waste_summary', 'remaining', 'opening_balance', 'available_total', 'generated', 'transported', 'transport_dates', 'type_dates', 'transport_coverage', 'average', 'dominant_type', 'type_breakdown', 'top_rooms', 'bottom_room', 'type_rooms', 'room_total', 'room_type_total', 'peak_day', 'active_days', 'comparison', 'type_total']);
+export const ALLOWED_INTENTS = new Set(['waste_summary', 'remaining', 'opening_balance', 'available_total', 'generated', 'transported', 'transport_dates', 'type_dates', 'transport_coverage', 'average', 'dominant_type', 'type_breakdown', 'top_rooms', 'bottom_room', 'type_rooms', 'room_total', 'room_type_dates', 'room_type_total', 'peak_day', 'active_days', 'comparison', 'type_total']);
 
 export const QUESTION_SUGGESTIONS = [
   'Rincian data limbah bulan ini',

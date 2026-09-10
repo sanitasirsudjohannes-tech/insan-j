@@ -47,6 +47,7 @@ export async function fetchMedicalWasteRecap(start, end) {
   const totalGeneratedKg = infectiousKg + sharpsKg + bottleKg + cytotoxicKg;
   const totalTransportedKg = sum(transportRows, 'jumlah_kg');
   const daily = new Map();
+  const roomTypeDaily = new Map();
   const ensureDay = tanggal => {
     if (!daily.has(tanggal)) daily.set(tanggal, { date: tanggal, generated: 0, transported: 0, infectiousKg: 0, sharpsKg: 0, bottleKg: 0, cytotoxicKg: 0 });
     return daily.get(tanggal);
@@ -59,6 +60,16 @@ export async function fetchMedicalWasteRecap(start, end) {
     day.sharpsKg += Number(row.jarum_suntik) || 0;
     day.bottleKg += Number(row.botol_obat) || 0;
     day.cytotoxicKg += Number(row.sitotoksik) || 0;
+    if (row.ruangan) {
+      const roomKey = String(row.ruangan).trim().toLocaleLowerCase('id-ID');
+      const roomDayKey = `${roomKey}|${row.tanggal}`;
+      if (!roomTypeDaily.has(roomDayKey)) roomTypeDaily.set(roomDayKey, { date: row.tanggal, roomName: row.ruangan, infectiousKg: 0, sharpsKg: 0, bottleKg: 0, cytotoxicKg: 0 });
+      const roomDay = roomTypeDaily.get(roomDayKey);
+      roomDay.infectiousKg += Number(row.infeksius) || 0;
+      roomDay.sharpsKg += Number(row.jarum_suntik) || 0;
+      roomDay.bottleKg += Number(row.botol_obat) || 0;
+      roomDay.cytotoxicKg += Number(row.sitotoksik) || 0;
+    }
   });
   transportRows.forEach(row => { ensureDay(row.tanggal).transported += Number(row.jumlah_kg) || 0; });
   const rooms = new Map();
@@ -96,6 +107,7 @@ export async function fetchMedicalWasteRecap(start, end) {
         { name: 'Sisa Akhir', value: openingBalanceKg + totalGeneratedKg - totalTransportedKg },
       ],
       timeline,
+      roomTypeTimeline: Array.from(roomTypeDaily.values()),
       composition: [
         { name: 'Infeksius', value: infectiousKg }, { name: 'Jarum', value: sharpsKg },
         { name: 'Botol', value: bottleKg }, { name: 'Sitotoksik', value: cytotoxicKg },

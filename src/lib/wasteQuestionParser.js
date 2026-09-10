@@ -162,7 +162,7 @@ export function parseWasteQuestion(question, contextPeriod = null) {
   const period = explicitComparison?.period || (referencesPreviousPeriod && contextPeriod ? { ...contextPeriod } : extractPeriod(text));
   const types = WASTE_TYPES.filter(item => item.pattern.test(text));
   const type = types[0];
-  const roomName = text.match(/(?:ruang(?:an)?|unit|bangsal)\s+(.+?)(?=\s+(?:tanggal|tgl\.?|pertanggal|bulan|tahun|dari|pada|berapa)\b|[?.,]|$)/i)?.[1]?.trim() || null;
+  const roomName = text.match(/(?:ruang(?:an)?|unit|bangsal)\s+(.+?)(?=\s+(?:tanggal|tgl\.?|pertanggal|bulan|tahun|dari|pada|berapa|yang|ada|januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember)\b|[?.,]|$)/i)?.[1]?.trim() || null;
   const intent = detectWasteIntent(text, { type, types, roomName });
   return { intent, period, comparisonPeriod: explicitComparison?.comparisonPeriod || null, type, types, roomName, question: text };
 }

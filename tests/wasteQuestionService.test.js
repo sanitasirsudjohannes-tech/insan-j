@@ -169,3 +169,23 @@ test('jawaban menampilkan tanggal untuk jenis limbah tertentu', () => {
   assert.match(answer.text, /9 Agustus 2026: 8 kg/);
   assert.doesNotMatch(answer.text, /10 Agustus/);
 });
+
+test('jawaban tanggal jenis limbah memfilter ruangan tertentu', () => {
+  const roomTypeRecap = {
+    ...recap,
+    charts: {
+      ...recap.charts,
+      roomTypeTimeline: [
+        { roomName: 'Bugenvil 2', date: '2026-09-01', cytotoxicKg: 4 },
+        { roomName: 'Bugenvil 2', date: '2026-09-03', cytotoxicKg: 6 },
+        { roomName: 'Bugenvil 1', date: '2026-09-03', cytotoxicKg: 50 },
+      ],
+    },
+  };
+  const answer = buildWasteAnswer(parseWasteQuestion('Tanggal berapa limbah sitotoksik pada ruangan Bugenvil 2 September 2026'), roomTypeRecap);
+  assert.match(answer.text, /limbah sitotoksik pada Bugenvil 2/);
+  assert.match(answer.text, /1 September 2026: 4 kg/);
+  assert.match(answer.text, /3 September 2026: 6 kg/);
+  assert.match(answer.text, /Total 10 kg/);
+  assert.doesNotMatch(answer.text, /50 kg/);
+});

@@ -6,6 +6,9 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null) {
   const timeline = charts.timeline || [];
   const transportDays = timeline.filter(item => item.transported > 0);
   const daysForType = parsed.type ? timeline.filter(item => Number(item[parsed.type.key]) > 0) : [];
+  const roomTypeDays = parsed.roomName && parsed.type
+    ? (charts.roomTypeTimeline || []).filter(item => item.roomName.toLocaleLowerCase('id-ID') === parsed.roomName.toLocaleLowerCase('id-ID') && Number(item[parsed.type.key]) > 0)
+    : [];
   const roomsForType = parsed.type
     ? (charts.roomDetails || []).filter(item => Number(item[parsed.type.key]) > 0).sort((left, right) => right[parsed.type.key] - left[parsed.type.key])
     : [];
@@ -31,6 +34,9 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null) {
     type_dates: daysForType.length
       ? `${parsed.type.label} selama ${parsed.period.label}\n\nTercatat pada ${daysForType.length} tanggal • Total ${format(daysForType.reduce((sum, item) => sum + (Number(item[parsed.type.key]) || 0), 0))} kg\n\n${groupTypeDays(daysForType, parsed.type)}${suffix}`
       : `Belum ada ${parsed.type?.label || 'jenis limbah tersebut'} yang tercatat selama ${parsed.period.label}.${suffix}`,
+    room_type_dates: roomTypeDays.length
+      ? `${parsed.type.label} pada ${parsed.roomName} selama ${parsed.period.label}\n\nTercatat pada ${roomTypeDays.length} tanggal • Total ${format(roomTypeDays.reduce((sum, item) => sum + (Number(item[parsed.type.key]) || 0), 0))} kg\n\n${roomTypeDays.map(item => `• ${formatDate(item.date)}: ${format(item[parsed.type.key])} kg`).join('\n')}${suffix}`
+      : `Belum ada ${parsed.type?.label || 'jenis limbah tersebut'} yang tercatat pada ${parsed.roomName} selama ${parsed.period.label}.${suffix}`,
     transport_coverage: `Cakupan pengangkutan ${during}: ${format(analytics.performance.transportedCoveragePercent)}%\n\n• Limbah diangkut: ${format(facts.totalTransportedKg)} kg\n• Limbah tersedia: ${format(facts.openingBalanceKg + facts.totalGeneratedKg)} kg${suffix}`,
     average: `Rata-rata timbulan limbah ${during} adalah ${format(analytics.performance.averageDailyKg)} kg per hari.${suffix}`,
     dominant_type: analytics.dominantType ? `Jenis limbah terbanyak ${during} adalah ${analytics.dominantType.name} sebanyak ${format(analytics.dominantType.current)} kg.${suffix}` : `Belum ada data jenis limbah untuk ${parsed.period.label}.`,

@@ -1,6 +1,7 @@
 export function detectWasteIntent(text, { type, types, roomName }) {
   if (/banding|perbandingan|dibanding|naik|turun|perubahan|selisih|\bvs\.?\b/i.test(text)) return 'comparison';
   if (/(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?.*(?:diangkut|pengangkutan|angkut)|(?:diangkut|pengangkutan|angkut).*(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?/i.test(text)) return 'transport_dates';
+  if (roomName && type && /(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?|(?:pada|di)\s+(?:ruang|ruangan|unit|bangsal)/i.test(text)) return 'room_type_dates';
   if (type && /(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?.*(?:ada|terdapat|tercatat|timbul|dihasilkan)|(?:ada|terdapat|tercatat|timbul|dihasilkan).*(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?/i.test(text)) return 'type_dates';
   if (type && /(?:ruang(?:an)?|unit|bangsal).*(?:yang\s+)?(?:ada|memiliki|menghasilkan|terdapat|punya)|(?:ruang(?:an)?|unit|bangsal)\s+(?:apa|mana)(?:\s+saja)?/i.test(text)) return 'type_rooms';
   if (/(?:ruang|unit|penghasil).*(?:terkecil|terendah|tersedikit|paling sedikit)|(?:terkecil|terendah|tersedikit|paling sedikit).*(?:ruang|unit|penghasil)/i.test(text)) return 'bottom_room';
