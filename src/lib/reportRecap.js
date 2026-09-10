@@ -76,10 +76,10 @@ export async function fetchMedicalWasteRecap(start, end) {
     facts: { openingBalanceKg, totalGeneratedKg, totalTransportedKg, remainingKg: openingBalanceKg + totalGeneratedKg - totalTransportedKg, infectiousKg, sharpsKg, bottleKg, cytotoxicKg },
     charts: {
       balanceFlow: [
-        { name: 'Saldo Awal', value: openingBalanceKg },
+        { name: 'Sisa Awal', value: openingBalanceKg },
         { name: 'Timbulan', value: totalGeneratedKg },
         { name: 'Diangkut', value: totalTransportedKg },
-        { name: 'Saldo Akhir', value: openingBalanceKg + totalGeneratedKg - totalTransportedKg },
+        { name: 'Sisa Akhir', value: openingBalanceKg + totalGeneratedKg - totalTransportedKg },
       ],
       timeline,
       composition: [

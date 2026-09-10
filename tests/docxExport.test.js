@@ -12,7 +12,7 @@ test('ekspor menghasilkan paket DOCX dengan signature ZIP yang valid', async () 
 
 test('jumlah grafik DOCX mengikuti tiga kelompok grafik pada draft', () => {
   const data = {
-    balanceFlow: [{ name: 'Saldo Awal', value: 5 }],
+    balanceFlow: [{ name: 'Sisa Awal', value: 5 }],
     timeline: [{ label: '01/09', generated: 10, transported: 5, balance: 5 }],
     composition: [{ name: 'Infeksius', value: 10 }],
     rooms: [{ name: 'Ruang A', value: 10 }],

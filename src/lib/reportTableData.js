@@ -15,18 +15,18 @@ export function buildMedicalWasteTableModels(facts = {}, chartData = {}) {
   const timeline = chartData.timeline || [];
   const rooms = chartData.rooms || [];
   return [
-    { title: 'Tabel 1. Neraca Limbah Medis', headers: ['Uraian', 'Jumlah (kg)', 'Keterangan'], rows: [
-      ['Saldo awal', formatNumber(opening), 'Sisa limbah sebelum periode terpilih'],
+    { title: 'Tabel 1. Rekonsiliasi Timbulan dan Pengangkutan Limbah Medis', headers: ['Uraian', 'Jumlah (kg)', 'Keterangan'], rows: [
+      ['Sisa limbah awal periode', formatNumber(opening), 'Limbah yang masih tersimpan sebelum periode terpilih'],
       ['Timbulan periode', formatNumber(generated), 'Limbah yang dihasilkan pada periode terpilih'],
-      ['Total tersedia', formatNumber(opening + generated), 'Saldo awal ditambah timbulan periode'],
+      ['Total limbah yang dikelola', formatNumber(opening + generated), 'Sisa awal ditambah timbulan periode'],
       ['Diangkut', formatNumber(transported), 'Limbah yang diangkut pada periode terpilih'],
-      ['Saldo akhir', formatNumber(remaining), 'Total tersedia dikurangi limbah yang diangkut'],
+      ['Sisa limbah akhir periode', formatNumber(remaining), 'Total limbah yang dikelola dikurangi limbah yang diangkut'],
     ] },
     { title: 'Tabel 2. Komposisi Limbah Medis', headers: ['No.', 'Jenis limbah', 'Jumlah (kg)', 'Persentase'], rows: [
       ...composition.map((item, index) => [String(index + 1), item.name, formatNumber(item.value), percentage(item.value, generated)]),
       ['', 'Total', formatNumber(generated), generated > 0 ? '100,00%' : '0,00%'],
     ] },
-    { title: 'Tabel 3. Timbulan, Pengangkutan, dan Saldo Harian', headers: ['No.', 'Tanggal', 'Timbulan (kg)', 'Diangkut (kg)', 'Saldo (kg)'], rows: timeline.length
+    { title: 'Tabel 3. Timbulan, Pengangkutan, dan Sisa Limbah Harian', headers: ['No.', 'Tanggal', 'Timbulan (kg)', 'Diangkut (kg)', 'Sisa tersimpan (kg)'], rows: timeline.length
       ? timeline.map((item, index) => [String(index + 1), formatDate(item.date), formatNumber(item.generated), formatNumber(item.transported), formatNumber(item.balance)])
       : [['-', 'Tidak tersedia', '-', '-', '-']] },
     { title: 'Tabel 4. Ruangan Penghasil Limbah Terbesar', headers: ['Peringkat', 'Ruangan', 'Jumlah (kg)', 'Persentase'], rows: rooms.length

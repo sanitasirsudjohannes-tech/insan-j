@@ -89,7 +89,7 @@ async function canvasBytes(canvas) {
 }
 
 async function balanceChart(rows) {
-  const { canvas, context } = createCanvas('Ringkasan Neraca Limbah', 'Saldo awal + timbulan - diangkut = saldo akhir');
+  const { canvas, context } = createCanvas('Ringkasan Pengelolaan Limbah', 'Sisa awal + timbulan - diangkut = sisa akhir');
   const area = { left: 100, top: 140, width: 1000, height: 390 };
   const maxValue = Math.max(1, ...rows.map(row => Math.max(0, Number(row.value) || 0)));
   context.strokeStyle = '#cbd5e1';

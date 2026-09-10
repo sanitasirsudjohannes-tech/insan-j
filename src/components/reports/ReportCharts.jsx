@@ -20,7 +20,7 @@ const ReportCharts = forwardRef(function ReportCharts({ data }, ref) {
   return (
     <section ref={ref} className="space-y-3" aria-label="Grafik laporan limbah">
       <div className="grid gap-3 lg:grid-cols-2">
-        {data.balanceFlow?.length > 0 && <ChartCard title="Ringkasan Neraca Limbah" subtitle="Saldo awal + timbulan − diangkut = saldo akhir">
+        {data.balanceFlow?.length > 0 && <ChartCard title="Ringkasan Pengelolaan Limbah" subtitle="Sisa awal + timbulan − diangkut = sisa akhir">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data.balanceFlow} margin={{ top: 24, right: 8, left: -15, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />

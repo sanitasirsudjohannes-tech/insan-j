@@ -231,7 +231,7 @@ export default function AsistenLaporan() {
       setChartData({
         balanceFlow: [
           {
-            name: 'Saldo Awal',
+            name: 'Sisa Awal',
             value: Number(form.facts.openingBalanceKg) || 0
           },
           { name: 'Timbulan', value: Number(form.facts.totalGeneratedKg) || 0 },
@@ -239,7 +239,7 @@ export default function AsistenLaporan() {
             name: 'Diangkut',
             value: Number(form.facts.totalTransportedKg) || 0
           },
-          { name: 'Saldo Akhir', value: Number(form.facts.remainingKg) || 0 }
+          { name: 'Sisa Akhir', value: Number(form.facts.remainingKg) || 0 }
         ],
         timeline: [],
         rooms: [],
