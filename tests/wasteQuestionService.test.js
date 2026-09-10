@@ -34,10 +34,10 @@ test('jawaban dapat menampilkan total jenis dari ruangan tertentu per tanggal', 
 
 test('ringkasan data limbah memuat alur dan komposisi utama', () => {
   const answer = buildWasteAnswer(parseWasteQuestion('Rincian data limbah Juli 2026'), recap);
+  assert.ok(answer.text.indexOf('Sisa limbah: 15 kg') < answer.text.indexOf('Sisa awal: 10 kg'));
   assert.match(answer.text, /Sisa awal: 10 kg/);
-  assert.match(answer.text, /Timbulan: 40 kg/);
-  assert.match(answer.text, /Diangkut: 35 kg/);
-  assert.match(answer.text, /Sisa akhir: 15 kg/);
+  assert.match(answer.text, /Ditambah timbulan: 40 kg/);
+  assert.match(answer.text, /Dikurangi pengangkutan: 35 kg/);
   assert.match(answer.text, /limbah infeksius: 30 kg/);
 });
 
@@ -89,6 +89,7 @@ test('jawaban membandingkan dua bulan yang diminta secara langsung', () => {
   assert.match(answer.text, /Timbulan: 100 kg menjadi 125 kg, naik 25 kg \(25%\)/);
   assert.match(answer.text, /Pengangkutan: 80 kg menjadi 100 kg/);
   assert.match(answer.text, /Sisa akhir: 30 kg menjadi 35 kg/);
+  assert.ok(answer.text.indexOf('Sisa akhir') < answer.text.indexOf('Timbulan'));
   assert.doesNotMatch(answer.text, /periode sebelumnya/);
 });
 
@@ -194,6 +195,8 @@ test('jawaban analisis menyediakan kartu, grafik, sumber, dan pertanyaan lanjuta
   const answer = buildWasteAnswer(parseWasteQuestion('Analisis data limbah Juli 2026'), recap);
   assert.match(answer.text, /Analisis data limbah selama Juli 2026/);
   assert.equal(answer.cards.length, 3);
+  assert.equal(answer.cards[0].label, 'Sisa Akhir');
+  assert.ok(answer.text.indexOf('Sisa akhir') < answer.text.indexOf('Timbulan'));
   assert.equal(answer.visualization.title, 'Tren timbulan');
   assert.match(answer.source, /data INSAN-J yang telah tersinkron/);
   assert.ok(answer.followUps.length >= 3);

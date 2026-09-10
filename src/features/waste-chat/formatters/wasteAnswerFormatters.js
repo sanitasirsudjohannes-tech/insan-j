@@ -17,7 +17,7 @@ export function buildDirectComparison(parsed, current, previous) {
     return `• ${label}: ${formatNumber(previousFacts[key])} kg menjadi ${formatNumber(currentFacts[key])} kg, ${describe(change, percentChange(currentFacts[key], previousFacts[key]))}.`;
   };
   const suffix = parsed.period.inferredYear && parsed.comparisonPeriod.inferredYear ? ' Tahun tidak disebutkan, sehingga digunakan tahun berjalan.' : '';
-  return `Perbandingan ${parsed.comparisonPeriod.label} dan ${parsed.period.label}\n\n${metric('Timbulan', 'totalGeneratedKg')}\n${metric('Pengangkutan', 'totalTransportedKg')}\n${metric('Sisa akhir', 'remainingKg')}${suffix}`;
+  return `Perbandingan ${parsed.comparisonPeriod.label} dan ${parsed.period.label}\n\n${metric('Sisa akhir', 'remainingKg')}\n${metric('Timbulan', 'totalGeneratedKg')}\n${metric('Pengangkutan', 'totalTransportedKg')}${suffix}`;
 }
 
 function groupDays(days, valueKey) {

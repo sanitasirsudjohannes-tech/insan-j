@@ -23,7 +23,7 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null) {
     { key: 'cytotoxicKg', label: 'limbah sitotoksik' },
   ];
   const answers = {
-    waste_summary: `Rincian data limbah ${during}\n\nAlur limbah\n• Sisa awal: ${format(facts.openingBalanceKg)} kg\n• Timbulan: ${format(facts.totalGeneratedKg)} kg\n• Diangkut: ${format(facts.totalTransportedKg)} kg\n• Sisa akhir: ${format(facts.remainingKg)} kg\n\nKomposisi timbulan\n${selectedTypes.map(item => `• ${item.label}: ${format(facts[item.key])} kg`).join('\n')}${roomTotals.length ? `\n\nRuangan terbesar\n• ${roomTotals[0].name}: ${format(roomTotals[0].value)} kg` : ''}${suffix}`,
+    waste_summary: `Rincian data limbah ${during}\n\nKondisi akhir\n• Sisa limbah: ${format(facts.remainingKg)} kg\n\nAlur limbah\n• Sisa awal: ${format(facts.openingBalanceKg)} kg\n• Ditambah timbulan: ${format(facts.totalGeneratedKg)} kg\n• Dikurangi pengangkutan: ${format(facts.totalTransportedKg)} kg\n\nKomposisi timbulan\n${selectedTypes.map(item => `• ${item.label}: ${format(facts[item.key])} kg`).join('\n')}${roomTotals.length ? `\n\nRuangan terbesar\n• ${roomTotals[0].name}: ${format(roomTotals[0].value)} kg` : ''}${suffix}`,
     analysis: buildAnalysisAnswer(parsed, recap),
     remaining: `Sisa limbah pada akhir ${parsed.period.label}: ${format(facts.remainingKg)} kg\n\nPerhitungan\n• Sisa awal: ${format(facts.openingBalanceKg)} kg\n• Ditambah timbulan: ${format(facts.totalGeneratedKg)} kg\n• Dikurangi pengangkutan: ${format(facts.totalTransportedKg)} kg${suffix}`,
     opening_balance: `Sisa limbah pada awal ${parsed.period.label} adalah ${format(facts.openingBalanceKg)} kg.${suffix}`,
@@ -39,7 +39,7 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null) {
     room_type_dates: roomTypeDays.length
       ? `${parsed.type.label} pada ${parsed.roomName} selama ${parsed.period.label}\n\nTercatat pada ${roomTypeDays.length} tanggal • Total ${format(roomTypeDays.reduce((sum, item) => sum + (Number(item[parsed.type.key]) || 0), 0))} kg\n\n${roomTypeDays.map(item => `• ${formatDate(item.date)}: ${format(item[parsed.type.key])} kg`).join('\n')}${suffix}`
       : `Belum ada ${parsed.type?.label || 'jenis limbah tersebut'} yang tercatat pada ${parsed.roomName} selama ${parsed.period.label}.${suffix}`,
-    transport_coverage: `Cakupan pengangkutan ${during}: ${format(analytics.performance.transportedCoveragePercent)}%\n\n• Limbah diangkut: ${format(facts.totalTransportedKg)} kg\n• Limbah tersedia: ${format(facts.openingBalanceKg + facts.totalGeneratedKg)} kg${suffix}`,
+    transport_coverage: `Sisa limbah pada akhir ${parsed.period.label}: ${format(facts.remainingKg)} kg\n\nCakupan pengangkutan: ${format(analytics.performance.transportedCoveragePercent)}%\n• Limbah diangkut: ${format(facts.totalTransportedKg)} kg\n• Limbah tersedia: ${format(facts.openingBalanceKg + facts.totalGeneratedKg)} kg${suffix}`,
     average: `Rata-rata timbulan limbah ${during} adalah ${format(analytics.performance.averageDailyKg)} kg per hari.${suffix}`,
     dominant_type: analytics.dominantType ? `Jenis limbah terbanyak ${during} adalah ${analytics.dominantType.name} sebanyak ${format(analytics.dominantType.current)} kg.${suffix}` : `Belum ada data jenis limbah untuk ${parsed.period.label}.`,
     type_breakdown: `Rincian timbulan berdasarkan jenis ${during}\n\n${selectedTypes.map(item => `• ${item.label}: ${format(facts[item.key])} kg`).join('\n')}\n\nTotal: ${format(facts.totalGeneratedKg)} kg${suffix}`,
@@ -54,7 +54,7 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null) {
     active_days: `Terdapat ${timeline.filter(item => item.generated > 0).length} hari dengan timbulan limbah yang tercatat selama ${parsed.period.label}.${suffix}`,
     comparison: comparisonRecap
       ? buildDirectComparison(parsed, recap, comparisonRecap)
-      : `Perbandingan ${parsed.period.label} dengan periode sebelumnya\n\n• Timbulan: ${changeText(analytics.changes.generatedPercent)}\n• Pengangkutan: ${changeText(analytics.changes.transportedPercent)}\n• Sisa limbah: ${analytics.changes.remainingKg >= 0 ? 'bertambah' : 'berkurang'} ${format(Math.abs(analytics.changes.remainingKg))} kg${suffix}`,
+      : `Perbandingan ${parsed.period.label} dengan periode sebelumnya\n\n• Sisa limbah: ${analytics.changes.remainingKg >= 0 ? 'bertambah' : 'berkurang'} ${format(Math.abs(analytics.changes.remainingKg))} kg\n• Timbulan: ${changeText(analytics.changes.generatedPercent)}\n• Pengangkutan: ${changeText(analytics.changes.transportedPercent)}${suffix}`,
     type_total: `${parsed.type?.label || 'Jenis limbah tersebut'} ${during} berjumlah ${format(facts[parsed.type?.key])} kg.${suffix}`,
   };
   return { text: answers[parsed.intent], parsed, period: parsed.period, context: { period: parsed.period, intent: parsed.intent, roomName: parsed.roomName, type: parsed.type }, facts, ...buildAnswerPresentation(parsed, recap, comparisonRecap) };

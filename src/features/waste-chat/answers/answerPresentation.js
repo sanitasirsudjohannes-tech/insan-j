@@ -16,9 +16,9 @@ export function buildAnalysisAnswer(parsed, recap) {
   const active = (charts.timeline || []).filter(item => item.generated > 0);
   const peak = [...active].sort((left, right) => right.generated - left.generated)[0];
   const notes = [
+    `• Sisa akhir: ${format(facts.remainingKg)} kg${facts.remainingKg > facts.openingBalanceKg ? ', meningkat dari sisa awal.' : ', tidak meningkat dari sisa awal.'}`,
     `• Timbulan: ${format(facts.totalGeneratedKg)} kg; pengangkutan: ${format(facts.totalTransportedKg)} kg.`,
     `• Cakupan pengangkutan: ${format(analytics.performance.transportedCoveragePercent)}%.`,
-    `• Sisa akhir: ${format(facts.remainingKg)} kg${facts.remainingKg > facts.openingBalanceKg ? ', meningkat dari sisa awal.' : ', tidak meningkat dari sisa awal.'}`,
   ];
   if (analytics.dominantType) notes.push(`• Jenis dominan: ${analytics.dominantType.name} (${format(analytics.dominantType.current)} kg).`);
   if (peak) notes.push(`• Timbulan harian tertinggi: ${peak.date.split('-').reverse().join('/')} (${format(peak.generated)} kg).`);
@@ -33,10 +33,10 @@ export function buildAnswerPresentation(parsed, recap, comparisonRecap) {
   if (facts.totalTransportedKg > available) warnings.push('Pengangkutan lebih besar daripada limbah yang tersedia pada perhitungan periode ini.');
   if (!facts.totalGeneratedKg && !facts.totalTransportedKg) warnings.push('Belum ada timbulan maupun pengangkutan pada periode ini.');
 
-  const cards = ['waste_summary', 'analysis', 'remaining', 'comparison'].includes(parsed.intent) ? [
+  const cards = ['waste_summary', 'analysis', 'remaining', 'comparison', 'transport_coverage'].includes(parsed.intent) ? [
+    { label: 'Sisa Akhir', value: `${format(facts.remainingKg)} kg`, tone: facts.remainingKg < 0 ? 'red' : 'emerald' },
     { label: 'Timbulan', value: `${format(facts.totalGeneratedKg)} kg`, tone: 'blue' },
     { label: 'Diangkut', value: `${format(facts.totalTransportedKg)} kg`, tone: 'orange' },
-    { label: 'Sisa Akhir', value: `${format(facts.remainingKg)} kg`, tone: facts.remainingKg < 0 ? 'red' : 'emerald' },
   ] : [];
 
   let visualization = null;
