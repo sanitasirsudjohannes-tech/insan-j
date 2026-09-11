@@ -1,4 +1,4 @@
-const ALLOWED_SOURCES = ['jdih.kemkes.go.id', 'jdih.menlhk.go.id', 'jdihn.go.id', 'peraturan.go.id'];
+const ALLOWED_SOURCES = ['jdih.kemkes.go.id', 'jdih.kemenlh.go.id', 'jdihn.go.id', 'peraturan.go.id'];
 
 export const allowedRegulationSources = () => [...ALLOWED_SOURCES];
 

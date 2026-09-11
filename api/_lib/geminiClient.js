@@ -54,7 +54,7 @@ export async function searchRegulationsWithGemini(prompt) {
     body: JSON.stringify({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       tools: [{ google_search: {} }],
-      generationConfig: { temperature: 0, maxOutputTokens: 900 },
+      generationConfig: { temperature: 0, maxOutputTokens: 900, responseMimeType: 'application/json' },
     }),
   }, 28000);
   const data = await response.json().catch(() => ({}));
