@@ -1,8 +1,9 @@
 import { configuredGeminiModel, selectGeminiModels } from './geminiModels.js';
 
-async function fetchWithTimeout(url, options = {}) {
+async function fetchWithTimeout(url, options = {}, requestedTimeoutMs = null) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), Math.min(Math.max(Number(process.env.AI_TIMEOUT_MS) || 15000, 3000), 25000));
+  const configuredTimeout = (requestedTimeoutMs ?? Number(process.env.AI_TIMEOUT_MS)) || 15000;
+  const timer = setTimeout(() => controller.abort(), Math.min(Math.max(configuredTimeout, 3000), 30000));
   try { return await fetch(url, { ...options, signal: controller.signal }); }
   finally { clearTimeout(timer); }
 }
@@ -55,7 +56,7 @@ export async function searchRegulationsWithGemini(prompt) {
       tools: [{ google_search: {} }],
       generationConfig: { temperature: 0, maxOutputTokens: 900 },
     }),
-  });
+  }, 28000);
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw Object.assign(new Error(data?.error?.message || 'Pencarian regulasi ditolak Gemini.'), { status: response.status });
   const text = data.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();

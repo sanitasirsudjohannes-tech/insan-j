@@ -30,7 +30,9 @@ export default async function handler(req, res) {
     }));
     return json(res, 200, { success: true, inScope: result?.inScope !== false, summary: String(result?.summary || ''), sources, checkedAt: new Date().toISOString() });
   } catch (error) {
-    console.warn('Regulation search failed', { reason: error?.message });
+    console.warn('Regulation search failed', { reason: error?.message, status: error?.status });
+    if (error?.status === 429) return json(res, 429, { success: false, message: 'Kuota Gemini untuk pencarian hari ini telah tercapai. Silakan coba kembali setelah kuota tersedia.' });
+    if (error?.name === 'AbortError') return json(res, 504, { success: false, message: 'Pencarian JDIH membutuhkan waktu terlalu lama. Silakan coba kembali.' });
     return json(res, 502, { success: false, message: 'Pencarian JDIH sedang tidak tersedia. Silakan coba kembali.' });
   }
 }
