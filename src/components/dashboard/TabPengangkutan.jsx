@@ -166,7 +166,7 @@ export default function TabPengangkutan() {
   const cards = [
     { label: 'Total Limbah Masuk', value: `${summary.masuk} Kg`, icon: 'fa-plus-circle', color: 'border-blue-500', iconBg: 'bg-blue-100 text-blue-500' },
     { label: 'Total Diangkut', value: `${summary.diangkut} Kg`, icon: 'fa-truck', color: 'border-orange-500', iconBg: 'bg-orange-100 text-orange-500' },
-    { label: 'Sisa Limbah', value: `${summary.sisa} Kg`, icon: 'fa-biohazard', color: parseFloat(summary.sisa) > 0 ? 'border-red-500' : 'border-green-500', iconBg: parseFloat(summary.sisa) > 0 ? 'bg-red-100 text-red-500' : 'bg-green-100 text-green-500' },
+    { label: 'Sisa Limbah', value: `${summary.sisa} Kg`, icon: 'fa-biohazard', color: parseFloat(summary.sisa) > 0 ? 'border-red-500' : 'border-green-500', iconBg: parseFloat(summary.sisa) > 0 ? 'bg-red-100 text-red-500' : 'bg-green-100 text-green-500', mobileSpan: 'col-span-2 md:col-span-1' },
   ];
 
   if (loading) {
@@ -176,15 +176,15 @@ export default function TabPengangkutan() {
   return (
     <div className="animate-fade-in">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mb-8">
         {cards.map(c => (
-          <div key={c.label} className={`bg-white p-6 rounded-lg shadow-sm border-b-4 ${c.color} hover:shadow-md transition-shadow`}>
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">{c.label}</p>
-                <h3 className="text-2xl font-black text-gray-800 mt-1">{c.value}</h3>
+          <div key={c.label} className={`bg-white p-4 sm:p-6 rounded-lg shadow-sm border-b-4 ${c.color} ${c.mobileSpan || ''} hover:shadow-md transition-shadow`}>
+            <div className="flex justify-between items-center gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs text-gray-500 font-bold uppercase tracking-wide sm:tracking-wider leading-tight">{c.label}</p>
+                <h3 className="text-lg sm:text-2xl font-black text-gray-800 mt-1 truncate">{c.value}</h3>
               </div>
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl shadow-inner ${c.iconBg}`}>
+              <div className={`w-9 h-9 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-base sm:text-xl shadow-inner ${c.iconBg}`}>
                 <i className={`fas ${c.icon}`}></i>
               </div>
             </div>
