@@ -41,3 +41,26 @@ export async function interpretWithGemini(prompt) {
   }
   throw lastError;
 }
+
+
+export async function searchRegulationsWithGemini(prompt) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('Gemini belum dikonfigurasi.');
+  const model = configuredGeminiModel(process.env.GEMINI_MODEL);
+  const response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      tools: [{ google_search: {} }],
+      generationConfig: { temperature: 0, maxOutputTokens: 900 },
+    }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw Object.assign(new Error(data?.error?.message || 'Pencarian regulasi ditolak Gemini.'), { status: response.status });
+  const text = data.candidates?.[0]?.content?.parts?.map(part => part.text || '').join('').trim();
+  if (!text) throw new Error('Hasil pencarian regulasi kosong.');
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('Format hasil pencarian regulasi tidak valid.');
+  return JSON.parse(match[0]);
+}

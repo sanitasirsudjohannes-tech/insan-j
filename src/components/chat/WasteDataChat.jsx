@@ -5,7 +5,7 @@ import { QUESTION_SUGGESTIONS } from '../../lib/wasteQuestionParser';
 import WasteChatAnswer from './WasteChatAnswer';
 
 const STORAGE_KEY = 'insan_j_data_chat';
-const initialMessage = { role: 'assistant', text: 'Selamat datang di Tanya INSAN-J. Silakan tanyakan data limbah, misalnya “Sisa limbah bulan Juli 2026 berapa?” Angka jawaban dihitung langsung dari data INSAN-J.' };
+const initialMessage = { role: 'assistant', text: 'Selamat datang di Tanya INSAN-J. Tanyakan data limbah atau peraturan tentang limbah rumah sakit dan kesehatan lingkungan. Data operasional dihitung dari INSAN-J; sumber regulasi dibatasi ke JDIH resmi.' };
 
 function loadMessages() {
   try { return JSON.parse(sessionStorage.getItem(STORAGE_KEY)) || [initialMessage]; } catch { return [initialMessage]; }
@@ -44,7 +44,7 @@ export default function WasteDataChat({ className = '', hideHeader = false }) {
     try {
       const context = [...messages].reverse().find(message => message.role === 'assistant' && message.context)?.context || null;
       const answer = await answerWasteQuestion(text, { context });
-      setMessages(current => [...current, { role: 'assistant', text: answer.text, assistedByAi: answer.assistedByAi, period: answer.period, context: answer.context, cards: answer.cards, visualization: answer.visualization, warnings: answer.warnings, followUps: answer.followUps, source: answer.source, sourceLink: answer.sourceLink, understanding: answer.understanding, dataStatus: answer.dataStatus, reportPayload: answer.reportPayload, actions: answer.actions, clarification: answer.clarification }]);
+      setMessages(current => [...current, { role: 'assistant', text: answer.text, assistedByAi: answer.assistedByAi, period: answer.period, context: answer.context, cards: answer.cards, visualization: answer.visualization, warnings: answer.warnings, followUps: answer.followUps, source: answer.source, sourceLink: answer.sourceLink, understanding: answer.understanding, dataStatus: answer.dataStatus, reportPayload: answer.reportPayload, actions: answer.actions, clarification: answer.clarification, regulationSources: answer.regulationSources }]);
     } catch {
       setMessages(current => [...current, { role: 'assistant', text: 'Data belum dapat diambil. Periksa koneksi dan status sinkronisasi, lalu coba kembali.', error: true }]);
     } finally { setLoading(false); }
@@ -68,11 +68,11 @@ export default function WasteDataChat({ className = '', hideHeader = false }) {
       </div>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-2xl bg-slate-50 p-3" aria-live="polite">
         {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[92%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${message.role === 'user' ? 'whitespace-pre-line bg-blue-600 text-white' : message.error ? 'border border-red-200 bg-red-50 text-red-700' : 'border border-slate-200 bg-white text-slate-700'}`}>{message.role === 'assistant' ? <WasteChatAnswer message={message} onAsk={ask} onReport={sendToReport} onNavigate={to => navigate(to)} /> : message.text}</div></div>)}
-        {loading && <div className="flex justify-start"><div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500"><i className="fas fa-spinner fa-spin mr-2" />Menghitung dari data…</div></div>}
+        {loading && <div className="flex justify-start"><div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500"><i className="fas fa-spinner fa-spin mr-2" />Mencari jawaban…</div></div>}
         <div ref={endRef} />
       </div>
       {showSuggestions && <div className="mt-3 flex gap-2 overflow-x-auto pb-1">{QUESTION_SUGGESTIONS.map(item => <button key={item} type="button" onClick={() => ask(item)} className="shrink-0 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">{item}</button>)}</div>}
-      <form onSubmit={event => { event.preventDefault(); ask(); }} className="mt-3 flex gap-2"><input value={question} onChange={event => setQuestion(event.target.value)} placeholder="Tanyakan data limbah…" className="min-w-0 flex-1 rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" /><button type="submit" disabled={!question.trim() || loading} className="rounded-2xl bg-blue-600 px-4 text-white disabled:opacity-50" aria-label="Kirim pertanyaan"><i className="fas fa-paper-plane" /></button></form>
+      <form onSubmit={event => { event.preventDefault(); ask(); }} className="mt-3 flex gap-2"><input value={question} onChange={event => setQuestion(event.target.value)} placeholder="Tanyakan data limbah atau peraturan…" className="min-w-0 flex-1 rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" /><button type="submit" disabled={!question.trim() || loading} className="rounded-2xl bg-blue-600 px-4 text-white disabled:opacity-50" aria-label="Kirim pertanyaan"><i className="fas fa-paper-plane" /></button></form>
     </section>
   );
 }

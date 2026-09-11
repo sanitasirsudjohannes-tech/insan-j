@@ -6,8 +6,10 @@ import { fetchDaftarRuangan, getCachedRuangan } from './api.js';
 import { findRoomCandidates, resolveKnownRoom } from '../features/waste-chat/parsers/roomNameResolver.js';
 import { getOfflineQueue } from './offlineStorage.js';
 import { findQuestionClarification } from '../features/waste-chat/presentation/questionPresentation.js';
+import { isHealthRegulationQuestion, searchHealthRegulations } from './regulationQuestion.js';
 
-export async function answerWasteQuestion(question, { signal, context = null, contextPeriod = null, interpretWithAi = interpretWasteQuestionWithAi, fetchRecap = fetchMedicalWasteRecap, fetchRooms = fetchDaftarRuangan } = {}) {
+export async function answerWasteQuestion(question, { signal, context = null, contextPeriod = null, interpretWithAi = interpretWasteQuestionWithAi, fetchRecap = fetchMedicalWasteRecap, fetchRooms = fetchDaftarRuangan, searchRegulations = searchHealthRegulations } = {}) {
+  if (isHealthRegulationQuestion(question)) return searchRegulations(question, signal);
   const conversationContext = context || (contextPeriod ? { period: contextPeriod } : null);
   let roomNames = typeof localStorage === 'undefined' ? [] : getCachedRuangan();
   if (!roomNames.length) roomNames = await fetchRooms();
@@ -25,7 +27,7 @@ export async function answerWasteQuestion(question, { signal, context = null, co
   if (clarification) return { ...clarification, clarification: true, understanding: { status: 'clarification', intent: 'Perlu konfirmasi', period: parsed.period?.label } };
   if (parsed.intent === 'capabilities') {
     return {
-      text: 'Saya dapat membantu membaca data INSAN-J, antara lain:\n\n• Ringkasan timbulan, pengangkutan, dan sisa limbah.\n• Rincian jenis limbah dan data per ruangan.\n• Perbandingan maksimal 3 bulan.\n• Tanggal pengangkutan, pengangkutan terakhir, dan jeda pengangkutan.\n• Pemeriksaan tanggal kosong, ruangan yang belum input, data ganda, dan angka tidak wajar.\n• Analisis tren, bulan atau tanggal tertinggi, serta rata-rata.\n\nUntuk laporan dan periode yang lebih panjang, gunakan menu Rekap Limbah atau Laporan.',
+      text: 'Saya dapat membantu membaca data INSAN-J, antara lain:\n\n• Ringkasan timbulan, pengangkutan, dan sisa limbah.\n• Rincian jenis limbah dan data per ruangan.\n• Perbandingan maksimal 3 bulan.\n• Tanggal pengangkutan, pengangkutan terakhir, dan jeda pengangkutan.\n• Pemeriksaan tanggal kosong, ruangan yang belum input, data ganda, dan angka tidak wajar.\n• Analisis tren, bulan atau tanggal tertinggi, serta rata-rata.\n• Pencarian peraturan limbah rumah sakit dan kesehatan lingkungan dari JDIH resmi.\n\nUntuk laporan dan periode yang lebih panjang, gunakan menu Rekap Limbah atau Laporan.',
       parsed,
       actions: [
         { label: 'Ringkasan bulan ini', question: 'Rincian data limbah bulan ini' },
