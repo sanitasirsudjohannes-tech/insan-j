@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 
 const TEXT_LIMIT = 12;
-const FEEDBACK_KEY = 'insan_j_chat_feedback';
 
 function Understanding({ value }) {
   if (!value) return null;
@@ -26,7 +25,6 @@ function MiniBars({ data }) {
 export default function WasteChatAnswer({ message, onAsk, onReport, onNavigate }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [feedback, setFeedback] = useState(null);
   const lines = useMemo(() => String(message.text || '').split('\n'), [message.text]);
   const truncated = lines.length > TEXT_LIMIT;
   const visibleText = !expanded && truncated ? `${lines.slice(0, TEXT_LIMIT).join('\n')}\n…` : message.text;
@@ -34,15 +32,6 @@ export default function WasteChatAnswer({ message, onAsk, onReport, onNavigate }
   const download = () => {
     const blobUrl = URL.createObjectURL(new Blob([message.text], { type: 'text/plain;charset=utf-8' }));
     const link = document.createElement('a'); link.href = blobUrl; link.download = `Tanya_INSAN-J_${new Date().toISOString().slice(0, 10)}.txt`; link.click(); window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-  };
-  const sendFeedback = (helpful, reason = null) => {
-    setFeedback(helpful ? 'helpful' : reason ? 'submitted' : 'choose_reason');
-    if (!helpful && !reason) return;
-    try {
-      const current = JSON.parse(localStorage.getItem(FEEDBACK_KEY) || '[]');
-      const entry = { helpful, reason, intent: message.context?.intent || null, period: message.period?.label || null, createdAt: new Date().toISOString() };
-      localStorage.setItem(FEEDBACK_KEY, JSON.stringify([...current.slice(-99), entry]));
-    } catch { /* Umpan balik tidak boleh mengganggu jawaban. */ }
   };
   return <div>
     {message.assistedByAi && <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-violet-600"><i className="fas fa-wand-magic-sparkles mr-1" />Dipahami dengan bantuan AI</span>}
@@ -57,7 +46,6 @@ export default function WasteChatAnswer({ message, onAsk, onReport, onNavigate }
     {message.actions?.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{message.actions.map(action => <button key={action.label} type="button" onClick={() => onAsk(action.question)} className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">{action.label}</button>)}</div>}
     {message.followUps?.length > 0 && <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">{message.followUps.map(action => <button key={action.label} type="button" onClick={() => onAsk(action.question)} className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600">{action.label}</button>)}</div>}
     {message.sourceLink && <button type="button" onClick={() => onNavigate(message.sourceLink.to)} className="mt-2 text-[11px] font-bold text-blue-600"><i className="fas fa-arrow-up-right-from-square mr-1" />{message.sourceLink.label}</button>}
-    {message.understanding && !message.clarification && !message.error && <div className="mt-3 border-t border-slate-100 pt-2 text-[10px] text-slate-400">{feedback === null && <div className="flex items-center gap-2"><span>Jawaban sesuai?</span><button type="button" onClick={() => sendFeedback(true)} className="rounded-lg px-2 py-1 hover:bg-emerald-50 hover:text-emerald-600"><i className="far fa-thumbs-up mr-1" />Ya</button><button type="button" onClick={() => sendFeedback(false)} className="rounded-lg px-2 py-1 hover:bg-red-50 hover:text-red-600"><i className="far fa-thumbs-down mr-1" />Tidak</button></div>}{feedback === 'choose_reason' && <div><span className="mb-1.5 block">Bagian mana yang tidak sesuai?</span><div className="flex flex-wrap gap-1">{['Periode', 'Ruangan', 'Jenis limbah', 'Maksud pertanyaan', 'Angka perlu diperiksa'].map(reason => <button key={reason} type="button" onClick={() => sendFeedback(false, reason)} className="rounded-full border border-slate-200 px-2 py-1 text-slate-500">{reason}</button>)}</div></div>}{['helpful', 'submitted'].includes(feedback) && <span className="font-bold text-slate-500">Terima kasih atas masukannya.</span>}</div>}
     {message.reportPayload && <div className="mt-3 flex items-center gap-3 border-t border-slate-100 pt-2 text-[11px] font-bold text-slate-500"><button type="button" onClick={copy}><i className="far fa-copy mr-1" />{copied ? 'Tersalin' : 'Salin'}</button><button type="button" onClick={download}><i className="fas fa-download mr-1" />Unduh</button><button type="button" onClick={() => onReport(message)}><i className="fas fa-file-lines mr-1" />Ke Laporan</button></div>}
   </div>;
 }
