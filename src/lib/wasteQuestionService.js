@@ -32,15 +32,35 @@ export async function answerWasteQuestion(question, { signal, context = null, co
     }
   }
   if (parsed.intent === 'unknown') return { text: 'Pertanyaan tersebut belum dapat dijawab dari data INSAN-J. Coba tanyakan sisa limbah, timbulan, pengangkutan, kelengkapan data, pengangkutan terakhir, data ganda, atau data yang perlu diperiksa.', parsed, assistedByAi: true };
-  const [recap, comparisonRecap] = await Promise.all([
-    fetchRecap(parsed.period.start, parsed.period.end, { knownRooms: roomNames }),
-    parsed.intent === 'comparison' && parsed.comparisonPeriod
-      ? fetchRecap(parsed.comparisonPeriod.start, parsed.comparisonPeriod.end, { knownRooms: roomNames })
-      : null,
-  ]);
+  if (parsed.intent === 'comparison' && parsed.tooManyComparisonMonths) {
+    return {
+      text: `Perbandingan melalui Tanya INSAN-J dibatasi maksimal 3 bulan agar jawaban tetap ringkas dan mudah diperiksa. Anda meminta ${parsed.requestedComparisonCount} bulan. Untuk melihat periode yang lebih panjang dan lebih lengkap, buka menu Rekap Limbah lalu pilih periode yang diperlukan.`,
+      parsed,
+      limitExceeded: true,
+      understanding: { status: 'understood', intent: 'Perbandingan periode', period: `${parsed.requestedComparisonCount} bulan` },
+      sourceLink: { label: 'Buka Rekap Limbah', to: '/rekap-limbah' },
+    };
+  }
+
+  const comparisonPeriods = parsed.intent === 'comparison' && parsed.comparisonPeriods?.length >= 2
+    ? parsed.comparisonPeriods
+    : null;
+  const periodRecaps = comparisonPeriods
+    ? await Promise.all(comparisonPeriods.map(period =>
+      fetchRecap(period.start, period.end, { knownRooms: roomNames })
+    ))
+    : null;
+  const [recap, comparisonRecap] = periodRecaps
+    ? [periodRecaps.at(-1), periodRecaps[0]]
+    : await Promise.all([
+      fetchRecap(parsed.period.start, parsed.period.end, { knownRooms: roomNames }),
+      parsed.intent === 'comparison' && parsed.comparisonPeriod
+        ? fetchRecap(parsed.comparisonPeriod.start, parsed.comparisonPeriod.end, { knownRooms: roomNames })
+        : null,
+    ]);
   const pendingCount = typeof window === 'undefined' ? 0 : getOfflineQueue().filter(item => ['limbah_padat', 'limbah_ruangan', 'pengangkutan_limbah'].includes(item.table)).length;
   return {
-    ...buildWasteAnswer(parsed, recap, comparisonRecap),
+    ...buildWasteAnswer(parsed, recap, comparisonRecap, periodRecaps),
     assistedByAi: Boolean(parsed.assistedByAi),
     dataStatus: { fetchedAt: new Date().toISOString(), pendingCount, online: typeof navigator === 'undefined' ? true : navigator.onLine },
   };

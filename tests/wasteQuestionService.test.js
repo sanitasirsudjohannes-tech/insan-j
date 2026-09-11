@@ -341,3 +341,19 @@ test('jawaban pengangkutan terakhir menyebut tanggal, jumlah, dan jeda', () => {
   assert.match(answer.text, /2\.000 kg/);
   assert.match(answer.text, /11 hari/);
 });
+
+
+test('jawaban dapat membandingkan tiga bulan secara ringkas', () => {
+  const parsed = parseWasteQuestion('Bandingkan Januari, Februari dan Maret 2026');
+  const recaps = [100, 125, 90].map(total => ({
+    ...recap,
+    facts: { ...recap.facts, totalGeneratedKg: total, totalTransportedKg: total - 20, remainingKg: 30 },
+  }));
+  const answer = buildWasteAnswer(parsed, recaps[2], recaps[0], recaps);
+  assert.match(answer.text, /Perbandingan pengelolaan limbah selama 3 bulan/);
+  assert.match(answer.text, /Januari 2026: timbulan 100 kg/);
+  assert.match(answer.text, /Februari 2026: timbulan 125 kg/);
+  assert.match(answer.text, /Maret 2026: timbulan 90 kg/);
+  assert.match(answer.text, /Timbulan tertinggi: Februari 2026/);
+  assert.equal(answer.visualization.items.length, 3);
+});

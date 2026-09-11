@@ -10,6 +10,30 @@ const comparisonLine = (label, previous, current) => {
   return `• ${label}: ${format(previous)} kg menjadi ${format(current)} kg, ${difference >= 0 ? 'naik' : 'turun'} ${format(Math.abs(difference))} kg${percentage === null ? '' : ` (${format(Math.abs(percentage))}%)`}.`;
 };
 
+function buildMultiMonthComparison(parsed, periodRecaps) {
+  if (!parsed.comparisonPeriods || periodRecaps?.length !== parsed.comparisonPeriods.length || periodRecaps.length < 3) return null;
+  const rows = parsed.comparisonPeriods.map((period, index) => ({ period, recap: periodRecaps[index] }));
+  const roomKey = parsed.type?.key || 'totalKg';
+
+  if (parsed.roomName) {
+    const values = rows.map(({ period, recap }) => {
+      const room = (recap.charts.roomDetails || []).find(item => item.name.localeCompare(parsed.roomName, 'id-ID', { sensitivity: 'base' }) === 0);
+      return { label: period.label, value: Number(room?.[roomKey]) || 0 };
+    });
+    const subject = parsed.type?.label ? `${parsed.type.label} dari ${parsed.roomName}` : `timbulan limbah ${parsed.roomName}`;
+    return `Perbandingan ${subject} selama 3 bulan\n\n${values.map(item => `• ${item.label}: ${format(item.value)} kg`).join('\n')}\n\nTertinggi: ${[...values].sort((a, b) => b.value - a.value)[0].label} sebanyak ${format([...values].sort((a, b) => b.value - a.value)[0].value)} kg.`;
+  }
+
+  if (parsed.type) {
+    const values = rows.map(({ period, recap }) => ({ label: period.label, value: Number(recap.facts[parsed.type.key]) || 0 }));
+    const highest = [...values].sort((a, b) => b.value - a.value)[0];
+    return `Perbandingan ${parsed.type.label} selama 3 bulan\n\n${values.map(item => `• ${item.label}: ${format(item.value)} kg`).join('\n')}\n\nTertinggi: ${highest.label} sebanyak ${format(highest.value)} kg.`;
+  }
+
+  const highest = [...rows].sort((a, b) => b.recap.facts.totalGeneratedKg - a.recap.facts.totalGeneratedKg)[0];
+  return `Perbandingan pengelolaan limbah selama 3 bulan\n\n${rows.map(({ period, recap }) => `• ${period.label}: timbulan ${format(recap.facts.totalGeneratedKg)} kg; diangkut ${format(recap.facts.totalTransportedKg)} kg; sisa akhir ${format(recap.facts.remainingKg)} kg.`).join('\n')}\n\nTimbulan tertinggi: ${highest.period.label} sebanyak ${format(highest.recap.facts.totalGeneratedKg)} kg.`;
+}
+
 function buildScopedComparison(parsed, recap, comparisonRecap) {
   const roomNames = parsed.roomNames || [];
   if (roomNames.length >= 2) {
@@ -42,7 +66,7 @@ function buildScopedComparison(parsed, recap, comparisonRecap) {
   return null;
 }
 
-export function buildWasteAnswer(parsed, recap, comparisonRecap = null) {
+export function buildWasteAnswer(parsed, recap, comparisonRecap = null, periodRecaps = null) {
   const { facts, charts, analytics } = recap;
   const roomTotals = charts.roomTotals || charts.rooms;
   const timeline = charts.timeline || [];
@@ -111,7 +135,7 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null) {
     peak_month: buildPeakMonthAnswer(parsed, timeline),
     peak_week: buildPeakWeekAnswer(parsed, timeline),
     active_days: `Terdapat ${timeline.filter(item => item.generated > 0).length} hari dengan timbulan limbah yang tercatat selama ${parsed.period.label}.${suffix}`,
-    comparison: buildScopedComparison(parsed, recap, comparisonRecap) || (comparisonRecap
+    comparison: buildMultiMonthComparison(parsed, periodRecaps) || buildScopedComparison(parsed, recap, comparisonRecap) || (comparisonRecap
       ? buildDirectComparison(parsed, recap, comparisonRecap)
       : `Perbandingan ${parsed.period.label} dengan periode sebelumnya\n\n• Sisa limbah: ${analytics.changes.remainingKg >= 0 ? 'bertambah' : 'berkurang'} ${format(Math.abs(analytics.changes.remainingKg))} kg\n• Timbulan: ${changeText(analytics.changes.generatedPercent)}\n• Pengangkutan: ${changeText(analytics.changes.transportedPercent)}${suffix}`),
     type_total: `${parsed.type?.label || 'Jenis limbah tersebut'} ${during} berjumlah ${format(facts[parsed.type?.key])} kg.${suffix}`,
@@ -120,5 +144,5 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null) {
     duplicate_data: buildDuplicateAnswer(parsed, recap.diagnostics),
     data_anomalies: buildAnomalyAnswer(parsed, recap),
   };
-  return { text: answers[parsed.intent], parsed, period: parsed.period, context: { period: parsed.period, intent: parsed.intent, roomName: parsed.roomName, type: parsed.type }, facts, ...buildAnswerPresentation(parsed, recap, comparisonRecap) };
+  return { text: answers[parsed.intent], parsed, period: parsed.period, context: { period: parsed.period, intent: parsed.intent, roomName: parsed.roomName, type: parsed.type }, facts, ...buildAnswerPresentation(parsed, recap, comparisonRecap, periodRecaps) };
 }

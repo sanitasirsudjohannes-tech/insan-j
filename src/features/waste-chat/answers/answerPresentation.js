@@ -26,7 +26,7 @@ export function buildAnalysisAnswer(parsed, recap) {
   return `Analisis data limbah selama ${parsed.period.label}\n\n${notes.join('\n')}`;
 }
 
-export function buildAnswerPresentation(parsed, recap, comparisonRecap) {
+export function buildAnswerPresentation(parsed, recap, comparisonRecap, periodRecaps = null) {
   const { facts, charts, analytics } = recap;
   const available = facts.openingBalanceKg + facts.totalGeneratedKg;
   const warnings = [];
@@ -43,6 +43,10 @@ export function buildAnswerPresentation(parsed, recap, comparisonRecap) {
   let visualization = null;
   if (parsed.intent === 'type_breakdown' || parsed.intent === 'dominant_type') visualization = { title: 'Komposisi jenis', items: (charts.composition || []).map(item => ({ label: item.name, value: item.value })) };
   else if (['top_rooms', 'type_rooms'].includes(parsed.intent)) visualization = { title: 'Ruangan teratas', items: (charts.roomTotals || charts.rooms || []).slice(0, 5).map(item => ({ label: item.name, value: item.value })) };
+  else if (parsed.intent === 'comparison' && periodRecaps?.length >= 2) visualization = {
+    title: 'Perbandingan timbulan',
+    items: parsed.comparisonPeriods.map((period, index) => ({ label: period.label, value: periodRecaps[index].facts.totalGeneratedKg })),
+  };
   else if (parsed.intent === 'comparison' && comparisonRecap) visualization = { title: 'Perbandingan timbulan', items: [{ label: parsed.comparisonPeriod.label, value: comparisonRecap.facts.totalGeneratedKg }, { label: parsed.period.label, value: facts.totalGeneratedKg }] };
   else if (['analysis', 'generated'].includes(parsed.intent)) visualization = { title: 'Tren timbulan', items: monthlyTimeline(charts.timeline || []) };
 

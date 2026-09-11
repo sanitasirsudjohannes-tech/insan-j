@@ -54,12 +54,18 @@ function extractExplicitComparisonPeriods(question) {
   }
   const matches = [...question.matchAll(new RegExp(`\\b(${MONTH_PATTERN})(?:\\s+(20\\d{2}))?\\b`, 'gi'))];
   if (matches.length >= 2) {
-    const periods = matches.slice(0, 2).map(match => {
+    const periods = matches.map(match => {
       const month = MONTHS.indexOf(match[1].toLowerCase()) + 1;
       const explicitYear = match[2] ? Number(match[2]) : null;
       return makeMonthPeriod(explicitYear || sharedYear, month, !explicitYear && !/\b20\d{2}\b/.test(question));
-    });
-    return { comparisonPeriod: periods[0], period: periods[1] };
+    }).filter((period, index, all) => all.findIndex(item => item.start === period.start) === index);
+    return {
+      comparisonPeriod: periods[0],
+      period: periods.at(-1),
+      comparisonPeriods: periods,
+      requestedComparisonCount: periods.length,
+      tooManyComparisonMonths: periods.length > 3,
+    };
   }
   const yearMatches = [...question.matchAll(/\b(20\d{2})\b/g)].map(match => Number(match[1]));
   if (!matches.length && yearMatches.length >= 2) {
@@ -200,5 +206,17 @@ export function parseWasteQuestion(question, context = null, knownRooms = []) {
     else if (type) intent = 'type_dates';
     else if (/transport|angkut/i.test(context.intent)) intent = 'transport_dates';
   }
-  return { intent, period, comparisonPeriod: explicitComparison?.comparisonPeriod || null, type, types, roomName, roomNames: matchedRooms, question: text };
+  return {
+    intent,
+    period,
+    comparisonPeriod: explicitComparison?.comparisonPeriod || null,
+    comparisonPeriods: explicitComparison?.comparisonPeriods || null,
+    requestedComparisonCount: explicitComparison?.requestedComparisonCount || null,
+    tooManyComparisonMonths: Boolean(explicitComparison?.tooManyComparisonMonths),
+    type,
+    types,
+    roomName,
+    roomNames: matchedRooms,
+    question: text,
+  };
 }

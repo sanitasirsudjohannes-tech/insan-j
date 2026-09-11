@@ -225,3 +225,19 @@ test('periode relatif menggunakan rentang yang sesuai', () => {
   assert.equal(lastMonth.scope, 'month');
   assert.equal(lastYear.scope, 'year');
 });
+
+
+test('parser menerima maksimal tiga bulan untuk perbandingan', () => {
+  const parsed = parseWasteQuestion('Bandingkan Januari, Februari dan Maret 2026');
+  assert.equal(parsed.intent, 'comparison');
+  assert.equal(parsed.comparisonPeriods.length, 3);
+  assert.equal(parsed.period.label, 'Maret 2026');
+  assert.equal(parsed.tooManyComparisonMonths, false);
+});
+
+test('parser menandai perbandingan lebih dari tiga bulan', () => {
+  const parsed = parseWasteQuestion('Bandingkan Januari, Februari, Maret dan April 2026');
+  assert.equal(parsed.comparisonPeriods.length, 4);
+  assert.equal(parsed.tooManyComparisonMonths, true);
+  assert.equal(parsed.requestedComparisonCount, 4);
+});
