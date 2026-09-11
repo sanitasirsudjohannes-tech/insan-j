@@ -1,15 +1,12 @@
 import { fetchMedicalWasteRecap } from './reportRecap.js';
-import { normalizeAiWasteQuestion, parseWasteQuestion } from './wasteQuestionParser.js';
+import { parseWasteQuestion } from './wasteQuestionParser.js';
 import { buildWasteAnswer } from './wasteQuestionAnswer.js';
-import { interpretWasteQuestionWithAi } from './wasteQuestionAiApi.js';
 import { fetchDaftarRuangan, getCachedRuangan } from './api.js';
 import { findRoomCandidates, resolveKnownRoom } from '../features/waste-chat/parsers/roomNameResolver.js';
 import { getOfflineQueue } from './offlineStorage.js';
 import { findQuestionClarification } from '../features/waste-chat/presentation/questionPresentation.js';
-import { isHealthRegulationQuestion, searchHealthRegulations } from './regulationQuestion.js';
 
-export async function answerWasteQuestion(question, { signal, context = null, contextPeriod = null, interpretWithAi = interpretWasteQuestionWithAi, fetchRecap = fetchMedicalWasteRecap, fetchRooms = fetchDaftarRuangan, searchRegulations = searchHealthRegulations } = {}) {
-  if (isHealthRegulationQuestion(question)) return searchRegulations(question, signal);
+export async function answerWasteQuestion(question, { context = null, contextPeriod = null, fetchRecap = fetchMedicalWasteRecap, fetchRooms = fetchDaftarRuangan } = {}) {
   const conversationContext = context || (contextPeriod ? { period: contextPeriod } : null);
   let roomNames = typeof localStorage === 'undefined' ? [] : getCachedRuangan();
   if (!roomNames.length) roomNames = await fetchRooms();
@@ -22,12 +19,12 @@ export async function answerWasteQuestion(question, { signal, context = null, co
       actions: roomCandidates.slice(0, 6).map(name => ({ label: name, question: `${question} ruangan ${name}` })),
     };
   }
-  let parsed = parseWasteQuestion(question, conversationContext, roomNames);
+  const parsed = parseWasteQuestion(question, conversationContext, roomNames);
   const clarification = findQuestionClarification(question, parsed);
   if (clarification) return { ...clarification, clarification: true, understanding: { status: 'clarification', intent: 'Perlu konfirmasi', period: parsed.period?.label } };
   if (parsed.intent === 'capabilities') {
     return {
-      text: 'Saya dapat membantu membaca data INSAN-J, antara lain:\n\n• Ringkasan timbulan, pengangkutan, dan sisa limbah.\n• Rincian jenis limbah dan data per ruangan.\n• Perbandingan maksimal 3 bulan.\n• Tanggal pengangkutan, pengangkutan terakhir, dan jeda pengangkutan.\n• Pemeriksaan tanggal kosong, ruangan yang belum input, data ganda, dan angka tidak wajar.\n• Analisis tren, bulan atau tanggal tertinggi, serta rata-rata.\n• Pencarian peraturan limbah rumah sakit dan kesehatan lingkungan dari JDIH resmi.\n\nUntuk laporan dan periode yang lebih panjang, gunakan menu Rekap Limbah atau Laporan.',
+      text: 'Saya dapat membantu membaca data INSAN-J, antara lain:\n\n• Ringkasan timbulan, pengangkutan, dan sisa limbah.\n• Rincian jenis limbah dan data per ruangan.\n• Perbandingan maksimal 3 bulan.\n• Tanggal pengangkutan, pengangkutan terakhir, dan jeda pengangkutan.\n• Pemeriksaan tanggal kosong, ruangan yang belum input, data ganda, dan angka tidak wajar.\n• Analisis tren, bulan atau tanggal tertinggi, serta rata-rata.\n\nUntuk laporan dan periode yang lebih panjang, gunakan menu Rekap Limbah atau Laporan.',
       parsed,
       actions: [
         { label: 'Ringkasan bulan ini', question: 'Rincian data limbah bulan ini' },
@@ -39,14 +36,17 @@ export async function answerWasteQuestion(question, { signal, context = null, co
     };
   }
   if (parsed.intent === 'unknown') {
-    try {
-      const interpretation = await interpretWithAi(question, signal, conversationContext?.period || null);
-      parsed = normalizeAiWasteQuestion(question, interpretation);
-    } catch (error) {
-      return { text: `${error.message || 'AI belum dapat memahami pertanyaan.'} Coba tanyakan sisa limbah, timbulan, pengangkutan, kelengkapan data, pengangkutan terakhir, data ganda, atau data yang perlu diperiksa.`, parsed, aiUnavailable: true };
-    }
+    return {
+      text: 'Pertanyaan tersebut belum tersedia dalam template Tanya INSAN-J. Coba tanyakan sisa limbah, timbulan, pengangkutan, rincian jenis, kelengkapan data, atau perbandingan maksimal 3 bulan.',
+      parsed,
+      actions: [
+        { label: 'Ringkasan bulan ini', question: 'Rincian data limbah bulan ini' },
+        { label: 'Cek data kosong', question: 'Apakah ada tanggal yang belum diinput bulan ini?' },
+        { label: 'Pengangkutan terakhir', question: 'Kapan pengangkutan terakhir?' },
+      ],
+      understanding: { status: 'understood', intent: 'Template belum tersedia', period: null },
+    };
   }
-  if (parsed.intent === 'unknown') return { text: 'Pertanyaan tersebut belum dapat dijawab dari data INSAN-J. Coba tanyakan sisa limbah, timbulan, pengangkutan, kelengkapan data, pengangkutan terakhir, data ganda, atau data yang perlu diperiksa.', parsed, assistedByAi: true };
   if (parsed.intent === 'comparison' && parsed.tooManyComparisonMonths) {
     return {
       text: `Perbandingan melalui Tanya INSAN-J dibatasi maksimal 3 bulan agar jawaban tetap ringkas dan mudah diperiksa. Anda meminta ${parsed.requestedComparisonCount} bulan. Untuk melihat periode yang lebih panjang dan lebih lengkap, buka menu Rekap Limbah lalu pilih periode yang diperlukan.`,
@@ -76,7 +76,6 @@ export async function answerWasteQuestion(question, { signal, context = null, co
   const pendingCount = typeof window === 'undefined' ? 0 : getOfflineQueue().filter(item => ['limbah_padat', 'limbah_ruangan', 'pengangkutan_limbah'].includes(item.table)).length;
   return {
     ...buildWasteAnswer(parsed, recap, comparisonRecap, periodRecaps),
-    assistedByAi: Boolean(parsed.assistedByAi),
     dataStatus: { fetchedAt: new Date().toISOString(), pendingCount, online: typeof navigator === 'undefined' ? true : navigator.onLine },
   };
 }

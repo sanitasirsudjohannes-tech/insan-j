@@ -34,7 +34,6 @@ export default function WasteChatAnswer({ message, onAsk, onReport, onNavigate }
     const link = document.createElement('a'); link.href = blobUrl; link.download = `Tanya_INSAN-J_${new Date().toISOString().slice(0, 10)}.txt`; link.click(); window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
   };
   return <div>
-    {message.assistedByAi && <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-violet-600"><i className="fas fa-wand-magic-sparkles mr-1" />Dipahami dengan bantuan AI</span>}
     <Understanding value={message.understanding} />
     {message.cards?.length > 0 && <div className="mb-3 grid grid-cols-3 gap-1.5">{message.cards.map(card => <div key={card.label} className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2"><span className="block text-[9px] font-bold uppercase text-slate-400">{card.label}</span><span className="mt-0.5 block text-xs font-black text-slate-800">{card.value}</span></div>)}</div>}
     <div className="whitespace-pre-line">{visibleText}</div>
@@ -42,7 +41,6 @@ export default function WasteChatAnswer({ message, onAsk, onReport, onNavigate }
     {message.visualization?.items?.length > 0 && <MiniBars data={message.visualization} />}
     {message.warnings?.map(item => <p key={item} className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800"><i className="fas fa-triangle-exclamation mr-1.5" />{item}</p>)}
     <DataStatus value={message.dataStatus} />
-    {message.regulationSources?.length > 0 && <div className="mt-3 space-y-2">{message.regulationSources.map((item, index) => <a key={`${item.url}-${index}`} href={item.url} target="_blank" rel="noreferrer" className="block rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700"><span className="block font-bold"><i className="fas fa-scale-balanced mr-1.5" />{item.title}</span><span className="mt-0.5 block text-[10px]">Buka sumber JDIH resmi <i className="fas fa-arrow-up-right-from-square ml-1" /></span></a>)}</div>}
     {message.source && <p className="mt-3 border-t border-slate-100 pt-2 text-[10px] leading-relaxed text-slate-400">{message.source}</p>}
     {message.actions?.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{message.actions.map(action => <button key={action.label} type="button" onClick={() => onAsk(action.question)} className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">{action.label}</button>)}</div>}
     {message.followUps?.length > 0 && <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">{message.followUps.map(action => <button key={action.label} type="button" onClick={() => onAsk(action.question)} className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600">{action.label}</button>)}</div>}
