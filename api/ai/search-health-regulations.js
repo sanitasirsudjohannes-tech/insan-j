@@ -4,6 +4,7 @@ import { consumeAiUsage } from '../_lib/aiUsageLimit.js';
 import { searchRegulationsWithGemini } from '../_lib/geminiClient.js';
 import { allowedRegulationSources, buildRegulationSearchPrompt } from '../_lib/regulationPrompt.js';
 import { findVerifiedRegulations } from '../_lib/verifiedRegulations.js';
+import { getRegulationCache, setRegulationCache } from '../_lib/regulationCache.js';
 
 const json = (res, status, body) => res.status(status).json(body);
 const elapsed = startedAt => Date.now() - startedAt;
@@ -54,6 +55,12 @@ export default async function handler(req, res) {
       return json(res, 400, { success: false, message: 'Pertanyaan tidak valid atau terlalu panjang.', diagnosticId: requestId });
     }
 
+    const cached = getRegulationCache(question);
+    if (cached) {
+      writeDiagnostic('cache_hit', { requestId, stage: 'cache', source: 'server_memory', returnedSourceCount: cached.sources.length, cacheAgeMs: cached.cacheAgeMs, durationMs: elapsed(startedAt) });
+      return json(res, 200, { ...cached, success: true, cached: true, cacheAgeMs: undefined });
+    }
+
     if (!consumeAiUsage(auth.user.id)) {
       const sources = findVerifiedRegulations(question);
       writeDiagnostic('fallback', { requestId, stage: 'application_quota', code: 'daily_limit', catalogSourceCount: sources.length, durationMs: elapsed(startedAt) });
@@ -75,7 +82,9 @@ export default async function handler(req, res) {
       acceptedProviderSourceCount: searchedSources.length, rejectedProviderSourceCount: Math.max(receivedCount - searchedSources.length, 0),
       catalogSourceCount: catalogSources.length, returnedSourceCount: sources.length, durationMs: elapsed(startedAt),
     });
-    return json(res, 200, { success: true, inScope: result?.inScope !== false, summary: String(result?.summary || ''), sources, checkedAt: new Date().toISOString() });
+    const responseBody = { success: true, inScope: result?.inScope !== false, summary: String(result?.summary || ''), sources, checkedAt: new Date().toISOString() };
+    if (searchedSources.length) setRegulationCache(question, responseBody);
+    return json(res, 200, responseBody);
   } catch (error) {
     const code = classifyError(error);
     const sources = findVerifiedRegulations(req.body?.question);
