@@ -44,10 +44,7 @@ export async function interpretWithGemini(prompt) {
 }
 
 
-export async function searchRegulationsWithGemini(prompt) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('Gemini belum dikonfigurasi.');
-  const model = configuredGeminiModel(process.env.GEMINI_MODEL);
+async function requestRegulationSearch(apiKey, model, prompt) {
   const response = await fetchWithTimeout(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -65,3 +62,32 @@ export async function searchRegulationsWithGemini(prompt) {
   if (!match) throw new Error('Format hasil pencarian regulasi tidak valid.');
   return JSON.parse(match[0]);
 }
+
+export async function searchRegulationsWithGemini(prompt) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('Gemini belum dikonfigurasi.');
+  const configuredModel = configuredGeminiModel(process.env.GEMINI_MODEL);
+  try {
+    return await requestRegulationSearch(apiKey, configuredModel, prompt);
+  } catch (error) {
+    if (error.status !== 404) throw error;
+  }
+
+  const candidates = selectGeminiModels(await listGeminiModels(apiKey), configuredModel)
+    .filter(model => model !== configuredModel);
+  if (!candidates.length) throw Object.assign(new Error('Tidak ada model Gemini yang tersedia untuk pencarian regulasi.'), { status: 404 });
+
+  let lastError;
+  for (const model of candidates) {
+    try {
+      const result = await requestRegulationSearch(apiKey, model, prompt);
+      console.info('regulation_search_model_selected', JSON.stringify({ selection: 'automatic', model }));
+      return result;
+    } catch (error) {
+      lastError = error;
+      if (![400, 404].includes(error.status)) throw error;
+    }
+  }
+  throw lastError;
+}
+
