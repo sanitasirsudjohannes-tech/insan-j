@@ -229,7 +229,9 @@ test('jawaban analisis menyediakan kartu, grafik, sumber, dan pertanyaan lanjuta
   assert.equal(answer.cards[0].label, 'Sisa Akhir');
   assert.ok(answer.text.indexOf('Sisa akhir') < answer.text.indexOf('Timbulan'));
   assert.equal(answer.visualization.title, 'Tren timbulan');
-  assert.match(answer.source, /data INSAN-J yang telah tersinkron/);
+  assert.match(answer.source, /data server INSAN-J/);
+  assert.equal(answer.understanding.intent, 'Analisis limbah');
+  assert.match(answer.sourceLink.to, /^\/rekap-limbah\?/);
   assert.ok(answer.followUps.length >= 3);
   assert.equal(answer.reportPayload.period.start, '2026-07-01');
 });

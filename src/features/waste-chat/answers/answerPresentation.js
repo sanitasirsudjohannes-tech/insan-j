@@ -1,4 +1,5 @@
 import { formatNumber as format } from '../formatters/wasteAnswerFormatters.js';
+import { buildQuestionUnderstanding, buildSourceLink } from '../presentation/questionPresentation.js';
 
 const monthlyTimeline = timeline => {
   const months = new Map();
@@ -59,7 +60,9 @@ export function buildAnswerPresentation(parsed, recap, comparisonRecap) {
     visualization,
     warnings,
     followUps: followUps.slice(0, 4),
-    source: `Sumber: data INSAN-J yang telah tersinkron, periode ${parsed.period.start} sampai ${parsed.period.end}.`,
+    source: `Sumber: data server INSAN-J, periode ${parsed.period.start} sampai ${parsed.period.end}.`,
+    understanding: buildQuestionUnderstanding(parsed),
+    sourceLink: buildSourceLink(parsed),
     reportPayload: { period: { start: parsed.period.start, end: parsed.period.end }, facts, analytics, chartData: { balanceFlow: charts.balanceFlow, timeline: charts.timeline, rooms: charts.rooms, composition: charts.composition } },
   };
 }

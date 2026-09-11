@@ -4,6 +4,8 @@ import { buildWasteAnswer } from './wasteQuestionAnswer.js';
 import { interpretWasteQuestionWithAi } from './wasteQuestionAiApi.js';
 import { fetchDaftarRuangan, getCachedRuangan } from './api.js';
 import { findRoomCandidates, resolveKnownRoom } from '../features/waste-chat/parsers/roomNameResolver.js';
+import { getOfflineQueue } from './offlineStorage.js';
+import { findQuestionClarification } from '../features/waste-chat/presentation/questionPresentation.js';
 
 export async function answerWasteQuestion(question, { signal, context = null, contextPeriod = null, interpretWithAi = interpretWasteQuestionWithAi, fetchRecap = fetchMedicalWasteRecap, fetchRooms = fetchDaftarRuangan } = {}) {
   const conversationContext = context || (contextPeriod ? { period: contextPeriod } : null);
@@ -19,6 +21,8 @@ export async function answerWasteQuestion(question, { signal, context = null, co
     };
   }
   let parsed = parseWasteQuestion(question, conversationContext, roomNames);
+  const clarification = findQuestionClarification(question, parsed);
+  if (clarification) return { ...clarification, clarification: true, understanding: { status: 'clarification', intent: 'Perlu konfirmasi', period: parsed.period?.label } };
   if (parsed.intent === 'unknown') {
     try {
       const interpretation = await interpretWithAi(question, signal, conversationContext?.period || null);
@@ -34,5 +38,10 @@ export async function answerWasteQuestion(question, { signal, context = null, co
       ? fetchRecap(parsed.comparisonPeriod.start, parsed.comparisonPeriod.end, { knownRooms: roomNames })
       : null,
   ]);
-  return { ...buildWasteAnswer(parsed, recap, comparisonRecap), assistedByAi: Boolean(parsed.assistedByAi) };
+  const pendingCount = typeof window === 'undefined' ? 0 : getOfflineQueue().filter(item => ['limbah_padat', 'limbah_ruangan', 'pengangkutan_limbah'].includes(item.table)).length;
+  return {
+    ...buildWasteAnswer(parsed, recap, comparisonRecap),
+    assistedByAi: Boolean(parsed.assistedByAi),
+    dataStatus: { fetchedAt: new Date().toISOString(), pendingCount, online: typeof navigator === 'undefined' ? true : navigator.onLine },
+  };
 }

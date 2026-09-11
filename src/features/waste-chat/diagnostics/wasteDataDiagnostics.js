@@ -3,11 +3,11 @@ const DAY_MS = 86400000;
 const isoDate = date => date.toISOString().slice(0, 10);
 const rowTotal = row => WASTE_KEYS.reduce((total, key) => total + (Number(row[key]) || 0), 0);
 
-function currentWitaDate() {
+function currentWita() {
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en', {
-    timeZone: 'Asia/Makassar', year: 'numeric', month: '2-digit', day: '2-digit',
+    timeZone: 'Asia/Makassar', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23',
   }).formatToParts(new Date()).map(part => [part.type, part.value]));
-  return `${parts.year}-${parts.month}-${parts.day}`;
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour) };
 }
 
 function datesBetween(start, end) {
@@ -21,7 +21,9 @@ function datesBetween(start, end) {
 const normalizeRoom = value => String(value || '').trim().toLocaleLowerCase('id-ID');
 
 export function buildWasteDataDiagnostics({ start, end, wasteRows = [], roomRows = [], transportRows = [], knownRooms = [] }) {
-  const effectiveEnd = [end, currentWitaDate()].sort()[0];
+  const now = currentWita();
+  const safeToday = now.hour >= 10 ? now.date : isoDate(new Date(new Date(`${now.date}T00:00:00Z`).getTime() - DAY_MS));
+  const effectiveEnd = [end, safeToday].sort()[0];
   const dates = start <= effectiveEnd ? datesBetween(start, effectiveEnd) : [];
   const wasteDates = new Set(wasteRows.map(row => row.tanggal));
   const rowsByDate = new Map();
@@ -60,6 +62,7 @@ export function buildWasteDataDiagnostics({ start, end, wasteRows = [], roomRows
 
   return {
     checkedThrough: effectiveEnd,
+    completenessCutoffHourWita: 10,
     expectedDays: dates.length,
     officialRooms: Array.from(officialRooms.values()),
     missingDates: dates.filter(date => !wasteDates.has(date)),
