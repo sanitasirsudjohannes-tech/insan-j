@@ -61,6 +61,7 @@ export function buildWasteDataDiagnostics({ start, end, wasteRows = [], roomRows
   return {
     checkedThrough: effectiveEnd,
     expectedDays: dates.length,
+    officialRooms: Array.from(officialRooms.values()),
     missingDates: dates.filter(date => !wasteDates.has(date)),
     zeroOnlyDates: dates.filter(date => rowsByDate.has(date) && rowsByDate.get(date).every(row => rowTotal(row) === 0)),
     missingRoomDays,
@@ -70,6 +71,6 @@ export function buildWasteDataDiagnostics({ start, end, wasteRows = [], roomRows
       return { date, roomName: officialRooms.get(roomKey) || roomRows.find(row => row.tanggal === date && normalizeRoom(row.ruangan) === roomKey)?.ruangan || roomKey, count };
     }).filter(item => item.count > 1).sort((a, b) => a.date.localeCompare(b.date)),
     negativeRows: wasteRows.filter(row => WASTE_KEYS.some(key => Number(row[key]) < 0)).map(row => ({ date: row.tanggal, roomName: row.ruangan || null })),
-    transport: { dates: transportDates, lastDate: lastTransportDate, daysSinceLast: daysSinceLastTransport, longestGap: gaps[0] || null },
+    transport: { dates: transportDates, recordCount: transportRows.filter(row => Number(row.jumlah_kg) > 0).length, lastDate: lastTransportDate, daysSinceLast: daysSinceLastTransport, longestGap: gaps[0] || null },
   };
 }

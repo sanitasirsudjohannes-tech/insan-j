@@ -8,7 +8,7 @@ export const WASTE_TYPES = [
   { pattern: /sitotoksik|cytotoxic|sitostatika/i, key: 'cytotoxicKg', label: 'limbah sitotoksik' },
 ];
 
-export const ALLOWED_INTENTS = new Set(['waste_summary', 'analysis', 'remaining', 'opening_balance', 'available_total', 'generated', 'transported', 'transport_dates', 'last_transport', 'transport_gap', 'type_dates', 'transport_coverage', 'average', 'dominant_type', 'type_breakdown', 'top_rooms', 'bottom_room', 'type_rooms', 'room_total', 'room_type_dates', 'room_type_total', 'peak_day', 'active_days', 'comparison', 'type_total', 'data_completeness', 'missing_rooms', 'duplicate_data', 'data_anomalies']);
+export const ALLOWED_INTENTS = new Set(['waste_summary', 'analysis', 'remaining', 'opening_balance', 'available_total', 'generated', 'transported', 'transport_dates', 'last_transport', 'transport_gap', 'transport_count', 'average_transport', 'type_dates', 'transport_coverage', 'average', 'dominant_type', 'least_type', 'type_breakdown', 'type_percentages', 'top_rooms', 'bottom_room', 'type_rooms', 'never_type_rooms', 'room_total', 'room_contribution', 'room_type_dates', 'room_type_total', 'peak_day', 'trough_day', 'peak_month', 'peak_week', 'active_days', 'comparison', 'type_total', 'data_completeness', 'missing_rooms', 'duplicate_data', 'data_anomalies']);
 
 export const QUESTION_SUGGESTIONS = [
   'Rincian data limbah bulan ini',

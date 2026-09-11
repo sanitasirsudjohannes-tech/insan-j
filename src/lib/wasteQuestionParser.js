@@ -1,6 +1,6 @@
 import { ALLOWED_INTENTS, MONTH_PATTERN, MONTHS, QUESTION_SUGGESTIONS, WASTE_TYPES } from '../features/waste-chat/constants/wasteQuestionConstants.js';
 import { detectWasteIntent } from '../features/waste-chat/parsers/intentParser.js';
-import { cleanRoomCandidate, resolveKnownRoom } from '../features/waste-chat/parsers/roomNameResolver.js';
+import { cleanRoomCandidate, findRoomCandidates, resolveKnownRoom } from '../features/waste-chat/parsers/roomNameResolver.js';
 
 export { QUESTION_SUGGESTIONS, WASTE_TYPES };
 const iso = (year, month, day) => `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -105,6 +105,12 @@ function extractPeriod(question) {
   const now = currentWita();
   const globalYear = Number(lower.match(/\b(20\d{2})\b/)?.[1] || now.year);
   const today = iso(now.year, now.month, now.day);
+  if (/banding|dibanding|perbandingan/i.test(lower) && /bulan\s+(?:lalu|kemarin|sebelumnya)/i.test(lower) && !/bulan\s+ini/i.test(lower)) {
+    return makeMonthPeriod(now.year, now.month, true);
+  }
+  if (/bulan\s+(?:mana|apa).*(?:terbesar|terbanyak|tertinggi|paling)|(?:terbesar|terbanyak|tertinggi|paling).*(?:bulan\s+(?:mana|apa))/i.test(lower)) {
+    return { year: globalYear, month: null, day: null, start: `${globalYear}-01-01`, end: `${globalYear}-12-31`, label: `tahun ${globalYear}`, scope: 'year', inferredYear: !/\b20\d{2}\b/.test(lower) };
+  }
   const lastDays = lower.match(/(?:dalam\s+)?(\d{1,3})\s+hari\s+terakhir/i);
   if (lastDays) {
     const days = Math.min(Math.max(Number(lastDays[1]), 1), 366);
@@ -168,8 +174,8 @@ export function normalizeAiWasteQuestion(question, interpretation) {
   const types = WASTE_TYPES.filter(item => requestedKeys.includes(item.key));
   if (intent === 'type_total' && types.length !== 1) return parseWasteQuestion(question);
   const roomName = String(interpretation.roomName || '').trim() || null;
-  if (['room_total', 'room_type_total', 'room_type_dates'].includes(intent) && !roomName) return parseWasteQuestion(question);
-  if (['room_type_total', 'room_type_dates', 'type_dates', 'type_rooms'].includes(intent) && types.length !== 1) return parseWasteQuestion(question);
+  if (['room_total', 'room_contribution', 'room_type_total', 'room_type_dates'].includes(intent) && !roomName) return parseWasteQuestion(question);
+  if (['room_type_total', 'room_type_dates', 'type_dates', 'type_rooms', 'never_type_rooms'].includes(intent) && types.length !== 1) return parseWasteQuestion(question);
   return { intent, type: types[0], types, roomName, question: String(question || '').trim(), assistedByAi: true, period };
 }
 
@@ -185,12 +191,14 @@ export function parseWasteQuestion(question, context = null, knownRooms = []) {
   const type = types[0];
   const explicitRoom = cleanRoomCandidate(text.match(/(?:ruang(?:an)?|unit|bangsal)\s+(.+?)(?=\s+(?:tanggal|tgl\.?|pertanggal|bulan|tahun|dari|pada|berapa|yang|ada|januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember)\b|[?.,]|$)/i)?.[1]);
   const referencesPreviousRoom = /(?:ruang|ruangan|unit|bangsal)\s+(?:itu|tersebut|yang sama)/i.test(text);
-  const roomName = resolveKnownRoom(text, knownRooms) || (referencesPreviousRoom ? context?.roomName : null) || explicitRoom;
+  const matchedRooms = findRoomCandidates(text, knownRooms);
+  let roomName = resolveKnownRoom(text, knownRooms) || (referencesPreviousRoom ? context?.roomName : null) || explicitRoom;
   let intent = detectWasteIntent(text, { type, types, roomName });
+  if (['type_rooms', 'never_type_rooms', 'missing_rooms'].includes(intent) && matchedRooms.length === 0) roomName = null;
   if (/tanggal.*(?:lain|itu|tersebut)/i.test(text) && context?.intent) {
     if (context.roomName && type) intent = 'room_type_dates';
     else if (type) intent = 'type_dates';
     else if (/transport|angkut/i.test(context.intent)) intent = 'transport_dates';
   }
-  return { intent, period, comparisonPeriod: explicitComparison?.comparisonPeriod || null, type, types, roomName, question: text };
+  return { intent, period, comparisonPeriod: explicitComparison?.comparisonPeriod || null, type, types, roomName, roomNames: matchedRooms, question: text };
 }

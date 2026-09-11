@@ -6,7 +6,18 @@ import { normalizeAiWasteQuestion, parseWasteQuestion } from '../src/lib/wasteQu
 const recap = {
   facts: { openingBalanceKg: 10, totalGeneratedKg: 40, totalTransportedKg: 35, remainingKg: 15, infectiousKg: 30, sharpsKg: 5, bottleKg: 3, cytotoxicKg: 2 },
   charts: { rooms: [{ name: 'Ruang A', value: 20 }], roomDetails: [{ name: 'ICU', infectiousKg: 12, sharpsKg: 3, bottleKg: 2, cytotoxicKg: 1, totalKg: 18 }] },
-  analytics: { performance: { averageDailyKg: 1.29, transportedCoveragePercent: 70 }, changes: { generatedPercent: 10, transportedPercent: -5, remainingKg: 5 }, dominantType: { name: 'limbah infeksius', current: 30 } },
+  analytics: {
+    performance: { averageDailyKg: 1.29, transportedCoveragePercent: 70 },
+    changes: { generatedPercent: 10, transportedPercent: -5, remainingKg: 5 },
+    dominantType: { name: 'limbah infeksius', current: 30 },
+    types: [
+      { key: 'infectiousKg', name: 'limbah infeksius', current: 30, previous: 20 },
+      { key: 'sharpsKg', name: 'limbah jarum suntik', current: 5, previous: 4 },
+      { key: 'bottleKg', name: 'limbah botol obat', current: 3, previous: 2 },
+      { key: 'cytotoxicKg', name: 'limbah sitotoksik', current: 2, previous: 1 },
+    ],
+    rooms: [{ name: 'ICU', current: 18, previous: 12 }],
+  },
 };
 
 test('jawaban sisa menjelaskan sumber perhitungan', () => {
@@ -230,6 +241,76 @@ test('parser mengenali pertanyaan operasional pemeriksaan data', () => {
   assert.equal(parseWasteQuestion('Apakah ada data yang tidak wajar bulan Agustus 2026?').intent, 'data_anomalies');
   assert.equal(parseWasteQuestion('Kapan pengangkutan terakhir bulan Agustus 2026?').intent, 'last_transport');
   assert.equal(parseWasteQuestion('Berapa hari jeda pengangkutan bulan Agustus 2026?').intent, 'transport_gap');
+});
+
+test('parser tidak menukar pertanyaan statistik yang serupa', () => {
+  const rooms = ['ICU', 'IGD', 'Bugenvil 2'];
+  const cases = [
+    ['Tanggal berapa timbulan paling tinggi?', 'peak_day'],
+    ['Tanggal berapa timbulan paling rendah?', 'trough_day'],
+    ['Berapa kali pengangkutan bulan ini?', 'transport_count'],
+    ['Berapa rata-rata jumlah limbah setiap pengangkutan?', 'average_transport'],
+    ['Jenis limbah apa yang paling sedikit?', 'least_type'],
+    ['Berapa persentase masing-masing jenis limbah?', 'type_percentages'],
+    ['Berapa kontribusi Bugenvil 2 terhadap total timbulan?', 'room_contribution'],
+    ['Apakah ada ruangan yang tidak pernah mencatat sitotoksik?', 'never_type_rooms'],
+    ['Bulan mana yang paling banyak pengangkutannya?', 'peak_month'],
+    ['Pada bulan apa limbah jarum suntik paling tinggi?', 'peak_month'],
+    ['Minggu mana yang menghasilkan limbah paling banyak?', 'peak_week'],
+  ];
+  cases.forEach(([question, expected]) => assert.equal(parseWasteQuestion(question, null, rooms).intent, expected, question));
+});
+
+test('peringkat periode menjawab bulan atau minggu yang ditanyakan', () => {
+  const rankingRecap = {
+    ...recap,
+    charts: {
+      ...recap.charts,
+      timeline: [
+        { date: '2026-07-02', generated: 100, transported: 50, sharpsKg: 10 },
+        { date: '2026-08-02', generated: 150, transported: 80, sharpsKg: 20 },
+        { date: '2026-08-09', generated: 200, transported: 120, sharpsKg: 30 },
+      ],
+    },
+  };
+  const monthParsed = parseWasteQuestion('Bulan mana yang paling banyak pengangkutannya tahun 2026?');
+  assert.equal(monthParsed.period.scope, 'year');
+  assert.match(buildWasteAnswer(monthParsed, rankingRecap).text, /Agustus 2026 sebanyak 200 kg/);
+  const weekAnswer = buildWasteAnswer(parseWasteQuestion('Minggu mana yang menghasilkan limbah paling banyak Agustus 2026?'), rankingRecap);
+  assert.match(weekAnswer.text, /minggu ke-2/);
+  assert.match(weekAnswer.text, /200 kg/);
+});
+
+test('jawaban rata-rata pengangkutan tidak memakai rata-rata timbulan harian', () => {
+  const diagnosticRecap = {
+    ...recap,
+    facts: { ...recap.facts, totalTransportedKg: 1200 },
+    diagnostics: { transport: { recordCount: 3 } },
+  };
+  const answer = buildWasteAnswer(parseWasteQuestion('Berapa rata-rata setiap pengangkutan Agustus 2026?'), diagnosticRecap);
+  assert.match(answer.text, /400 kg/);
+  assert.match(answer.text, /3 catatan pengangkutan/);
+  assert.doesNotMatch(answer.text, /per hari/);
+});
+
+test('perbandingan ruangan dan jenis memakai lingkup yang ditanyakan', () => {
+  const scopedRecap = {
+    ...recap,
+    charts: {
+      ...recap.charts,
+      roomDetails: [
+        { name: 'ICU', infectiousKg: 12, totalKg: 18 },
+        { name: 'IGD', infectiousKg: 8, totalKg: 14 },
+      ],
+    },
+  };
+  const rooms = ['ICU', 'IGD'];
+  const roomAnswer = buildWasteAnswer(parseWasteQuestion('Bandingkan limbah infeksius ICU dan IGD bulan ini', null, rooms), scopedRecap);
+  assert.match(roomAnswer.text, /ICU: 12 kg/);
+  assert.match(roomAnswer.text, /IGD: 8 kg/);
+  const typeAnswer = buildWasteAnswer(parseWasteQuestion('Bandingkan limbah infeksius dan jarum bulan ini'), scopedRecap);
+  assert.match(typeAnswer.text, /limbah infeksius: 30 kg/);
+  assert.match(typeAnswer.text, /limbah jarum suntik: 5 kg/);
 });
 
 test('jawaban kelengkapan membedakan tanggal tanpa input dan seluruh nilai nol', () => {
