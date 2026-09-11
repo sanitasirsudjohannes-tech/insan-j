@@ -29,12 +29,13 @@ export function buildAnalysisAnswer(parsed, recap) {
 export function buildAnswerPresentation(parsed, recap, comparisonRecap, periodRecaps = null) {
   const { facts, charts, analytics } = recap;
   const available = facts.openingBalanceKg + facts.totalGeneratedKg;
+  const noRecordedWaste = !Number(facts.openingBalanceKg) && !Number(facts.totalGeneratedKg) && !Number(facts.totalTransportedKg) && !Number(facts.remainingKg);
   const warnings = [];
   if (facts.remainingKg < 0) warnings.push('Sisa akhir bernilai negatif. Periksa kembali data timbulan dan pengangkutan.');
   if (facts.totalTransportedKg > available) warnings.push('Pengangkutan lebih besar daripada limbah yang tersedia pada perhitungan periode ini.');
-  if (!facts.totalGeneratedKg && !facts.totalTransportedKg) warnings.push('Belum ada timbulan maupun pengangkutan pada periode ini.');
+  if (!noRecordedWaste && !facts.totalGeneratedKg && !facts.totalTransportedKg) warnings.push('Belum ada timbulan maupun pengangkutan pada periode ini.');
 
-  const cards = ['waste_summary', 'analysis', 'remaining', 'comparison', 'transport_coverage'].includes(parsed.intent) ? [
+  const cards = !noRecordedWaste && ['waste_summary', 'analysis', 'remaining', 'comparison', 'transport_coverage'].includes(parsed.intent) ? [
     { label: 'Sisa Akhir', value: `${format(facts.remainingKg)} kg`, tone: facts.remainingKg < 0 ? 'red' : 'emerald' },
     { label: 'Timbulan', value: `${format(facts.totalGeneratedKg)} kg`, tone: 'blue' },
     { label: 'Diangkut', value: `${format(facts.totalTransportedKg)} kg`, tone: 'orange' },

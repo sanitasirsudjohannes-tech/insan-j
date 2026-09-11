@@ -68,6 +68,7 @@ function buildScopedComparison(parsed, recap, comparisonRecap) {
 
 export function buildWasteAnswer(parsed, recap, comparisonRecap = null, periodRecaps = null) {
   const { facts, charts, analytics } = recap;
+  const noRecordedWaste = !Number(facts.openingBalanceKg) && !Number(facts.totalGeneratedKg) && !Number(facts.totalTransportedKg) && !Number(facts.remainingKg);
   const roomTotals = charts.roomTotals || charts.rooms;
   const timeline = charts.timeline || [];
   const transportDays = timeline.filter(item => item.transported > 0);
@@ -91,7 +92,9 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null, periodRe
   const answers = {
     waste_summary: `Rincian data limbah ${during}\n\nKondisi akhir\n• Sisa limbah: ${format(facts.remainingKg)} kg\n\nAlur limbah\n• Sisa awal: ${format(facts.openingBalanceKg)} kg\n• Ditambah timbulan: ${format(facts.totalGeneratedKg)} kg\n• Dikurangi pengangkutan: ${format(facts.totalTransportedKg)} kg\n\nKomposisi timbulan\n${selectedTypes.map(item => `• ${item.label}: ${format(facts[item.key])} kg`).join('\n')}${roomTotals.length ? `\n\nRuangan terbesar\n• ${roomTotals[0].name}: ${format(roomTotals[0].value)} kg` : ''}${suffix}`,
     analysis: buildAnalysisAnswer(parsed, recap),
-    remaining: `Sisa limbah pada akhir ${parsed.period.label}: ${format(facts.remainingKg)} kg\n\nPerhitungan\n• Sisa awal: ${format(facts.openingBalanceKg)} kg\n• Ditambah timbulan: ${format(facts.totalGeneratedKg)} kg\n• Dikurangi pengangkutan: ${format(facts.totalTransportedKg)} kg${suffix}`,
+    remaining: noRecordedWaste
+      ? `Tidak ada data limbah yang tercatat pada ${parsed.period.label}.${suffix}`
+      : `Sisa limbah pada akhir ${parsed.period.label}: ${format(facts.remainingKg)} kg\n\nPerhitungan\n• Sisa awal: ${format(facts.openingBalanceKg)} kg\n• Ditambah timbulan: ${format(facts.totalGeneratedKg)} kg\n• Dikurangi pengangkutan: ${format(facts.totalTransportedKg)} kg${suffix}`,
     opening_balance: `Sisa limbah pada awal ${parsed.period.label} adalah ${format(facts.openingBalanceKg)} kg.${suffix}`,
     available_total: `Total limbah yang tersedia untuk dikelola ${during}: ${format(facts.openingBalanceKg + facts.totalGeneratedKg)} kg\n\n• Sisa awal: ${format(facts.openingBalanceKg)} kg\n• Timbulan baru: ${format(facts.totalGeneratedKg)} kg${suffix}`,
     generated: `Timbulan limbah ${during}\n\n• Total: ${format(facts.totalGeneratedKg)} kg\n• Rata-rata: ${format(analytics.performance.averageDailyKg)} kg per hari${suffix}`,

@@ -27,6 +27,24 @@ test('jawaban sisa menjelaskan sumber perhitungan', () => {
   assert.match(answer.text, /pengangkutan: 35 kg/);
 });
 
+test('jawaban sisa periode tanpa data ditampilkan singkat tanpa kartu nol', () => {
+  const emptyRecap = {
+    ...recap,
+    facts: {
+      ...recap.facts,
+      openingBalanceKg: 0,
+      totalGeneratedKg: 0,
+      totalTransportedKg: 0,
+      remainingKg: 0,
+    },
+  };
+  const answer = buildWasteAnswer(parseWasteQuestion('Sisa limbah Juli 2025?'), emptyRecap);
+  assert.equal(answer.text, 'Tidak ada data limbah yang tercatat pada Juli 2025.');
+  assert.deepEqual(answer.cards, []);
+  assert.deepEqual(answer.warnings, []);
+  assert.doesNotMatch(answer.text, /Perhitungan|0 kg/);
+});
+
 test('jawaban rincian jenis menampilkan seluruh jenis dan total', () => {
   const answer = buildWasteAnswer(parseWasteQuestion('Rincian limbah berdasarkan jenis tanggal 5 September 2026'), recap);
   assert.match(answer.text, /limbah infeksius: 30 kg/);
