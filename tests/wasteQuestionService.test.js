@@ -114,6 +114,26 @@ test('jawaban tanggal pengangkutan memuat tanggal dan jumlah per hari', () => {
   assert.doesNotMatch(answer.text, /11 April/);
 });
 
+test('frasa singkat tanggal pengangkutan menghasilkan daftar tanggal', () => {
+  const augustRecap = {
+    ...recap,
+    facts: { ...recap.facts, totalTransportedKg: 10800 },
+    charts: {
+      ...recap.charts,
+      timeline: [
+        { date: '2026-08-19', generated: 0, transported: 2850 },
+        { date: '2026-08-26', generated: 0, transported: 7950 },
+      ],
+    },
+  };
+  const parsed = parseWasteQuestion('Tanggal pengangkutan Agustus 2026');
+  const answer = buildWasteAnswer(parsed, augustRecap);
+  assert.equal(parsed.intent, 'transport_dates');
+  assert.match(answer.text, /19 Agustus 2026: 2\.850 kg/);
+  assert.match(answer.text, /26 Agustus 2026: 7\.950 kg/);
+  assert.match(answer.text, /Total 10\.800 kg/);
+});
+
 test('daftar pengangkutan lintas bulan dikelompokkan dan diberi subtotal', () => {
   const yearlyRecap = {
     ...recap,
