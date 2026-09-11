@@ -1,5 +1,6 @@
 import { useEffect, useState, Suspense, lazy } from 'react';
 import AppLayout from '../components/AppLayout';
+import MissingDateToast from '../components/limbah/MissingDateToast';
 import { getCurrentUser } from '../lib/api';
 
 const loadLimbahPadat = () => import('./LimbahPadat');
@@ -94,6 +95,8 @@ export default function LimbahDihasilkan() {
 
   return (
     <AppLayout title="Limbah Dihasilkan">
+      <MissingDateToast user={user} enabled={!isMahasiswa} />
+
       <div className="bg-slate-800 border-b border-slate-700 shadow-md">
         <div className="flex items-center gap-2 px-3 py-2">
           <div className="w-6 h-6 rounded-md bg-amber-500/20 flex items-center justify-center shrink-0">
