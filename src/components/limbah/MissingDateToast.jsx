@@ -7,7 +7,7 @@ import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
 import { fetchDatabaseAggregation } from '../../lib/databaseAggregations';
 
 const MySwal = withReactContent(Swal);
-const STORAGE_PREFIX = 'insan_j_missing_date_toast';
+const STORAGE_PREFIX = 'insan_j_missing_date_toast_v2';
 
 const formatDate = (dateStr) => new Date(`${dateStr}T00:00:00`).toLocaleDateString('id-ID', {
   day: 'numeric',
@@ -15,25 +15,46 @@ const formatDate = (dateStr) => new Date(`${dateStr}T00:00:00`).toLocaleDateStri
   year: 'numeric',
 });
 
-async function fetchMissingDates() {
+const buildCheckPeriod = () => {
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
-  const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+  const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const previousMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const previousMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
 
-  if (yesterday < startOfMonth) return [];
+  const ranges = [[previousMonthStart, previousMonthEnd]];
+  if (yesterday >= currentMonthStart) ranges.push([currentMonthStart, yesterday]);
 
-  const startDate = getLocalDateString(startOfMonth);
-  const endDate = getLocalDateString(yesterday);
-  const aggregated = await fetchDatabaseAggregation('dashboard_missing_waste_dates', {
-    start_date: startDate,
-    end_date: endDate,
-  });
+  const dates = [];
+  for (const [start, end] of ranges) {
+    for (const date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+      dates.push(getLocalDateString(date));
+    }
+  }
 
-  if (aggregated !== null) return aggregated;
+  return { dates, ranges };
+};
 
+async function fetchMissingDates() {
+  const { dates: datesToCheck, ranges } = buildCheckPeriod();
+  if (datesToCheck.length === 0) return [];
+
+  const aggregatedRanges = await Promise.all(ranges.map(([start, end]) =>
+    fetchDatabaseAggregation('dashboard_missing_waste_dates', {
+      start_date: getLocalDateString(start),
+      end_date: getLocalDateString(end),
+    })
+  ));
+
+  if (aggregatedRanges.every(result => result !== null)) {
+    return [...new Set(aggregatedRanges.flat())].sort();
+  }
+
+  const startDate = datesToCheck[0];
+  const endDate = datesToCheck[datesToCheck.length - 1];
   const [padatData, ruanganData] = await Promise.all(
-    ['limbah_padat', 'limbah_ruangan'].map((table) => fetchAllSupabaseRows(() => supabase
+    ['limbah_padat', 'limbah_ruangan'].map(table => fetchAllSupabaseRows(() => supabase
       .from(table)
       .select('tanggal')
       .gte('tanggal', startDate)
@@ -43,17 +64,10 @@ async function fetchMissingDates() {
   );
 
   const filledDates = new Set([
-    ...padatData.map((item) => item.tanggal),
-    ...ruanganData.map((item) => item.tanggal),
+    ...padatData.map(item => item.tanggal),
+    ...ruanganData.map(item => item.tanggal),
   ]);
-  const missingDates = [];
-
-  for (const date = new Date(startOfMonth); date <= yesterday; date.setDate(date.getDate() + 1)) {
-    const value = getLocalDateString(date);
-    if (!filledDates.has(value)) missingDates.push(value);
-  }
-
-  return missingDates;
+  return datesToCheck.filter(date => !filledDates.has(date));
 }
 
 export default function MissingDateToast({ user, enabled = true }) {
@@ -61,8 +75,7 @@ export default function MissingDateToast({ user, enabled = true }) {
     if (!enabled || !user?.id || !navigator.onLine) return undefined;
 
     let cancelled = false;
-    const todayKey = getLocalDateString();
-    const storageKey = `${STORAGE_PREFIX}:${user.id}:${todayKey}`;
+    const storageKey = `${STORAGE_PREFIX}:${user.id}:${getLocalDateString()}`;
 
     try {
       if (localStorage.getItem(storageKey)) return undefined;
@@ -90,7 +103,7 @@ export default function MissingDateToast({ user, enabled = true }) {
         await MySwal.fire({
           icon: 'warning',
           title: `Ada ${missingDates.length} tanggal belum diisi`,
-          html: `<div style="text-align:left;font-size:0.875rem;line-height:1.5"><strong>${dateText}</strong><br><span>Periksa kembali data limbah. Jika pengisian dilakukan setelah hari libur, centang <strong>Distribusi Tanggal</strong> agar data tercatat pada tanggal yang sesuai.</span></div>`,
+          html: `<div style="text-align:left;font-size:0.875rem;line-height:1.5"><strong>${dateText}</strong><br><span>Periksa bulan berjalan dan satu bulan sebelumnya. Jika pengisian dilakukan setelah hari libur, centang <strong>Distribusi Tanggal</strong> agar data tercatat pada tanggal yang sesuai.</span></div>`,
           toast: true,
           position: 'top-end',
           showCloseButton: true,
