@@ -241,3 +241,14 @@ test('parser menandai perbandingan lebih dari tiga bulan', () => {
   assert.equal(parsed.tooManyComparisonMonths, true);
   assert.equal(parsed.requestedComparisonCount, 4);
 });
+
+
+test('pertanyaan tentang kemampuan tidak dianggap sebagai ringkasan limbah', () => {
+  const questions = [
+    'Apa saja yg bisa kamu lakukan?',
+    'Kamu bisa apa?',
+    'Daftar kemampuan',
+    'Bantuan',
+  ];
+  questions.forEach(question => assert.equal(parseWasteQuestion(question).intent, 'capabilities', question));
+});

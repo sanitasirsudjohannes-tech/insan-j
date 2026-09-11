@@ -23,6 +23,19 @@ export async function answerWasteQuestion(question, { signal, context = null, co
   let parsed = parseWasteQuestion(question, conversationContext, roomNames);
   const clarification = findQuestionClarification(question, parsed);
   if (clarification) return { ...clarification, clarification: true, understanding: { status: 'clarification', intent: 'Perlu konfirmasi', period: parsed.period?.label } };
+  if (parsed.intent === 'capabilities') {
+    return {
+      text: 'Saya dapat membantu membaca data INSAN-J, antara lain:\n\n• Ringkasan timbulan, pengangkutan, dan sisa limbah.\n• Rincian jenis limbah dan data per ruangan.\n• Perbandingan maksimal 3 bulan.\n• Tanggal pengangkutan, pengangkutan terakhir, dan jeda pengangkutan.\n• Pemeriksaan tanggal kosong, ruangan yang belum input, data ganda, dan angka tidak wajar.\n• Analisis tren, bulan atau tanggal tertinggi, serta rata-rata.\n\nUntuk laporan dan periode yang lebih panjang, gunakan menu Rekap Limbah atau Laporan.',
+      parsed,
+      actions: [
+        { label: 'Ringkasan bulan ini', question: 'Rincian data limbah bulan ini' },
+        { label: 'Cek data kosong', question: 'Apakah ada tanggal yang belum diinput bulan ini?' },
+        { label: 'Pengangkutan terakhir', question: 'Kapan pengangkutan terakhir?' },
+      ],
+      understanding: { status: 'understood', intent: 'Daftar kemampuan', period: null },
+      sourceLink: { label: 'Buka Rekap Limbah', to: '/rekap-limbah' },
+    };
+  }
   if (parsed.intent === 'unknown') {
     try {
       const interpretation = await interpretWithAi(question, signal, conversationContext?.period || null);
