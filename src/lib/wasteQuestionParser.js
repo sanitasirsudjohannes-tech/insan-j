@@ -139,6 +139,17 @@ function extractPeriod(question) {
     const year = now.year - 1;
     return { year, month: null, day: null, start: `${year}-01-01`, end: `${year}-12-31`, label: `tahun ${year}`, scope: 'year', inferredYear: true };
   }
+  const sharedMonthRange = lower.match(new RegExp(`(?:tanggal|tgl\\.?)?\\s*([0-2]?\\d|3[01])\\s*(?:-|sampai(?:\\s+dengan)?|hingga|s\\.?d\\.?)\\s*([0-2]?\\d|3[01])\\s+(${MONTH_PATTERN})(?:\\s+(20\\d{2}))?\\b`, 'i'));
+  if (sharedMonthRange) {
+    const year = Number(sharedMonthRange[4] || globalYear);
+    const month = MONTHS.indexOf(sharedMonthRange[3].toLowerCase()) + 1;
+    const startDay = Number(sharedMonthRange[1]);
+    const endDay = Number(sharedMonthRange[2]);
+    if (validDate(year, month, startDay) && validDate(year, month, endDay)) {
+      const range = makeRange(iso(year, month, startDay), iso(year, month, endDay), !sharedMonthRange[4]);
+      if (range) return range;
+    }
+  }
   const rangeParts = lower.split(/\s+(?:sampai(?:\s+dengan)?|hingga|s\.?d\.?)\s+|\s+-\s+/i);
   if (rangeParts.length === 2) {
     const start = parsePointDate(rangeParts[0], now, globalYear);

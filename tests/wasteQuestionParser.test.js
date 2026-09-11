@@ -252,3 +252,16 @@ test('pertanyaan tentang kemampuan tidak dianggap sebagai ringkasan limbah', () 
   ];
   questions.forEach(question => assert.equal(parseWasteQuestion(question).intent, 'capabilities', question));
 });
+
+
+test('rentang hari dengan bulan dan tahun bersama tidak dibaca sebagai tanggal akhir saja', () => {
+  const dashed = parseWasteQuestion('Timbulan limbah dari tanggal 1 - 10 Agustus 2026');
+  const words = parseWasteQuestion('Timbulan limbah tanggal 1 sampai 10 Agustus 2026');
+  for (const result of [dashed, words]) {
+    assert.equal(result.intent, 'generated');
+    assert.equal(result.period.scope, 'range');
+    assert.equal(result.period.start, '2026-08-01');
+    assert.equal(result.period.end, '2026-08-10');
+    assert.equal(result.period.label, '1 Agustus 2026 sampai 10 Agustus 2026');
+  }
+});
