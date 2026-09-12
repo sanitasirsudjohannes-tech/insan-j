@@ -4,9 +4,13 @@ import { fetchDatabaseAggregation } from './databaseAggregations';
 import { calculateOpeningBalance } from './reportRecapCalculations';
 import { buildMedicalWasteAnalytics, previousPeriod } from './medicalWasteAnalytics';
 import { buildWasteDataDiagnostics } from '../features/waste-chat/diagnostics/wasteDataDiagnostics.js';
+import { getWitaDateString } from './localDate.js';
 
 const sum = (rows, key) => rows.reduce((total, row) => total + (Number(row[key]) || 0), 0);
-export async function fetchMedicalWasteRecap(start, end, { knownRooms = [] } = {}) {
+export async function fetchMedicalWasteRecap(start, end, {
+  knownRooms = [], includeBalance = true, includeTransport = true,
+  includePrevious = true, includeDiagnostics = true,
+} = {}) {
   const wasteColumns = 'tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik';
   const range = query => query.gte('tanggal', start).lte('tanggal', end).order('tanggal', { ascending: true });
   const monthStart = `${start.slice(0, 7)}-01`;
@@ -20,17 +24,17 @@ export async function fetchMedicalWasteRecap(start, end, { knownRooms = [] } = {
   const [padatRows, ruanganRows, transportRows, yearlyData, partialPadat, partialRuangan, partialTransport, previousPadatRows, previousRuanganRows, previousTransportRows] = await Promise.all([
     fetchAllSupabaseRows(() => range(supabase.from('limbah_padat').select(wasteColumns))),
     fetchAllSupabaseRows(() => range(supabase.from('limbah_ruangan').select(`${wasteColumns}, ruangan`))),
-    fetchAllSupabaseRows(() => range(supabase.from('pengangkutan_limbah').select('tanggal, jumlah_kg'))),
-    fetchDatabaseAggregation('rekap_limbah_yearly_summary', { requested_year: Number(start.slice(0, 4)), excluded_padat_ids: [], excluded_ruangan_ids: [], excluded_pengangkutan_ids: [] }),
-    hasPartialMonth ? fetchAllSupabaseRows(() => priorRange(supabase.from('limbah_padat').select(wasteColumns))) : [],
-    hasPartialMonth ? fetchAllSupabaseRows(() => priorRange(supabase.from('limbah_ruangan').select(wasteColumns))) : [],
-    hasPartialMonth ? fetchAllSupabaseRows(() => priorRange(supabase.from('pengangkutan_limbah').select('tanggal, jumlah_kg'))) : [],
-    fetchAllSupabaseRows(() => previousRange(supabase.from('limbah_padat').select(wasteColumns))),
-    fetchAllSupabaseRows(() => previousRange(supabase.from('limbah_ruangan').select(`${wasteColumns}, ruangan`))),
-    fetchAllSupabaseRows(() => previousRange(supabase.from('pengangkutan_limbah').select('tanggal, jumlah_kg'))),
+    includeTransport ? fetchAllSupabaseRows(() => range(supabase.from('pengangkutan_limbah').select('tanggal, jumlah_kg'))) : [],
+    includeBalance ? fetchDatabaseAggregation('rekap_limbah_yearly_summary', { requested_year: Number(start.slice(0, 4)), excluded_padat_ids: [], excluded_ruangan_ids: [], excluded_pengangkutan_ids: [] }) : null,
+    includeBalance && hasPartialMonth ? fetchAllSupabaseRows(() => priorRange(supabase.from('limbah_padat').select(wasteColumns))) : [],
+    includeBalance && hasPartialMonth ? fetchAllSupabaseRows(() => priorRange(supabase.from('limbah_ruangan').select(wasteColumns))) : [],
+    includeBalance && hasPartialMonth && includeTransport ? fetchAllSupabaseRows(() => priorRange(supabase.from('pengangkutan_limbah').select('tanggal, jumlah_kg'))) : [],
+    includePrevious ? fetchAllSupabaseRows(() => previousRange(supabase.from('limbah_padat').select(wasteColumns))) : [],
+    includePrevious ? fetchAllSupabaseRows(() => previousRange(supabase.from('limbah_ruangan').select(`${wasteColumns}, ruangan`))) : [],
+    includePrevious && includeTransport ? fetchAllSupabaseRows(() => previousRange(supabase.from('pengangkutan_limbah').select('tanggal, jumlah_kg'))) : [],
   ]);
   let openingSource = yearlyData;
-  if (!openingSource) {
+  if (includeBalance && !openingSource) {
     const beforeMonth = query => query.lt('tanggal', monthStart).order('tanggal', { ascending: true });
     const [previousPadat, previousRuangan, previousTransport] = await Promise.all([
       fetchAllSupabaseRows(() => beforeMonth(supabase.from('limbah_padat').select(wasteColumns))),
@@ -39,7 +43,7 @@ export async function fetchMedicalWasteRecap(start, end, { knownRooms = [] } = {
     ]);
     openingSource = { padatRows: previousPadat, ruanganRows: previousRuangan, angkutRows: previousTransport };
   }
-  const openingBalanceKg = calculateOpeningBalance(openingSource, [...partialPadat, ...partialRuangan], partialTransport, monthStart);
+  const openingBalanceKg = includeBalance ? calculateOpeningBalance(openingSource, [...partialPadat, ...partialRuangan], partialTransport, monthStart) : 0;
   const wasteRows = [...padatRows, ...ruanganRows];
   const infectiousKg = sum(wasteRows, 'infeksius');
   const sharpsKg = sum(wasteRows, 'jarum_suntik');
@@ -95,10 +99,16 @@ export async function fetchMedicalWasteRecap(start, end, { knownRooms = [] } = {
   const analytics = buildMedicalWasteAnalytics({
     currentWasteRows: wasteRows, currentRoomRows: ruanganRows, currentTransportRows: transportRows,
     previousWasteRows: [...previousPadatRows, ...previousRuanganRows], previousRoomRows: previousRuanganRows,
-    previousTransportRows, openingBalanceKg, days: comparisonPeriod.days,
+    previousTransportRows, openingBalanceKg, days: (() => {
+      const effectiveEnd = [end, getWitaDateString()].sort()[0];
+      if (effectiveEnd < start) return 1;
+      return Math.max(1, Math.round((new Date(`${effectiveEnd}T00:00:00Z`) - new Date(`${start}T00:00:00Z`)) / 86400000) + 1);
+    })(),
   });
   const roomTotals = Array.from(rooms, ([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
-  const diagnostics = buildWasteDataDiagnostics({ start, end, wasteRows, roomRows: ruanganRows, transportRows, knownRooms });
+  const diagnostics = includeDiagnostics
+    ? buildWasteDataDiagnostics({ start, end, wasteRows, roomRows: ruanganRows, transportRows, knownRooms })
+    : {};
   return {
     facts: { openingBalanceKg, totalGeneratedKg, totalTransportedKg, remainingKg: openingBalanceKg + totalGeneratedKg - totalTransportedKg, infectiousKg, sharpsKg, bottleKg, cytotoxicKg },
     charts: {

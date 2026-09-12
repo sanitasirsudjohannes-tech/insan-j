@@ -8,6 +8,28 @@ import { findQuestionClarification } from '../features/waste-chat/presentation/q
 
 export async function answerWasteQuestion(question, { context = null, contextPeriod = null, fetchRecap = fetchMedicalWasteRecap, fetchRooms = fetchDaftarRuangan } = {}) {
   const conversationContext = context || (contextPeriod ? { period: contextPeriod } : null);
+  const preliminary = parseWasteQuestion(question, conversationContext, []);
+  if (preliminary.invalidPeriod) {
+    return {
+      text: preliminary.invalidPeriod,
+      parsed: preliminary,
+      clarification: true,
+      understanding: { status: 'clarification', intent: 'Tanggal tidak valid', period: null },
+    };
+  }
+  if (preliminary.intent === 'capabilities') {
+    return {
+      text: 'Saya dapat membantu membaca data INSAN-J, antara lain:\n\n• Ringkasan timbulan, pengangkutan, dan sisa limbah.\n• Rincian jenis limbah dan data per ruangan.\n• Perbandingan maksimal 3 bulan.\n• Tanggal pengangkutan, pengangkutan terakhir, dan jeda pengangkutan.\n• Pemeriksaan tanggal kosong, ruangan yang belum input, data ganda, dan angka tidak wajar.\n• Analisis tren, bulan atau tanggal tertinggi, serta rata-rata.\n\nUntuk laporan dan periode yang lebih panjang, gunakan menu Rekap Limbah atau Laporan.',
+      parsed: preliminary,
+      actions: [
+        { label: 'Ringkasan bulan ini', question: 'Rincian data limbah bulan ini' },
+        { label: 'Cek data kosong', question: 'Apakah ada tanggal yang belum diinput bulan ini?' },
+        { label: 'Pengangkutan terakhir', question: 'Kapan pengangkutan terakhir?' },
+      ],
+      understanding: { status: 'understood', intent: 'Daftar kemampuan', period: null },
+      sourceLink: { label: 'Buka Rekap Limbah', to: '/rekap-limbah' },
+    };
+  }
   let roomNames = typeof localStorage === 'undefined' ? [] : getCachedRuangan();
   if (!roomNames.length) roomNames = await fetchRooms();
   const roomCandidates = findRoomCandidates(question, roomNames);
@@ -20,6 +42,7 @@ export async function answerWasteQuestion(question, { context = null, contextPer
     };
   }
   const parsed = parseWasteQuestion(question, conversationContext, roomNames);
+  if (parsed.invalidPeriod) return { text: parsed.invalidPeriod, parsed, clarification: true, understanding: { status: 'clarification', intent: 'Tanggal tidak valid', period: null } };
   const clarification = findQuestionClarification(question, parsed);
   if (clarification) return { ...clarification, clarification: true, understanding: { status: 'clarification', intent: 'Perlu konfirmasi', period: parsed.period?.label } };
   if (parsed.intent === 'capabilities') {
@@ -57,20 +80,30 @@ export async function answerWasteQuestion(question, { context = null, contextPer
     };
   }
 
+  const diagnosticIntents = new Set(['data_completeness', 'missing_rooms', 'duplicate_data', 'data_anomalies', 'last_transport', 'transport_gap', 'transport_count', 'average_transport', 'transport_dates']);
+  const balanceIntents = new Set(['waste_summary', 'analysis', 'remaining', 'opening_balance', 'available_total', 'transport_coverage', 'comparison']);
+  const transportIntents = new Set(['transported', 'last_transport', 'transport_gap', 'transport_count', 'average_transport', 'transport_dates', 'transport_coverage']);
+  const recapOptions = {
+    knownRooms: roomNames,
+    includeBalance: balanceIntents.has(parsed.intent),
+    includeTransport: balanceIntents.has(parsed.intent) || transportIntents.has(parsed.intent),
+    includePrevious: parsed.intent === 'analysis' || (parsed.intent === 'comparison' && !parsed.comparisonPeriod && !parsed.comparisonPeriods),
+    includeDiagnostics: diagnosticIntents.has(parsed.intent),
+  };
   const comparisonPeriods = parsed.intent === 'comparison' && parsed.comparisonPeriods?.length >= 2
     ? parsed.comparisonPeriods
     : null;
   const periodRecaps = comparisonPeriods
     ? await Promise.all(comparisonPeriods.map(period =>
-      fetchRecap(period.start, period.end, { knownRooms: roomNames })
+      fetchRecap(period.start, period.end, { ...recapOptions, includePrevious: false })
     ))
     : null;
   const [recap, comparisonRecap] = periodRecaps
     ? [periodRecaps.at(-1), periodRecaps[0]]
     : await Promise.all([
-      fetchRecap(parsed.period.start, parsed.period.end, { knownRooms: roomNames }),
+      fetchRecap(parsed.period.start, parsed.period.end, recapOptions),
       parsed.intent === 'comparison' && parsed.comparisonPeriod
-        ? fetchRecap(parsed.comparisonPeriod.start, parsed.comparisonPeriod.end, { knownRooms: roomNames })
+        ? fetchRecap(parsed.comparisonPeriod.start, parsed.comparisonPeriod.end, { ...recapOptions, includePrevious: false })
         : null,
     ]);
   const pendingCount = typeof window === 'undefined' ? 0 : getOfflineQueue().filter(item => ['limbah_padat', 'limbah_ruangan', 'pengangkutan_limbah'].includes(item.table)).length;

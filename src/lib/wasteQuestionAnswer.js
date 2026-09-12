@@ -13,6 +13,8 @@ const comparisonLine = (label, previous, current) => {
 function buildMultiMonthComparison(parsed, periodRecaps) {
   if (!parsed.comparisonPeriods || periodRecaps?.length !== parsed.comparisonPeriods.length || periodRecaps.length < 3) return null;
   const rows = parsed.comparisonPeriods.map((period, index) => ({ period, recap: periodRecaps[index] }));
+  const hasAnyData = rows.some(({ recap }) => Number(recap.facts.openingBalanceKg) || Number(recap.facts.totalGeneratedKg) || Number(recap.facts.totalTransportedKg) || Number(recap.facts.remainingKg));
+  if (!hasAnyData) return `Tidak ada data yang dapat dibandingkan pada ${parsed.comparisonPeriods.map(period => period.label).join(', ')}.`;
   const roomKey = parsed.type?.key || 'totalKg';
 
   if (parsed.roomName) {
@@ -147,5 +149,15 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null, periodRe
     duplicate_data: buildDuplicateAnswer(parsed, recap.diagnostics),
     data_anomalies: buildAnomalyAnswer(parsed, recap),
   };
+  if (!Number(facts.totalGeneratedKg)) {
+    if (['generated', 'average', 'active_days', 'type_breakdown', 'type_percentages', 'dominant_type', 'least_type', 'peak_day', 'trough_day', 'peak_month', 'peak_week'].includes(parsed.intent)) {
+      answers[parsed.intent] = `Tidak ada data timbulan yang tercatat selama ${parsed.period.label}.${suffix}`;
+    } else if (['type_total', 'type_dates', 'type_rooms'].includes(parsed.intent) && (!parsed.type || !Number(facts[parsed.type.key]))) {
+      answers[parsed.intent] = `Tidak ada ${parsed.type?.label || 'jenis limbah tersebut'} yang tercatat selama ${parsed.period.label}.${suffix}`;
+    }
+  }
+  if (!Number(facts.totalTransportedKg) && ['transported', 'transport_dates', 'transport_count', 'average_transport'].includes(parsed.intent)) {
+    answers[parsed.intent] = `Belum ada pengangkutan yang tercatat selama ${parsed.period.label}.${suffix}`;
+  }
   return { text: answers[parsed.intent], parsed, period: parsed.period, context: { period: parsed.period, intent: parsed.intent, roomName: parsed.roomName, type: parsed.type }, facts, ...buildAnswerPresentation(parsed, recap, comparisonRecap, periodRecaps) };
 }

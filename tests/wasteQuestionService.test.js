@@ -375,3 +375,25 @@ test('jawaban dapat membandingkan tiga bulan secara ringkas', () => {
   assert.match(answer.text, /Timbulan tertinggi: Februari 2026/);
   assert.equal(answer.visualization.items.length, 3);
 });
+
+
+test('perbandingan tiga bulan kosong tidak memilih bulan tertinggi', () => {
+  const parsed = parseWasteQuestion('Bandingkan Januari, Februari dan Maret 2025');
+  const empty = {
+    ...recap,
+    facts: { ...recap.facts, openingBalanceKg: 0, totalGeneratedKg: 0, totalTransportedKg: 0, remainingKg: 0 },
+  };
+  const answer = buildWasteAnswer(parsed, empty, empty, [empty, empty, empty]);
+  assert.match(answer.text, /Tidak ada data yang dapat dibandingkan/);
+  assert.doesNotMatch(answer.text, /Tertinggi/);
+});
+
+test('jawaban timbulan kosong ditampilkan singkat', () => {
+  const empty = {
+    ...recap,
+    facts: { ...recap.facts, openingBalanceKg: 0, totalGeneratedKg: 0, totalTransportedKg: 0, remainingKg: 0 },
+  };
+  const answer = buildWasteAnswer(parseWasteQuestion('Timbulan Juli 2025'), empty);
+  assert.equal(answer.text, 'Tidak ada data timbulan yang tercatat selama Juli 2025.');
+  assert.doesNotMatch(answer.text, /Rata-rata|0 kg/);
+});

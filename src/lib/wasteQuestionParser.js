@@ -106,6 +106,34 @@ function parsePointDate(text, now, fallbackYear) {
   return null;
 }
 
+function validateExplicitPeriod(question) {
+  const lower = String(question || '').toLowerCase();
+  const now = currentWita();
+  const fallbackYear = Number(lower.match(/\b(20\d{2})\b/)?.[1] || now.year);
+  const namedDates = [...lower.matchAll(new RegExp(`\\b([0-2]?\\d|3[01])\\s+(${MONTH_PATTERN})(?:\\s+(20\\d{2}))?\\b`, 'gi'))];
+  for (const match of namedDates) {
+    const year = Number(match[3] || fallbackYear);
+    const month = MONTHS.indexOf(match[2].toLowerCase()) + 1;
+    if (!validDate(year, month, Number(match[1]))) {
+      return `Tanggal ${Number(match[1])} ${capitalize(match[2].toLowerCase())} ${year} tidak valid. Silakan periksa kembali tanggal yang dimasukkan.`;
+    }
+  }
+  const numericDates = [...lower.matchAll(/\b([0-2]?\d|3[01])[/-](0?\d|1[0-2])(?:[/-](20\d{2}))?\b/g)];
+  for (const match of numericDates) {
+    const year = Number(match[3] || fallbackYear);
+    if (!validDate(year, Number(match[2]), Number(match[1]))) {
+      return `Tanggal ${match[0]} tidak valid. Silakan periksa kembali tanggal yang dimasukkan.`;
+    }
+  }
+  const parts = lower.split(/\s+(?:sampai(?:\s+dengan)?|hingga|s\.?d\.?)\s+|\s+-\s+/i);
+  if (parts.length === 2) {
+    const start = parsePointDate(parts[0], now, fallbackYear);
+    const end = parsePointDate(parts[1], now, fallbackYear);
+    if (start && end && start > end) return 'Tanggal awal tidak boleh melewati tanggal akhir.';
+  }
+  return null;
+}
+
 function extractPeriod(question) {
   const lower = question.toLowerCase();
   const now = currentWita();
@@ -199,6 +227,7 @@ export function normalizeAiWasteQuestion(question, interpretation) {
 export function parseWasteQuestion(question, context = null, knownRooms = []) {
   const text = String(question || '').trim();
   const contextPeriod = context?.period || context;
+  const invalidPeriod = validateExplicitPeriod(text);
   const explicitComparison = extractExplicitComparisonPeriods(text);
   const referencesPreviousPeriod = /(?:tanggal|tgl|periode|waktu)\s+(?:itu|tersebut|lainnya)|di\s+sana/i.test(text);
   const period = explicitComparison?.period || (referencesPreviousPeriod && contextPeriod ? { ...contextPeriod } : extractPeriod(text));
@@ -224,6 +253,7 @@ export function parseWasteQuestion(question, context = null, knownRooms = []) {
     comparisonPeriods: explicitComparison?.comparisonPeriods || null,
     requestedComparisonCount: explicitComparison?.requestedComparisonCount || null,
     tooManyComparisonMonths: Boolean(explicitComparison?.tooManyComparisonMonths),
+    invalidPeriod,
     type,
     types,
     roomName,

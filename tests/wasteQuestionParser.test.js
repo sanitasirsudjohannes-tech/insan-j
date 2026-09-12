@@ -265,3 +265,11 @@ test('rentang hari dengan bulan dan tahun bersama tidak dibaca sebagai tanggal a
     assert.equal(result.period.label, '1 Agustus 2026 sampai 10 Agustus 2026');
   }
 });
+
+
+test('parser menolak tanggal kalender tidak valid dan rentang terbalik', () => {
+  const invalid = parseWasteQuestion('Timbulan tanggal 31 Februari 2026');
+  const reversed = parseWasteQuestion('Timbulan 10 Agustus sampai 1 Juli 2026');
+  assert.match(invalid.invalidPeriod, /tidak valid/);
+  assert.match(reversed.invalidPeriod, /tanggal awal/i);
+});

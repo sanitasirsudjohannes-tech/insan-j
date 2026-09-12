@@ -2,13 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { answerWasteQuestion } from '../../lib/wasteQuestionService';
 import { QUESTION_SUGGESTIONS } from '../../lib/wasteQuestionParser';
+import { getCurrentUser } from '../../lib/api';
 import WasteChatAnswer from './WasteChatAnswer';
 
 const STORAGE_KEY = 'insan_j_data_chat';
+const getStorageKey = () => `${STORAGE_KEY}:${getCurrentUser()?.id || 'anonymous'}`;
 const initialMessage = { role: 'assistant', text: 'Tanyakan data limbah. Jawaban dihitung langsung dari data INSAN-J menggunakan template yang tersedia.' };
 
 function loadMessages() {
-  try { return JSON.parse(sessionStorage.getItem(STORAGE_KEY)) || [initialMessage]; } catch { return [initialMessage]; }
+  try { return JSON.parse(sessionStorage.getItem(getStorageKey())) || [initialMessage]; } catch { return [initialMessage]; }
 }
 
 function compactMessages(messages) {
@@ -30,7 +32,7 @@ export default function WasteDataChat({ className = '', hideHeader = false }) {
     && messages[0]?.role === initialMessage.role
     && messages[0]?.text === initialMessage.text;
   useEffect(() => {
-    try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(compactMessages(messages))); }
+    try { sessionStorage.setItem(getStorageKey(), JSON.stringify(compactMessages(messages))); }
     catch (error) { console.warn('Riwayat chat lokal tidak dapat disimpan.', { reason: error?.name }); }
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
