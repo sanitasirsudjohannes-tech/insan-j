@@ -12,3 +12,21 @@ export const getLocalDateString = (date = new Date()) => {
 
 export const getLocalMonthString = (date = new Date()) =>
   getLocalDateString(date).slice(0, 7);
+
+
+const getWitaParts = (date = new Date()) => Object.fromEntries(
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Makassar',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date).map(part => [part.type, part.value])
+);
+
+export const getWitaDateString = (date = new Date()) => {
+  const parts = getWitaParts(date);
+  return `${parts.year}-${parts.month}-${parts.day}`;
+};
+
+export const getWitaMonthString = (date = new Date()) =>
+  getWitaDateString(date).slice(0, 7);

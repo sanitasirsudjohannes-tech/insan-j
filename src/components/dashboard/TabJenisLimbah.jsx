@@ -3,9 +3,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, AreaChart, Area
 } from 'recharts';
-import { DashboardSkeleton } from '../ui/DataStates';
+import { DashboardSkeleton, ErrorState } from '../ui/DataStates';
 
-import { fetchWasteRows } from '../../lib/wasteQueries';
 import { fetchDatabaseAggregation } from '../../lib/databaseAggregations';
 
 export default function TabJenisLimbah() {
@@ -20,6 +19,8 @@ export default function TabJenisLimbah() {
   const [availableYears, setAvailableYears] = useState([currentYear]);
   const [averages, setAverages] = useState({ total: 0, daily: 0, monthly: 0, activeDays: 0, activeMonths: 0 });
   const fetchIdRef = useRef(0);
+  const [fetchError, setFetchError] = useState('');
+  const [reloadCount, setReloadCount] = useState(0);
 
   useEffect(() => {
     if (!loading) {
@@ -34,6 +35,7 @@ export default function TabJenisLimbah() {
     const currentFetchId = ++fetchIdRef.current;
     const fetchLimbah = async () => {
       setLoading(true);
+      setFetchError('');
       try {
         const aggregated = await fetchDatabaseAggregation('dashboard_jenis_limbah_summary', {
           requested_year: Number(selectedYear),
@@ -82,106 +84,14 @@ export default function TabJenisLimbah() {
           return;
         }
 
-        const targetYear = Number(selectedYear);
-        const monthNumber = selectedMonth ? Number(selectedMonth) : null;
-        const startDate = monthNumber
-          ? `${targetYear}-${String(monthNumber).padStart(2, '0')}-01`
-          : `${targetYear}-01-01`;
-        const nextMonth = monthNumber === 12 ? 1 : monthNumber + 1;
-        const endDate = monthNumber
-          ? `${monthNumber === 12 ? targetYear + 1 : targetYear}-${String(nextMonth).padStart(2, '0')}-01`
-          : `${targetYear + 1}-01-01`;
-        const [{ padatRows, ruanganRows }, yearlySummary] = await Promise.all([
-          fetchWasteRows({ startDate, endDate }),
-          fetchDatabaseAggregation('rekap_limbah_yearly_summary', {
-            requested_year: targetYear,
-          }),
-        ]);
-
-        if (currentFetchId !== fetchIdRef.current) return;
-        setAvailableYears([...new Set([
-          ...(yearlySummary?.availableYears || []).map(String),
-          selectedYear,
-        ])].sort((a, b) => b.localeCompare(a)));
-
-        const dailyMap = {};
-        const monthlyMap = {};
-
-        // Fungsi bantu untuk menggabungkan (sum) satu baris ke dalam dailyMap & monthlyMap
-        const accumulateRow = (row) => {
-          const tgl = row.tanggal;
-          if (!tgl) return;
-
-          const inf = parseFloat(row.infeksius) || 0;
-          const jar = parseFloat(row.jarum_suntik) || 0;
-          const bot = parseFloat(row.botol_obat) || 0;
-          const sit = parseFloat(row.sitotoksik) || 0;
-
-          // Daily
-          if (!dailyMap[tgl]) {
-            dailyMap[tgl] = {
-              tanggal: new Date(tgl).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
-              rawDate: tgl,
-              infeksius: 0,
-              jarum_suntik: 0,
-              botol_obat: 0,
-              sitotoksik: 0,
-              total: 0
-            };
-          }
-          dailyMap[tgl].infeksius += inf;
-          dailyMap[tgl].jarum_suntik += jar;
-          dailyMap[tgl].botol_obat += bot;
-          dailyMap[tgl].sitotoksik += sit;
-          dailyMap[tgl].total += inf + jar + bot + sit;
-
-          // Monthly
-          const monthKey = tgl.substring(0, 7); // YYYY-MM
-          if (!monthlyMap[monthKey]) {
-            const dateObj = new Date(tgl);
-            const monthName = dateObj.toLocaleDateString('id-ID', { month: 'short', year: 'numeric' });
-            monthlyMap[monthKey] = { label: monthName, key: monthKey, total: 0 };
-          }
-          monthlyMap[monthKey].total += inf + jar + bot + sit;
-        };
-
-        (padatRows || []).forEach(accumulateRow);
-        (ruanganRows || []).forEach(accumulateRow);
-
-        const sortedDaily = Object.values(dailyMap).sort((a, b) => a.rawDate.localeCompare(b.rawDate));
-        setDailyData(sortedDaily.slice(-30)); // last 30 days
-
-        const sortedMonthly = Object.values(monthlyMap).sort((a, b) => a.key.localeCompare(b.key));
-        setMonthlyData(sortedMonthly); // maksimal 12 bulan pada tahun terpilih
-
-        // Total ringkasan hanya untuk tahun yang sedang dipilih.
-        let tInf = 0, tJar = 0, tBot = 0, tSit = 0;
-        [...(padatRows || []), ...(ruanganRows || [])].forEach(r => {
-          tInf += parseFloat(r.infeksius) || 0;
-          tJar += parseFloat(r.jarum_suntik) || 0;
-          tBot += parseFloat(r.botol_obat) || 0;
-          tSit += parseFloat(r.sitotoksik) || 0;
-        });
-        setSummary({
-          infeksius: Math.round(tInf),
-          jarum: Math.round(tJar),
-          botol: Math.round(tBot),
-          sito: Math.round(tSit)
-        });
-        const total = tInf + tJar + tBot + tSit;
-        const activeDays = Object.keys(dailyMap).length;
-        const activeMonths = Object.keys(monthlyMap).length;
-        setAverages({
-          total,
-          daily: activeDays ? total / activeDays : 0,
-          monthly: monthNumber ? null : (activeMonths ? total / activeMonths : 0),
-          activeDays,
-          activeMonths,
-        });
+        throw new Error('Optimasi dashboard belum tersedia. Jalankan SQL agregasi Supabase lalu coba kembali.');
 
       } catch (error) {
         if (currentFetchId !== fetchIdRef.current) return;
         console.error("Error fetching limbah jenis:", error);
+        setDailyData([]);
+        setMonthlyData([]);
+        setFetchError(error.message || "Data jenis limbah tidak dapat dimuat.");
       } finally {
         if (currentFetchId === fetchIdRef.current) setLoading(false);
       }
@@ -191,7 +101,7 @@ export default function TabJenisLimbah() {
     return () => {
       fetchIdRef.current += 1;
     };
-  }, [selectedYear, selectedMonth]);
+  }, [selectedYear, selectedMonth, reloadCount]);
 
   const monthNames = useMemo(() => [
     'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -215,6 +125,10 @@ export default function TabJenisLimbah() {
 
   if (loading) {
     return <DashboardSkeleton cards={4} />;
+  }
+
+  if (fetchError) {
+    return <ErrorState description={fetchError} onRetry={() => setReloadCount(value => value + 1)} />;
   }
 
   return (
