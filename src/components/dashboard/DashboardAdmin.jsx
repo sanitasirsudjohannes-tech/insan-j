@@ -1,10 +1,12 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import AppLayout from '../AppLayout';
 import { supabase } from '../../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import DashboardNotification from './DashboardNotification';
 import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
 import { fetchDatabaseAggregation } from '../../lib/databaseAggregations';
+import { getWitaMonthString } from '../../lib/localDate';
+import { ErrorState } from '../ui/DataStates';
 
 export default function DashboardAdmin() {
   const [loading, setLoading] = useState(true);
@@ -13,9 +15,12 @@ export default function DashboardAdmin() {
     rataKebersihan: 0
   });
   const [chartData, setChartData] = useState([]);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [selectedMonth, setSelectedMonth] = useState(getWitaMonthString);
   const [chartReady, setChartReady] = useState(false);
   const [dataRevision, setDataRevision] = useState(0);
+  const [fetchError, setFetchError] = useState('');
+  const [reloadCount, setReloadCount] = useState(0);
+  const fetchIdRef = useRef(0);
 
   useEffect(() => {
     const relevantTables = new Set([
@@ -59,12 +64,16 @@ export default function DashboardAdmin() {
   };
 
   useEffect(() => {
+    const currentFetchId = ++fetchIdRef.current;
     const fetchData = async () => {
       setLoading(true);
+      setFetchError('');
       try {
         const aggregated = await fetchDatabaseAggregation('dashboard_admin_inspeksi_summary', {
           requested_month: selectedMonth || null,
         });
+
+        if (currentFetchId !== fetchIdRef.current) return;
 
         if (aggregated) {
           const totalInspeksi = Number(aggregated.totalInspeksi) || 0;
@@ -118,6 +127,7 @@ export default function DashboardAdmin() {
         });
 
         const results = await Promise.all(promises);
+        if (currentFetchId !== fetchIdRef.current) return;
 
         let allItems = [];
         const newChartData = [];
@@ -155,14 +165,17 @@ export default function DashboardAdmin() {
         setChartData(newChartData);
 
       } catch (err) {
+        if (currentFetchId !== fetchIdRef.current) return;
         console.error("Error fetching admin stats:", err);
+        setFetchError(err.message || "Data dashboard tidak dapat dimuat.");
       } finally {
-        setLoading(false);
+        if (currentFetchId === fetchIdRef.current) setLoading(false);
       }
     };
 
     fetchData();
-  }, [selectedMonth, dataRevision]);
+    return () => { fetchIdRef.current += 1; };
+  }, [selectedMonth, dataRevision, reloadCount]);
 
   const colors = useMemo(() => ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#6366f1'], []);
 
@@ -194,6 +207,8 @@ export default function DashboardAdmin() {
             <i className="fas fa-circle-notch fa-spin text-5xl text-blue-500 mb-4"></i>
             <p className="text-gray-500 font-bold tracking-wide">MENGAMBIL DATA...</p>
           </div>
+        ) : fetchError ? (
+          <ErrorState description={fetchError} onRetry={() => setReloadCount(value => value + 1)} />
         ) : (
           <div className="animate-fade-in">
             {/* Scorecards */}

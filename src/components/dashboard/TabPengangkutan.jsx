@@ -1,14 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '../../lib/supabase';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, LineChart, Line, ReferenceLine
 } from 'recharts';
 
-import { fetchWasteRows } from '../../lib/wasteQueries';
-import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
 import { fetchDatabaseAggregation } from '../../lib/databaseAggregations';
-import { DashboardSkeleton, EmptyState } from '../ui/DataStates';
+import { DashboardSkeleton, EmptyState, ErrorState } from '../ui/DataStates';
 
 export default function TabPengangkutan() {
   const [chartData, setChartData] = useState([]);
@@ -17,9 +14,10 @@ export default function TabPengangkutan() {
   const [summary, setSummary] = useState({ masuk: 0, diangkut: 0, sisa: 0 });
   const [loading, setLoading] = useState(true);
   const [chartReady, setChartReady] = useState(false);
-  const legacyRowsRef = useRef(null);
   const loadedMonthRef = useRef(null);
   const fetchIdRef = useRef(0);
+  const [fetchError, setFetchError] = useState('');
+  const [reloadCount, setReloadCount] = useState(0);
 
   useEffect(() => {
     if (!loading) {
@@ -31,18 +29,12 @@ export default function TabPengangkutan() {
   }, [loading]);
 
   useEffect(() => {
-    if (legacyRowsRef.current) {
-      setChartData(selectedMonth === 'semua'
-        ? legacyRowsRef.current
-        : legacyRowsRef.current.filter(item => item.bulanTahun === selectedMonth));
-      return;
-    }
-
     if (loadedMonthRef.current === selectedMonth) return;
 
     const currentFetchId = ++fetchIdRef.current;
     const fetchAll = async () => {
       setLoading(true);
+      setFetchError('');
       try {
         const aggregated = await fetchDatabaseAggregation('dashboard_pengangkutan_summary', {
           requested_month: selectedMonth || null,
@@ -76,82 +68,12 @@ export default function TabPengangkutan() {
           return;
         }
 
-        const [{ padatRows: limbahPadatRows, ruanganRows: limbahRuanganRows }, angkutRows] = await Promise.all([
-          fetchWasteRows(),
-          fetchAllSupabaseRows(() => supabase
-            .from('pengangkutan_limbah')
-            .select('tanggal, jumlah_kg')
-            .order('tanggal', { ascending: true })
-            .order('id', { ascending: true })),
-        ]);
-
-        // Gabungkan limbah_padat + limbah_ruangan, dijumlahkan per tanggal
-        const limbahMap = {};
-        const accumulateLimbah = (rows) => {
-          (rows || []).forEach(row => {
-            const key = row.tanggal;
-            if (!key) return;
-            const total = (parseFloat(row.infeksius) || 0) + (parseFloat(row.jarum_suntik) || 0) + (parseFloat(row.botol_obat) || 0) + (parseFloat(row.sitotoksik) || 0);
-            limbahMap[key] = (limbahMap[key] || 0) + total;
-          });
-        };
-        accumulateLimbah(limbahPadatRows);
-        accumulateLimbah(limbahRuanganRows);
-
-        const angkutMap = {};
-        (angkutRows || []).forEach(row => {
-          angkutMap[row.tanggal] = (angkutMap[row.tanggal] || 0) + (parseFloat(row.jumlah_kg) || 0);
-        });
-
-        const allDates = [...new Set([...Object.keys(limbahMap), ...Object.keys(angkutMap)])].sort();
-
-        let kumulatifSisa = 0;
-        const combined = allDates.map(date => {
-          const masuk = limbahMap[date] || 0;
-          const diangkut = angkutMap[date] || 0;
-
-          kumulatifSisa += masuk - diangkut;
-
-          const d = new Date(date);
-
-          return {
-            fullDate: date,
-            bulanTahun: `${d.getFullYear()}-${String(
-              d.getMonth() + 1
-            ).padStart(2, '0')}`,
-            tanggal: d.toLocaleDateString('id-ID', {
-              day: 'numeric',
-              month: 'short'
-            }),
-            masuk: Math.round(masuk),
-            diangkut: Math.round(diangkut),
-            sisa: Math.round(kumulatifSisa),
-          };
-        });
-
-        if (currentFetchId !== fetchIdRef.current) return;
-
-        legacyRowsRef.current = combined;
-        setAvailableMonths([...new Set(combined.map(item => item.bulanTahun))]);
-
-        if (combined.length > 0) {
-          const latestMonth = combined[combined.length - 1].bulanTahun;
-          setSelectedMonth(latestMonth);
-
-          setChartData(
-            combined.filter(item => item.bulanTahun === latestMonth)
-          );
-        }
-        const totalMasuk = Object.values(limbahMap).reduce((a, b) => a + b, 0);
-        const totalAngkut = Object.values(angkutMap).reduce((a, b) => a + b, 0);
-        setSummary({
-          masuk: Math.round(totalMasuk),
-          diangkut: Math.round(totalAngkut),
-          sisa: Math.round(totalMasuk - totalAngkut)
-        });
+        throw new Error('Optimasi dashboard belum tersedia. Jalankan SQL agregasi Supabase lalu coba kembali.');
       } catch (err) {
         if (currentFetchId !== fetchIdRef.current) return;
         console.error(err);
+        setChartData([]);
+        setFetchError(err.message || 'Data pengangkutan tidak dapat dimuat.');
       } finally {
         if (currentFetchId === fetchIdRef.current) setLoading(false);
       }
@@ -161,7 +83,7 @@ export default function TabPengangkutan() {
     return () => {
       fetchIdRef.current += 1;
     };
-  }, [selectedMonth]);
+  }, [selectedMonth, reloadCount]);
 
   const cards = [
     { label: 'Total Limbah Masuk — Semua Waktu', value: `${summary.masuk} Kg`, icon: 'fa-plus-circle', color: 'border-blue-500', iconBg: 'bg-blue-100 text-blue-500' },
@@ -171,6 +93,10 @@ export default function TabPengangkutan() {
 
   if (loading) {
     return <DashboardSkeleton cards={3} />;
+  }
+
+  if (fetchError) {
+    return <ErrorState description={fetchError} onRetry={() => setReloadCount(value => value + 1)} />;
   }
 
   return (
@@ -214,7 +140,6 @@ export default function TabPengangkutan() {
                 onChange={(e) => setSelectedMonth(e.target.value)}
                 className="appearance-none w-full sm:w-auto bg-blue-50/50 border border-blue-200 text-blue-700 font-bold px-5 py-2.5 pr-12 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all cursor-pointer hover:bg-blue-100/50"
               >
-                <option value="semua" className="bg-white text-gray-700 font-medium">Semua Waktu</option>
                 {availableMonths.map(month => {
                   const [year, monthNum] = month.split('-');
                   const label = new Date(Number(year), Number(monthNum) - 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });

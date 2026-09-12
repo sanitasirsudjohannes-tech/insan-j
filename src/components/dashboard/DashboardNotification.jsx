@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { getLocalDateString } from '../../lib/localDate';
+import { getLocalDateString, getWitaDateString } from '../../lib/localDate';
 import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
 import { fetchDatabaseAggregation } from '../../lib/databaseAggregations';
 
 const buildCheckPeriod = () => {
-  const today = new Date();
+  const today = new Date(`${getWitaDateString()}T12:00:00`);
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
   const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -28,10 +28,12 @@ const buildCheckPeriod = () => {
 export default function DashboardNotification() {
   const [missingDates, setMissingDates] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [checkFailed, setCheckFailed] = useState(false);
 
   useEffect(() => {
     const fetchMissingDates = async () => {
       setLoading(true);
+      setCheckFailed(false);
       try {
         const { dates: datesToCheck, ranges } = buildCheckPeriod();
         if (datesToCheck.length === 0) return;
@@ -65,6 +67,7 @@ export default function DashboardNotification() {
         setMissingDates(datesToCheck.filter(date => !padatDates.has(date) && !ruanganDates.has(date)));
       } catch (error) {
         console.error('Error fetching missing dates:', error);
+        setCheckFailed(true);
       } finally {
         setLoading(false);
       }
@@ -79,7 +82,18 @@ export default function DashboardNotification() {
     year: 'numeric',
   });
 
-  if (loading || missingDates.length === 0) return null;
+  if (loading) return null;
+
+  if (checkFailed) {
+    return (
+      <div className="mb-6 rounded-lg border-l-4 border-amber-500 bg-amber-50 p-4 text-sm text-amber-800" role="alert">
+        <i className="fas fa-exclamation-triangle mr-2" />
+        Pemeriksaan kelengkapan tanggal gagal. Periksa koneksi lalu muat ulang dashboard.
+      </div>
+    );
+  }
+
+  if (missingDates.length === 0) return null;
 
   return (
     <div className="mb-6 animate-fade-in">
