@@ -1,4 +1,5 @@
 import { FETCH_BATCH_SIZE } from '../../lib/limbah/constants';
+import { escapeHTML } from '../../lib/html';
 import { useState, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import Swal from 'sweetalert2';
@@ -54,7 +55,7 @@ export default function useRuanganReports({
       value: fv
     } = await MySwal.fire({
       title: 'Export Data Limbah',
-      html: `<div class="text-left mt-4 space-y-4"><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Bulan & Tahun</label><input id="swal-export-month" type="month" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-gray-50" value="${getLocalMonthString()}"/></div><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Filter Ruangan (Opsional)</label><select id="swal-export-ruangan" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-gray-50 appearance-none"><option value="">-- Semua Ruangan --</option>${ruanganList.map(r => `<option value="${r}">${r}</option>`).join('')}</select></div></div>`,
+      html: `<div class="text-left mt-4 space-y-4"><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Bulan & Tahun</label><input id="swal-export-month" type="month" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-gray-50" value="${getLocalMonthString()}"/></div><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Filter Ruangan (Opsional)</label><select id="swal-export-ruangan" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-gray-50 appearance-none"><option value="">-- Semua Ruangan --</option>${ruanganList.map(r => `<option value="${escapeHTML(r)}">${escapeHTML(r)}</option>`).join('')}</select></div></div>`,
       focusConfirm: false,
       showCancelButton: true,
       confirmButtonText: '<i class="fas fa-file-excel mr-2"></i>Export Excel',
@@ -312,7 +313,7 @@ export default function useRuanganReports({
       value: fv
     } = await MySwal.fire({
       title: 'Cetak Laporan Limbah',
-      html: `<div class="text-left mt-4 space-y-4"><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Bulan & Tahun</label><input id="swal-print-month" type="month" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-gray-50" value="${currentMonth}"/></div><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Ruangan (Opsional)</label><select id="swal-print-ruangan" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-gray-50 appearance-none"><option value="">-- Semua Ruangan --</option>${ruanganList.map(r => `<option value="${r}">${r}</option>`).join('')}</select></div></div>`,
+      html: `<div class="text-left mt-4 space-y-4"><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Bulan & Tahun</label><input id="swal-print-month" type="month" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-gray-50" value="${currentMonth}"/></div><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Ruangan (Opsional)</label><select id="swal-print-ruangan" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 outline-none text-sm bg-gray-50 appearance-none"><option value="">-- Semua Ruangan --</option>${ruanganList.map(r => `<option value="${escapeHTML(r)}">${escapeHTML(r)}</option>`).join('')}</select></div></div>`,
       focusConfirm: false,
       showCancelButton: true,
       confirmButtonText: '<i class="fas fa-print mr-2"></i>Cetak',

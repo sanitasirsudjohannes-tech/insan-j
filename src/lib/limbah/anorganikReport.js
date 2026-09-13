@@ -1,4 +1,5 @@
 import { supabase } from '../supabase';
+import { escapeHTML } from '../html';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getSetting } from '../api';
@@ -18,7 +19,7 @@ export const printAnorganikReport = async ({
     value: fv
   } = await MySwal.fire({
     title: 'Cetak Laporan Limbah Anorganik',
-    html: `<div class="text-left mt-4 space-y-4"><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Bulan &amp; Tahun</label><input id="swal-print-month" type="month" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 outline-none text-sm bg-gray-50" value="${currentMonth}"/></div><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Ruangan (Opsional)</label><select id="swal-print-ruangan" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 outline-none text-sm bg-gray-50 appearance-none"><option value="">-- Semua Ruangan --</option>${ruanganList.map(r => `<option value="${r}">${r}</option>`).join('')}</select></div></div>`,
+    html: `<div class="text-left mt-4 space-y-4"><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Bulan &amp; Tahun</label><input id="swal-print-month" type="month" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 outline-none text-sm bg-gray-50" value="${currentMonth}"/></div><div><label class="block text-sm font-bold text-gray-700 mb-1.5">Ruangan (Opsional)</label><select id="swal-print-ruangan" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-cyan-500 outline-none text-sm bg-gray-50 appearance-none"><option value="">-- Semua Ruangan --</option>${ruanganList.map(r => `<option value="${escapeHTML(r)}">${escapeHTML(r)}</option>`).join('')}</select></div></div>`,
     focusConfirm: false,
     showCancelButton: true,
     confirmButtonText: '<i class="fas fa-print mr-2"></i>Cetak',

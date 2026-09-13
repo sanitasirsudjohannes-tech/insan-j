@@ -8,6 +8,7 @@ import { notifyDatabaseTablesChanged } from '../../lib/databaseAggregations';
 import { isNetworkError } from '../../lib/networkErrors';
 import { deleteRecordWithVersion, getRecordBaseVersion, isRecordConflictError, resolveOfflineRecordConflict, updateRecordWithVersion } from '../../lib/recordVersion';
 import { createDeleteDetailsHtml, formatDeleteDate, formatDeleteKg } from '../../lib/deleteConfirmation';
+import { escapeHTML } from '../../lib/html';
 
 const MySwal = withReactContent(Swal);
 
@@ -130,7 +131,7 @@ export default function usePadatForm({
       MySwal.fire({
         icon: 'info',
         title: 'Akumulasi Data Ruangan',
-        html: `Data ini merupakan akumulasi otomatis dari <strong>${item.ruanganCount} ruangan</strong>:<br><br><div class="text-left bg-gray-100 p-3 rounded-lg text-xs max-h-40 overflow-y-auto font-mono">${rooms.map(r => `• ${r}`).join('<br>')}</div><br><span class="text-xs text-gray-500">Untuk mengedit, gunakan menu <strong>Limbah Per Ruangan</strong>.</span>`,
+        html: `Data ini merupakan akumulasi otomatis dari <strong>${item.ruanganCount} ruangan</strong>:<br><br><div class="text-left bg-gray-100 p-3 rounded-lg text-xs max-h-40 overflow-y-auto font-mono">${rooms.map(r => `• ${escapeHTML(r)}`).join('<br>')}</div><br><span class="text-xs text-gray-500">Untuk mengedit, gunakan menu <strong>Limbah Per Ruangan</strong>.</span>`,
         confirmButtonColor: '#059669'
       });
       return;
