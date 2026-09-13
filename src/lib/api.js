@@ -1,26 +1,19 @@
 import { supabase } from './supabase';
+import { clearCachedUser, getCachedUser } from './session';
 
 const RUANGAN_CACHE_KEY = 'insan_j_ruangan_cache';
 
-export const getCurrentUser = () => {
-  const userStr = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser');
-  if (!userStr) return null;
-  try {
-    return JSON.parse(userStr);
-  } catch {
-    return null;
-  }
-};
+export const getCurrentUser = getCachedUser;
 
 export const logoutUser = async () => {
   try {
-    await supabase.auth.signOut();
-  } catch (e) {
-    console.warn('Sign out offline warning:', e);
+    await supabase.auth.signOut({ scope: 'local' });
+  } catch (error) {
+    console.warn('Sign out offline warning:', error);
+  } finally {
+    clearCachedUser();
+    window.location.href = import.meta.env.BASE_URL;
   }
-  localStorage.removeItem('currentUser');
-  sessionStorage.removeItem('currentUser');
-  window.location.href = import.meta.env.BASE_URL;
 };
 
 /**
@@ -36,21 +29,16 @@ export const getCachedRuangan = () => {
 };
 
 /**
- * Menyimpan daftar ruangan ke localStorage (cache)
+ * Menyimpan daftar ruangan ke localStorage
  */
-export const cacheRuangan = (list) => {
+export const cacheRuangan = list => {
   try {
     localStorage.setItem(RUANGAN_CACHE_KEY, JSON.stringify(list));
-  } catch (e) {
-    console.warn('Gagal menyimpan cache ruangan:', e);
+  } catch (error) {
+    console.warn('Gagal menyimpan cache ruangan:', error);
   }
 };
 
-/**
- * Mengambil daftar nama ruangan dari Supabase.
- * Jika berhasil, hasilnya di-cache ke localStorage untuk akses offline.
- * Jika gagal/offline, gunakan data dari cache.
- */
 export const fetchDaftarRuangan = async () => {
   try {
     const { data, error } = await supabase
@@ -59,42 +47,24 @@ export const fetchDaftarRuangan = async () => {
       .order('nama_ruangan', { ascending: true });
 
     if (error || !data) {
-      // Fallback ke cache jika terjadi error
       const cached = getCachedRuangan();
-      if (cached.length > 0) {
-        console.info('Menggunakan cache ruangan (DB error).');
-        return cached;
-      }
+      if (cached.length > 0) return cached;
       return [];
     }
 
-    const list = data.map(r => r.nama_ruangan);
-
-    // Simpan ke cache untuk penggunaan offline
+    const list = data.map(row => row.nama_ruangan);
     cacheRuangan(list);
-
     return list;
-  } catch (e) {
-    // Fallback ke cache saat offline/network error
+  } catch (error) {
     const cached = getCachedRuangan();
-    if (cached.length > 0) {
-      console.info('Menggunakan cache ruangan (offline).');
-      return cached;
-    }
-    console.warn('Gagal memuat ruangan dari DB:', e);
+    if (cached.length > 0) return cached;
+    console.warn('Gagal memuat ruangan dari DB:', error);
     return [];
   }
 };
 
-// ─── APP SETTINGS ─────────────────────────────────────────────────────────────
 const SETTINGS_CACHE_PREFIX = 'insan_j_setting_';
 
-/**
- * Membaca sebuah setting dari tabel app_settings di Supabase.
- * Fallback ke localStorage jika tabel tidak ada / offline.
- * @param {string} key - nama setting
- * @param {*} defaultValue - nilai default jika tidak ditemukan
- */
 export const getSetting = async (key, defaultValue = null) => {
   try {
     const { data, error } = await supabase
@@ -104,50 +74,40 @@ export const getSetting = async (key, defaultValue = null) => {
       .maybeSingle();
 
     if (!error && data) {
-      // Cache lokal agar bisa diakses cepat
       localStorage.setItem(SETTINGS_CACHE_PREFIX + key, JSON.stringify(data.value));
       return data.value;
     }
   } catch (_) {
-    // table mungkin belum ada atau offline
+    // Gunakan cache jika layanan sedang tidak tersedia.
   }
 
-  // Fallback ke cache localStorage
   try {
     const cached = localStorage.getItem(SETTINGS_CACHE_PREFIX + key);
     if (cached !== null) return JSON.parse(cached);
-  } catch (_) { /* */ }
-
+  } catch (_) {
+    // Nilai cache rusak; gunakan nilai bawaan.
+  }
   return defaultValue;
 };
 
-/**
- * Menyimpan setting ke Supabase app_settings (upsert) dan localStorage.
- * @param {string} key
- * @param {*} value
- */
 export const setSetting = async (key, value) => {
-  // Simpan ke localStorage dulu (agar UI responsif)
   localStorage.setItem(SETTINGS_CACHE_PREFIX + key, JSON.stringify(value));
-
   try {
     const { error } = await supabase
       .from('app_settings')
       .upsert({ key, value }, { onConflict: 'key' });
-
     if (error) throw error;
-  } catch (e) {
-    console.warn('Gagal menyimpan setting ke DB, tersimpan di localStorage:', e);
+  } catch (error) {
+    console.warn('Gagal menyimpan setting ke DB, tersimpan di localStorage:', error);
   }
 };
 
-/**
- * Membaca setting secara sinkron dari cache localStorage (tanpa network call).
- */
 export const getSettingCached = (key, defaultValue = null) => {
   try {
     const cached = localStorage.getItem(SETTINGS_CACHE_PREFIX + key);
     if (cached !== null) return JSON.parse(cached);
-  } catch (_) { /* */ }
+  } catch (_) {
+    // Nilai cache rusak; gunakan nilai bawaan.
+  }
   return defaultValue;
 };
