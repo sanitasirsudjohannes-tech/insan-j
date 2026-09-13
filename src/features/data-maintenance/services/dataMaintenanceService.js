@@ -9,9 +9,6 @@ export const ARCHIVE_TABLES = [
   { name: 'pengangkutan_limbah', label: 'Pengangkutan Limbah' },
 ];
 
-const DELETE_BATCH_SIZE = 250;
-const RESTORE_BATCH_SIZE = 250;
-
 const normalizeArchiveYear = (year) => {
   const parsed = Number(year);
   if (!Number.isInteger(parsed) || parsed < 2000 || parsed >= new Date().getFullYear()) {
@@ -139,15 +136,37 @@ export function validateArchiveBackup(archive) {
   }
   if (!archive.manifest || !archive.datasets) throw new Error('Manifest arsip tidak lengkap.');
 
+  const archiveYear = normalizeArchiveYear(archive.manifest.year);
   let totalRows = 0;
+
   ARCHIVE_TABLES.forEach(({ name, label }) => {
     const rows = archive.datasets[name];
     if (!Array.isArray(rows)) throw new Error(`Data ${label} tidak tersedia.`);
+    if (rows.length > 100000) throw new Error(`Data ${label} melebihi batas pemulihan.`);
     if (archive.manifest.counts?.[name] !== rows.length) {
       throw new Error(`Jumlah data ${label} tidak sesuai manifest.`);
     }
+
+    const seenIds = new Set();
+    rows.forEach((row, index) => {
+      if (!row || typeof row !== 'object' || Array.isArray(row)) {
+        throw new Error(`Baris ${index + 1} pada ${label} tidak valid.`);
+      }
+      if (row.id === null || row.id === undefined || row.id === '') {
+        throw new Error(`Baris ${index + 1} pada ${label} tidak memiliki ID.`);
+      }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(row.tanggal || ''))
+          || Number(String(row.tanggal).slice(0, 4)) !== archiveYear) {
+        throw new Error(`Tanggal baris ${index + 1} pada ${label} berada di luar tahun arsip ${archiveYear}.`);
+      }
+      const id = String(row.id);
+      if (seenIds.has(id)) throw new Error(`ID ganda ditemukan pada ${label}.`);
+      seenIds.add(id);
+    });
+
     totalRows += rows.length;
   });
+
   if (archive.manifest.totalRows !== totalRows) throw new Error('Total data arsip tidak sesuai.');
   if (archive.manifest.checksum !== checksum(archive.datasets)) {
     throw new Error('Checksum tidak cocok. File mungkin berubah atau rusak.');
@@ -160,55 +179,23 @@ export async function deleteArchivedYear(year, onProgress = () => {}) {
   if (normalizedYear > new Date().getFullYear() - 2) {
     throw new Error('Tahun berjalan dan tahun sebelumnya tidak boleh dihapus.');
   }
-  const deletedCounts = {};
-  const { start, endExclusive } = getYearRange(year);
 
-  for (const table of ARCHIVE_TABLES) {
-    let deleted = 0;
-    while (true) {
-      const { data: rows, error: readError } = await supabase
-        .from(table.name)
-        .select('id')
-        .gte('tanggal', start)
-        .lt('tanggal', endExclusive)
-        .order('id', { ascending: true })
-        .limit(DELETE_BATCH_SIZE);
-      if (readError) throw new Error(`${table.label}: ${readError.message}`);
-      if (!rows?.length) break;
-
-      const ids = rows.map(row => row.id);
-      const { data: removed, error: deleteError } = await supabase
-        .from(table.name)
-        .delete()
-        .in('id', ids)
-        .select('id');
-      if (deleteError) throw new Error(`${table.label}: ${deleteError.message}`);
-      if ((removed || []).length !== ids.length) {
-        throw new Error(`${table.label}: verifikasi penghapusan gagal.`);
-      }
-      deleted += removed.length;
-      onProgress(`Menghapus ${table.label}: ${deleted} baris`);
-    }
-    deletedCounts[table.name] = deleted;
-  }
-  return deletedCounts;
+  onProgress('Menghapus arsip secara transaksional...');
+  const { data, error } = await supabase.rpc('admin_delete_archived_year', {
+    p_year: normalizedYear,
+  });
+  if (error) throw new Error(error.message);
+  return data || {};
 }
 
 export async function restoreArchiveBackup(archive, onProgress = () => {}) {
-  const restoredCounts = {};
-  for (const table of ARCHIVE_TABLES) {
-    const rows = archive.datasets[table.name] || [];
-    let restored = 0;
-    for (let offset = 0; offset < rows.length; offset += RESTORE_BATCH_SIZE) {
-      const batch = rows.slice(offset, offset + RESTORE_BATCH_SIZE);
-      const { error } = await supabase
-        .from(table.name)
-        .upsert(batch, { onConflict: 'id' });
-      if (error) throw new Error(`${table.label}: ${error.message}`);
-      restored += batch.length;
-      onProgress(`Memulihkan ${table.label}: ${restored}/${rows.length}`);
-    }
-    restoredCounts[table.name] = restored;
-  }
-  return restoredCounts;
+  const validated = validateArchiveBackup(archive);
+  onProgress('Memulihkan arsip secara transaksional...');
+
+  const { data, error } = await supabase.rpc('admin_restore_data_archive', {
+    p_year: validated.manifest.year,
+    p_datasets: validated.datasets,
+  });
+  if (error) throw new Error(error.message);
+  return data || {};
 }
