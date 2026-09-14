@@ -43,9 +43,12 @@ test('parser mendukung perbandingan dua tanggal dan dua tahun', () => {
 
 test('parser mengenali jumlah dan perbandingan input ruangan per tanggal', () => {
   const count = parseWasteQuestion('Berapa ruangan yang diinput tanggal 14 September 2026?');
+  const naturalCount = parseWasteQuestion('Berapa jumlah ruangan pada hari ini?');
   const comparison = parseWasteQuestion('Bandingkan ruangan yang diinput tanggal 13 dan 14 September 2026');
   assert.equal(count.intent, 'room_input_count');
   assert.equal(count.period.start, '2026-09-14');
+  assert.equal(naturalCount.intent, 'room_input_count');
+  assert.equal(naturalCount.roomName, null);
   assert.equal(comparison.intent, 'room_input_comparison');
   assert.equal(comparison.comparisonPeriod.start, '2026-09-13');
   assert.equal(comparison.period.start, '2026-09-14');
