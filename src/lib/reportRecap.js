@@ -12,6 +12,7 @@ export async function fetchMedicalWasteRecap(start, end, {
   includePrevious = true, includeDiagnostics = true,
 } = {}) {
   const wasteColumns = 'tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik';
+  const roomWasteColumns = `${wasteColumns}, ruangan, petugas, created_by`;
   const range = query => query.gte('tanggal', start).lte('tanggal', end).order('tanggal', { ascending: true });
   const monthStart = `${start.slice(0, 7)}-01`;
   const dayBeforeStart = new Date(`${start}T00:00:00`);
@@ -23,14 +24,14 @@ export async function fetchMedicalWasteRecap(start, end, {
   const previousRange = query => query.gte('tanggal', comparisonPeriod.start).lte('tanggal', comparisonPeriod.end).order('tanggal', { ascending: true });
   const [padatRows, ruanganRows, transportRows, yearlyData, partialPadat, partialRuangan, partialTransport, previousPadatRows, previousRuanganRows, previousTransportRows] = await Promise.all([
     fetchAllSupabaseRows(() => range(supabase.from('limbah_padat').select(wasteColumns))),
-    fetchAllSupabaseRows(() => range(supabase.from('limbah_ruangan').select(`${wasteColumns}, ruangan`))),
+    fetchAllSupabaseRows(() => range(supabase.from('limbah_ruangan').select(roomWasteColumns))),
     includeTransport ? fetchAllSupabaseRows(() => range(supabase.from('pengangkutan_limbah').select('tanggal, jumlah_kg'))) : [],
     includeBalance ? fetchDatabaseAggregation('rekap_limbah_yearly_summary', { requested_year: Number(start.slice(0, 4)), excluded_padat_ids: [], excluded_ruangan_ids: [], excluded_pengangkutan_ids: [] }) : null,
     includeBalance && hasPartialMonth ? fetchAllSupabaseRows(() => priorRange(supabase.from('limbah_padat').select(wasteColumns))) : [],
     includeBalance && hasPartialMonth ? fetchAllSupabaseRows(() => priorRange(supabase.from('limbah_ruangan').select(wasteColumns))) : [],
     includeBalance && hasPartialMonth && includeTransport ? fetchAllSupabaseRows(() => priorRange(supabase.from('pengangkutan_limbah').select('tanggal, jumlah_kg'))) : [],
     includePrevious ? fetchAllSupabaseRows(() => previousRange(supabase.from('limbah_padat').select(wasteColumns))) : [],
-    includePrevious ? fetchAllSupabaseRows(() => previousRange(supabase.from('limbah_ruangan').select(`${wasteColumns}, ruangan`))) : [],
+    includePrevious ? fetchAllSupabaseRows(() => previousRange(supabase.from('limbah_ruangan').select(roomWasteColumns))) : [],
     includePrevious && includeTransport ? fetchAllSupabaseRows(() => previousRange(supabase.from('pengangkutan_limbah').select('tanggal, jumlah_kg'))) : [],
   ]);
   let openingSource = yearlyData;
