@@ -2,7 +2,8 @@ import { ITEMS_PER_PAGE, FETCH_BATCH_SIZE } from '../../lib/limbah/constants';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { fetchDaftarRuangan } from '../../lib/api';
-import { getOfflineQueue, getUnsyncedItemsForTable, getOfflineDeletedIds, getCachedServerRows, cacheServerRows } from '../../lib/offlineStorage';
+import { getOfflineQueue, getUnsyncedItemsForTable, getOfflineDeletedIds, getCachedServerRows, cacheServerRows, reconcileCachedServerRows } from '../../lib/offlineStorage';
+import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
 import { getLocalMonthString } from '../../lib/localDate';
 import { compareWasteRows } from '../../lib/limbah/rowOrder';
 
@@ -75,7 +76,25 @@ export default function useAnorganikData() {
           dbData.push(...batch);
           if (batch.length < to - from + 1) break;
         }
-        cacheServerRows('limbah_anorganik', dbData); dbFetchSucceeded = true;
+        cacheServerRows('limbah_anorganik', dbData);
+        if (page === 1) {
+          try {
+            const validRows = await fetchAllSupabaseRows(() => {
+              let query = applyPeriod(supabase.from('limbah_anorganik').select('id').order('id', { ascending: true }));
+              if (filterRuangan) query = query.eq('ruangan', filterRuangan);
+              if (excludedIds) query = query.not('id', 'in', excludedIds);
+              return query;
+            });
+            reconcileCachedServerRows('limbah_anorganik', validRows.map(row => row.id), {
+              date: filterDate || undefined,
+              month: filterDate ? undefined : effectiveMonth,
+              room: filterRuangan || undefined,
+            });
+          } catch (cacheError) {
+            console.warn('Rekonsiliasi cache limbah anorganik ditunda:', cacheError);
+          }
+        }
+        dbFetchSucceeded = true;
       } catch (e) {
         console.warn('Handling offline/network error fetching limbah anorganik:', e);
         dbData = getCachedServerRows('limbah_anorganik').filter(item => {

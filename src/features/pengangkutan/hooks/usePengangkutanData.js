@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   cacheServerRows, getCachedServerRows, getOfflineDeletedIds, getOfflineQueue,
-  getUnsyncedItemsForTable
+  getUnsyncedItemsForTable, reconcileCachedServerRows
 } from '../../../lib/offlineStorage';
+import { fetchAllSupabaseRows } from '../../../lib/supabasePagination';
+import { supabase } from '../../../lib/supabase';
+import { getMonthRange } from '../services/pengangkutanService';
 import {
   countPengangkutan,
   fetchPengangkutanPage
@@ -74,6 +77,25 @@ export default function usePengangkutanData() {
                 }
 
                 cacheServerRows('pengangkutan_limbah', dbData);
+                if (page === 1 && filterMonth) {
+                    try {
+                        const range = getMonthRange(filterMonth);
+                        const validRows = await fetchAllSupabaseRows(() => {
+                            let query = supabase.from('pengangkutan_limbah').select('id')
+                                .gte('tanggal', range.start).lte('tanggal', range.end)
+                                .order('id', { ascending: true });
+                            if (excludedIds) query = query.not('id', 'in', excludedIds);
+                            return query;
+                        });
+                        reconcileCachedServerRows(
+                            'pengangkutan_limbah',
+                            validRows.map(row => row.id),
+                            { month: filterMonth }
+                        );
+                    } catch (cacheError) {
+                        console.warn('Rekonsiliasi cache pengangkutan ditunda:', cacheError);
+                    }
+                }
                 dbFetchSucceeded = true;
             } catch (e) {
                 console.warn('Handling offline DB error in PengangkutanLimbah:', e);

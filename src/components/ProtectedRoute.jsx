@@ -53,6 +53,11 @@ export default function ProtectedRoute({ children, requiredRole, allowedRoles, d
       if (!active || requestId !== requestIdRef.current) return;
       setUser(result.user);
       setStatus(result.status);
+      if (result.status === 'authenticated' && result.user?.id) {
+        window.dispatchEvent(new CustomEvent('insan-j-session-ready', {
+          detail: { userId: result.user.id },
+        }));
+      }
     };
 
     restore({ showLoading: true });
