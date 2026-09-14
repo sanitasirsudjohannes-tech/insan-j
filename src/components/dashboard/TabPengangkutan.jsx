@@ -4,8 +4,9 @@ import {
   ResponsiveContainer, LineChart, Line, ReferenceLine
 } from 'recharts';
 
-import { fetchDatabaseAggregation } from '../../lib/databaseAggregations';
+import { fetchDashboardAggregation } from '../../lib/databaseAggregations';
 import { DashboardSkeleton, EmptyState, ErrorState } from '../ui/DataStates';
+import OfflineDashboardNotice from './OfflineDashboardNotice';
 
 export default function TabPengangkutan() {
   const [chartData, setChartData] = useState([]);
@@ -18,6 +19,7 @@ export default function TabPengangkutan() {
   const fetchIdRef = useRef(0);
   const [fetchError, setFetchError] = useState('');
   const [reloadCount, setReloadCount] = useState(0);
+  const [dataSource, setDataSource] = useState({ source: 'server', updatedAt: null });
 
   useEffect(() => {
     if (!loading) {
@@ -36,13 +38,15 @@ export default function TabPengangkutan() {
       setLoading(true);
       setFetchError('');
       try {
-        const aggregated = await fetchDatabaseAggregation('dashboard_pengangkutan_summary', {
+        const response = await fetchDashboardAggregation('dashboard_pengangkutan_summary', {
           requested_month: selectedMonth || null,
         });
+        const aggregated = response.data;
 
         if (currentFetchId !== fetchIdRef.current) return;
 
         if (aggregated) {
+          setDataSource({ source: response.source, updatedAt: response.updatedAt });
           const resolvedMonth = aggregated.selectedMonth || '';
           const formattedRows = (aggregated.daily || []).map(row => {
             const date = new Date(row.tanggal);
@@ -101,6 +105,7 @@ export default function TabPengangkutan() {
 
   return (
     <div className="animate-fade-in">
+      <OfflineDashboardNotice {...dataSource} />
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mb-8">
         {cards.map(c => (

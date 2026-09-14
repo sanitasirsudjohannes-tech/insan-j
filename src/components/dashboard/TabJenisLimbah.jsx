@@ -5,7 +5,8 @@ import {
 } from 'recharts';
 import { DashboardSkeleton, ErrorState } from '../ui/DataStates';
 
-import { fetchDatabaseAggregation } from '../../lib/databaseAggregations';
+import { fetchDashboardAggregation } from '../../lib/databaseAggregations';
+import OfflineDashboardNotice from './OfflineDashboardNotice';
 
 export default function TabJenisLimbah() {
   const currentYear = String(new Date().getFullYear());
@@ -21,6 +22,7 @@ export default function TabJenisLimbah() {
   const fetchIdRef = useRef(0);
   const [fetchError, setFetchError] = useState('');
   const [reloadCount, setReloadCount] = useState(0);
+  const [dataSource, setDataSource] = useState({ source: 'server', updatedAt: null });
 
   useEffect(() => {
     if (!loading) {
@@ -37,14 +39,16 @@ export default function TabJenisLimbah() {
       setLoading(true);
       setFetchError('');
       try {
-        const aggregated = await fetchDatabaseAggregation('dashboard_jenis_limbah_summary', {
+        const response = await fetchDashboardAggregation('dashboard_jenis_limbah_summary', {
           requested_year: Number(selectedYear),
           requested_month: selectedMonth ? Number(selectedMonth) : null,
         });
+        const aggregated = response.data;
 
         if (currentFetchId !== fetchIdRef.current) return;
 
         if (aggregated) {
+          setDataSource({ source: response.source, updatedAt: response.updatedAt });
           const resolvedYear = String(aggregated.selectedYear || selectedYear);
           const years = [...new Set([
             ...(aggregated.availableYears || []).map(String),
@@ -133,6 +137,7 @@ export default function TabJenisLimbah() {
 
   return (
     <div className="animate-fade-in">
+      <OfflineDashboardNotice {...dataSource} />
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">

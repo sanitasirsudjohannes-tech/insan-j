@@ -73,7 +73,7 @@ const getVerifiedSyncSession = async (ownerId) => {
 };
 
 const getTrackedLocalStorageBytes = () => {
-  const keys = [QUEUE_KEY, SYNCED_IDS_KEY, RECORD_CACHE_KEY];
+  const keys = [QUEUE_KEY, SYNCED_IDS_KEY, RECORD_CACHE_KEY, 'insan_j_dashboard_cache_v1'];
   return keys.reduce((total, key) => {
     const value = localStorage.getItem(key) || '';
     return total + new Blob([key, value]).size;
@@ -1099,4 +1099,6 @@ if (typeof window !== 'undefined') {
       syncOfflineQueue(false).catch(err => console.error('Sinkronisasi setelah pemulihan sesi gagal:', err));
     }
   });
+
+  window.addEventListener('offline-storage-health-request', notifyStorageHealth);
 }

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { getLocalDateString, getWitaDateString } from '../../lib/localDate';
 import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
-import { fetchDatabaseAggregation } from '../../lib/databaseAggregations';
+import { fetchDashboardAggregation } from '../../lib/databaseAggregations';
 
 const buildCheckPeriod = () => {
   const today = new Date(`${getWitaDateString()}T12:00:00`);
@@ -29,6 +29,7 @@ export default function DashboardNotification() {
   const [missingDates, setMissingDates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [checkFailed, setCheckFailed] = useState(false);
+  const [usingOfflineData, setUsingOfflineData] = useState(false);
 
   useEffect(() => {
     const fetchMissingDates = async () => {
@@ -38,12 +39,14 @@ export default function DashboardNotification() {
         const { dates: datesToCheck, ranges } = buildCheckPeriod();
         if (datesToCheck.length === 0) return;
 
-        const aggregatedRanges = await Promise.all(ranges.map(([start, end]) =>
-          fetchDatabaseAggregation('dashboard_missing_waste_dates', {
+        const aggregateResponses = await Promise.all(ranges.map(([start, end]) =>
+          fetchDashboardAggregation('dashboard_missing_waste_dates', {
             start_date: getLocalDateString(start),
             end_date: getLocalDateString(end),
           })
         ));
+        const aggregatedRanges = aggregateResponses.map(response => response.data);
+        setUsingOfflineData(aggregateResponses.some(response => response.source === 'offline'));
 
         if (aggregatedRanges.every(result => result !== null)) {
           setMissingDates([...new Set(aggregatedRanges.flat())].sort());
@@ -107,6 +110,7 @@ export default function DashboardNotification() {
               Peringatan: Terdapat Tanggal yang Belum Diinput (Data Limbah)
             </h3>
             <div className="mt-2 text-sm text-red-700">
+              {usingOfflineData && <p className="mb-2 font-semibold text-amber-700">Berdasarkan pemeriksaan terakhir yang tersimpan di perangkat.</p>}
               <p>Cek kembali tanggal pada bulan berjalan dan satu bulan sebelumnya:</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 {missingDates.map(date => (
