@@ -416,3 +416,24 @@ test('jawaban membandingkan jumlah, nama ruangan, dan petugas pada dua tanggal',
   assert.match(answer.text, /Hanya 13 September 2026: IGD/);
   assert.match(answer.text, /Hanya 14 September 2026: NICU/);
 });
+
+
+test('perbandingan ruangan diurutkan kronologis dan memisahkan catatan manual', () => {
+  const parsed = parseWasteQuestion('Bandingkan jumlah ruangan hari ini dengan kemarin');
+  const today = {
+    ...recap,
+    facts: { ...recap.facts, totalGeneratedKg: 60, roomGeneratedKg: 35, manualGeneratedKg: 25 },
+    diagnostics: { roomInputs: [{ date: parsed.comparisonPeriod.start, count: 1, names: ['ICU'], officers: ['Petugas Hari Ini'] }] },
+  };
+  const yesterday = {
+    ...recap,
+    facts: { ...recap.facts, totalGeneratedKg: 40, roomGeneratedKg: 35, manualGeneratedKg: 5 },
+    diagnostics: { roomInputs: [{ date: parsed.period.start, count: 1, names: ['ICU'], officers: ['Petugas Kemarin'] }] },
+  };
+  const answer = buildWasteAnswer(parsed, yesterday, today);
+  const earlier = [parsed.comparisonPeriod.start, parsed.period.start].sort()[0];
+  const later = [parsed.comparisonPeriod.start, parsed.period.start].sort()[1];
+  assert.ok(answer.text.indexOf(earlier.split('-').reverse()[0]) < answer.text.indexOf(later.split('-').reverse()[0]));
+  assert.match(answer.text, /Catatan manual: naik 20 kg/);
+  assert.match(answer.text, /Perbedaan terbesar berasal dari catatan limbah manual/);
+});
