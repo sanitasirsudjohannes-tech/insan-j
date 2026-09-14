@@ -51,6 +51,9 @@ export async function fetchMedicalWasteRecap(start, end, {
   const bottleKg = sum(wasteRows, 'botol_obat');
   const cytotoxicKg = sum(wasteRows, 'sitotoksik');
   const totalGeneratedKg = infectiousKg + sharpsKg + bottleKg + cytotoxicKg;
+  const sumWasteRows = rows => rows.reduce((total, row) => total + ['infeksius', 'jarum_suntik', 'botol_obat', 'sitotoksik'].reduce((value, key) => value + (Number(row[key]) || 0), 0), 0);
+  const manualGeneratedKg = sumWasteRows(padatRows);
+  const roomGeneratedKg = sumWasteRows(ruanganRows);
   const totalTransportedKg = sum(transportRows, 'jumlah_kg');
   const daily = new Map();
   const roomTypeDaily = new Map();
@@ -80,17 +83,22 @@ export async function fetchMedicalWasteRecap(start, end, {
   transportRows.forEach(row => { ensureDay(row.tanggal).transported += Number(row.jumlah_kg) || 0; });
   const rooms = new Map();
   const roomDetails = new Map();
+  const officialRoomNames = new Map(knownRooms.map(name => [String(name || '').trim().toLocaleLowerCase('id-ID'), name]));
   ruanganRows.forEach(row => {
-    const name = row.ruangan || 'Tanpa nama';
+    const rawName = String(row.ruangan || 'Tanpa nama').trim();
+    const roomKey = rawName.toLocaleLowerCase('id-ID');
+    const name = officialRoomNames.get(roomKey) || rawName;
     const total = ['infeksius', 'jarum_suntik', 'botol_obat', 'sitotoksik'].reduce((value, key) => value + (Number(row[key]) || 0), 0);
-    rooms.set(name, (rooms.get(name) || 0) + total);
-    const detail = roomDetails.get(name) || { name, infectiousKg: 0, sharpsKg: 0, bottleKg: 0, cytotoxicKg: 0, totalKg: 0 };
+    const roomSummary = rooms.get(roomKey) || { name, value: 0 };
+    roomSummary.value += total;
+    rooms.set(roomKey, roomSummary);
+    const detail = roomDetails.get(roomKey) || { name, infectiousKg: 0, sharpsKg: 0, bottleKg: 0, cytotoxicKg: 0, totalKg: 0 };
     detail.infectiousKg += Number(row.infeksius) || 0;
     detail.sharpsKg += Number(row.jarum_suntik) || 0;
     detail.bottleKg += Number(row.botol_obat) || 0;
     detail.cytotoxicKg += Number(row.sitotoksik) || 0;
     detail.totalKg += total;
-    roomDetails.set(name, detail);
+    roomDetails.set(roomKey, detail);
   });
   let runningBalance = openingBalanceKg;
   const timeline = Array.from(daily.values()).sort((a, b) => a.date.localeCompare(b.date)).map(row => {
@@ -106,12 +114,12 @@ export async function fetchMedicalWasteRecap(start, end, {
       return Math.max(1, Math.round((new Date(`${effectiveEnd}T00:00:00Z`) - new Date(`${start}T00:00:00Z`)) / 86400000) + 1);
     })(),
   });
-  const roomTotals = Array.from(rooms, ([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
+  const roomTotals = Array.from(rooms.values()).sort((a, b) => b.value - a.value);
   const diagnostics = includeDiagnostics
     ? buildWasteDataDiagnostics({ start, end, wasteRows, roomRows: ruanganRows, transportRows, knownRooms })
     : {};
   return {
-    facts: { openingBalanceKg, totalGeneratedKg, totalTransportedKg, remainingKg: openingBalanceKg + totalGeneratedKg - totalTransportedKg, infectiousKg, sharpsKg, bottleKg, cytotoxicKg },
+    facts: { openingBalanceKg, totalGeneratedKg, roomGeneratedKg, manualGeneratedKg, totalTransportedKg, remainingKg: openingBalanceKg + totalGeneratedKg - totalTransportedKg, infectiousKg, sharpsKg, bottleKg, cytotoxicKg },
     charts: {
       balanceFlow: [
         { name: 'Sisa Awal', value: openingBalanceKg },
