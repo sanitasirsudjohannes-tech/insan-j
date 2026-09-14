@@ -63,25 +63,60 @@ export function buildRoomInputComparisonAnswer(parsed, recap, comparisonRecap) {
   const onlyLeft = Array.from(leftMap, ([key, name]) => rightMap.has(key) ? null : name).filter(Boolean);
   const onlyRight = Array.from(rightMap, ([key, name]) => leftMap.has(key) ? null : name).filter(Boolean);
   const countDifference = Math.abs(left.count - right.count);
+  const leftTotal = Number(comparisonRecap.facts?.totalGeneratedKg) || 0;
+  const rightTotal = Number(recap.facts?.totalGeneratedKg) || 0;
+  const totalDifference = rightTotal - leftTotal;
 
-  return `Perbandingan input ruangan
+  const roomDetails = details => new Map((details || []).map(item => [normalizeRoomName(item.name), item]));
+  const leftDetails = roomDetails(comparisonRecap.charts?.roomDetails);
+  const rightDetails = roomDetails(recap.charts?.roomDetails);
+  const roomChanges = Array.from(new Set([...leftDetails.keys(), ...rightDetails.keys()])).map(key => {
+    const before = leftDetails.get(key);
+    const after = rightDetails.get(key);
+    const previous = Number(before?.totalKg) || 0;
+    const current = Number(after?.totalKg) || 0;
+    return { name: after?.name || before?.name || key, previous, current, change: current - previous };
+  }).filter(item => item.change !== 0).sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
 
-• ${formatDate(left.date)}: ${left.count} ruangan — petugas: ${left.officers?.length ? left.officers.join(', ') : 'tidak tercatat'}
-• ${formatDate(right.date)}: ${right.count} ruangan — petugas: ${right.officers?.length ? right.officers.join(', ') : 'tidak tercatat'}
-• Selisih jumlah: ${countDifference} ruangan
+  const typeChanges = [
+    ['Infeksius', 'infectiousKg'], ['Jarum suntik', 'sharpsKg'],
+    ['Botol obat', 'bottleKg'], ['Sitotoksik', 'cytotoxicKg'],
+  ].map(([name, key]) => ({
+    name,
+    change: (Number(recap.facts?.[key]) || 0) - (Number(comparisonRecap.facts?.[key]) || 0),
+  })).filter(item => item.change !== 0).sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
 
-Sama pada kedua tanggal (${same.length})
-${same.length ? same.map(name => `• ${name}`).join('\n') : '• Tidak ada'}
+  const formatChange = value => value > 0 ? `naik ${format(value)} kg` : `turun ${format(Math.abs(value))} kg`;
+  const roomChangeLines = roomChanges.slice(0, 8).map(item =>
+    `• ${item.name}: ${format(item.previous)} kg menjadi ${format(item.current)} kg — ${formatChange(item.change)}`
+  );
+  const typeChangeLines = typeChanges.map(item => `• ${item.name}: ${formatChange(item.change)}`);
+  const leadingChange = roomChanges[0];
+  const duplicateCount = (comparisonRecap.diagnostics?.duplicateRoomDates?.length || 0) + (recap.diagnostics?.duplicateRoomDates?.length || 0);
 
-Hanya ${formatDate(left.date)} (${onlyLeft.length})
-${onlyLeft.length ? onlyLeft.map(name => `• ${name}`).join('\n') : '• Tidak ada'}
+  return `Perbandingan input dan timbulan ruangan
 
-Hanya ${formatDate(right.date)} (${onlyRight.length})
-${onlyRight.length ? onlyRight.map(name => `• ${name}`).join('\n') : '• Tidak ada'}
+• ${formatDate(left.date)}: ${left.count} ruangan, ${format(leftTotal)} kg — petugas: ${left.officers?.length ? left.officers.join(', ') : 'tidak tercatat'}
+• ${formatDate(right.date)}: ${right.count} ruangan, ${format(rightTotal)} kg — petugas: ${right.officers?.length ? right.officers.join(', ') : 'tidak tercatat'}
+• Selisih jumlah ruangan: ${countDifference}
+• Selisih timbulan: ${totalDifference === 0 ? 'tetap' : formatChange(totalDifference)}
 
-Jumlah ruangan dihitung berdasarkan nama unik; perbedaan huruf besar, huruf kecil, dan spasi diabaikan.`;
+Kesamaan nama ruangan
+• Sama pada kedua tanggal: ${same.length}
+• Hanya ${formatDate(left.date)}: ${onlyLeft.length ? onlyLeft.join(', ') : 'tidak ada'}
+• Hanya ${formatDate(right.date)}: ${onlyRight.length ? onlyRight.join(', ') : 'tidak ada'}
+
+Penyumbang perubahan terbesar
+${roomChangeLines.length ? roomChangeLines.join('\n') : '• Tidak ada perubahan timbulan per ruangan.'}
+
+Perubahan berdasarkan jenis
+${typeChangeLines.length ? typeChangeLines.join('\n') : '• Tidak ada perubahan berdasarkan jenis limbah.'}
+
+Kesimpulan
+${leadingChange ? `Perbedaan terbesar berasal dari ${leadingChange.name}, yang ${formatChange(leadingChange.change)}.` : 'Jumlah timbulan kedua tanggal sama.'}${left.count === right.count && (onlyLeft.length || onlyRight.length) ? ' Walaupun jumlah ruangan sama, susunan nama ruangannya berbeda.' : ''}${duplicateCount ? ` Terdapat ${duplicateCount} kemungkinan data ganda yang perlu diperiksa.` : ''}
+
+Jumlah ruangan dihitung berdasarkan nama unik; perbedaan huruf besar, huruf kecil, dan spasi diabaikan. Temuan menunjukkan sumber selisih, bukan memastikan bahwa input salah.`;
 }
-
 export function buildDuplicateAnswer(parsed, diagnostics = {}) {
   const duplicates = diagnostics.duplicateRoomDates || [];
   return duplicates.length
