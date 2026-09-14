@@ -397,3 +397,22 @@ test('jawaban timbulan kosong ditampilkan singkat', () => {
   assert.equal(answer.text, 'Tidak ada data timbulan yang tercatat selama Juli 2025.');
   assert.doesNotMatch(answer.text, /Rata-rata|0 kg/);
 });
+
+
+test('jawaban membandingkan jumlah, nama ruangan, dan petugas pada dua tanggal', () => {
+  const parsed = parseWasteQuestion('Bandingkan ruangan yang diinput tanggal 13 dan 14 September 2026');
+  const left = {
+    ...recap,
+    diagnostics: { roomInputs: [{ date: '2026-09-13', count: 2, names: ['ICU', 'IGD'], officers: ['Petugas A'] }] },
+  };
+  const right = {
+    ...recap,
+    diagnostics: { roomInputs: [{ date: '2026-09-14', count: 2, names: ['icu', 'NICU'], officers: ['Petugas B'] }] },
+  };
+  const answer = buildWasteAnswer(parsed, right, left);
+  assert.match(answer.text, /13 September 2026: 2 ruangan — petugas: Petugas A/);
+  assert.match(answer.text, /14 September 2026: 2 ruangan — petugas: Petugas B/);
+  assert.match(answer.text, /Sama pada kedua tanggal \(1\)/);
+  assert.match(answer.text, /Hanya 13 September 2026 \(1\)/);
+  assert.match(answer.text, /Hanya 14 September 2026 \(1\)/);
+});
