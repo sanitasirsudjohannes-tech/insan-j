@@ -55,65 +55,84 @@ ${duplicates.length ? `Perlu diperiksa: terdapat ${duplicates.length} ruangan de
 
 export function buildRoomInputComparisonAnswer(parsed, recap, comparisonRecap) {
   if (!comparisonRecap || !parsed.comparisonPeriod) return 'Sebutkan dua tanggal yang ingin dibandingkan.';
-  const left = roomInputForDate(comparisonRecap.diagnostics, parsed.comparisonPeriod.start);
-  const right = roomInputForDate(recap.diagnostics, parsed.period.start);
-  const leftMap = new Map(left.names.map(name => [normalizeRoomName(name), name]));
-  const rightMap = new Map(right.names.map(name => [normalizeRoomName(name), name]));
-  const same = Array.from(leftMap, ([key, name]) => rightMap.has(key) ? name : null).filter(Boolean);
-  const onlyLeft = Array.from(leftMap, ([key, name]) => rightMap.has(key) ? null : name).filter(Boolean);
-  const onlyRight = Array.from(rightMap, ([key, name]) => leftMap.has(key) ? null : name).filter(Boolean);
-  const countDifference = Math.abs(left.count - right.count);
-  const leftTotal = Number(comparisonRecap.facts?.totalGeneratedKg) || 0;
-  const rightTotal = Number(recap.facts?.totalGeneratedKg) || 0;
-  const totalDifference = rightTotal - leftTotal;
+  const ordered = [
+    { date: parsed.comparisonPeriod.start, recap: comparisonRecap },
+    { date: parsed.period.start, recap },
+  ].sort((left, right) => left.date.localeCompare(right.date));
+  const [beforePeriod, afterPeriod] = ordered;
+  const before = roomInputForDate(beforePeriod.recap.diagnostics, beforePeriod.date);
+  const after = roomInputForDate(afterPeriod.recap.diagnostics, afterPeriod.date);
+  const beforeMap = new Map(before.names.map(name => [normalizeRoomName(name), name]));
+  const afterMap = new Map(after.names.map(name => [normalizeRoomName(name), name]));
+  const same = Array.from(beforeMap, ([key, name]) => afterMap.has(key) ? name : null).filter(Boolean);
+  const onlyBefore = Array.from(beforeMap, ([key, name]) => afterMap.has(key) ? null : name).filter(Boolean);
+  const onlyAfter = Array.from(afterMap, ([key, name]) => beforeMap.has(key) ? null : name).filter(Boolean);
+  const countDifference = Math.abs(before.count - after.count);
+  const beforeTotal = Number(beforePeriod.recap.facts?.totalGeneratedKg) || 0;
+  const afterTotal = Number(afterPeriod.recap.facts?.totalGeneratedKg) || 0;
+  const totalDifference = afterTotal - beforeTotal;
+  const roomDifference = (Number(afterPeriod.recap.facts?.roomGeneratedKg) || 0) - (Number(beforePeriod.recap.facts?.roomGeneratedKg) || 0);
+  const manualDifference = (Number(afterPeriod.recap.facts?.manualGeneratedKg) || 0) - (Number(beforePeriod.recap.facts?.manualGeneratedKg) || 0);
 
   const roomDetails = details => new Map((details || []).map(item => [normalizeRoomName(item.name), item]));
-  const leftDetails = roomDetails(comparisonRecap.charts?.roomDetails);
-  const rightDetails = roomDetails(recap.charts?.roomDetails);
-  const roomChanges = Array.from(new Set([...leftDetails.keys(), ...rightDetails.keys()])).map(key => {
-    const before = leftDetails.get(key);
-    const after = rightDetails.get(key);
-    const previous = Number(before?.totalKg) || 0;
-    const current = Number(after?.totalKg) || 0;
-    return { name: after?.name || before?.name || key, previous, current, change: current - previous };
-  }).filter(item => item.change !== 0).sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+  const beforeDetails = roomDetails(beforePeriod.recap.charts?.roomDetails);
+  const afterDetails = roomDetails(afterPeriod.recap.charts?.roomDetails);
+  const roomChanges = Array.from(new Set([...beforeDetails.keys(), ...afterDetails.keys()])).map(key => {
+    const previousRoom = beforeDetails.get(key);
+    const currentRoom = afterDetails.get(key);
+    const previous = Number(previousRoom?.totalKg) || 0;
+    const current = Number(currentRoom?.totalKg) || 0;
+    return { name: currentRoom?.name || previousRoom?.name || key, previous, current, change: current - previous };
+  }).filter(item => item.change !== 0).sort((left, right) => Math.abs(right.change) - Math.abs(left.change));
 
   const typeChanges = [
     ['Infeksius', 'infectiousKg'], ['Jarum suntik', 'sharpsKg'],
     ['Botol obat', 'bottleKg'], ['Sitotoksik', 'cytotoxicKg'],
   ].map(([name, key]) => ({
     name,
-    change: (Number(recap.facts?.[key]) || 0) - (Number(comparisonRecap.facts?.[key]) || 0),
-  })).filter(item => item.change !== 0).sort((a, b) => Math.abs(b.change) - Math.abs(a.change));
+    change: (Number(afterPeriod.recap.facts?.[key]) || 0) - (Number(beforePeriod.recap.facts?.[key]) || 0),
+  })).filter(item => item.change !== 0).sort((left, right) => Math.abs(right.change) - Math.abs(left.change));
 
   const formatChange = value => value > 0 ? `naik ${format(value)} kg` : `turun ${format(Math.abs(value))} kg`;
   const roomChangeLines = roomChanges.slice(0, 8).map(item =>
     `• ${item.name}: ${format(item.previous)} kg menjadi ${format(item.current)} kg — ${formatChange(item.change)}`
   );
   const typeChangeLines = typeChanges.map(item => `• ${item.name}: ${formatChange(item.change)}`);
-  const leadingChange = roomChanges[0];
-  const duplicateCount = (comparisonRecap.diagnostics?.duplicateRoomDates?.length || 0) + (recap.diagnostics?.duplicateRoomDates?.length || 0);
+  const leadingRoom = roomChanges[0];
+  const manualIsLeading = Math.abs(manualDifference) > Math.abs(leadingRoom?.change || 0);
+  const duplicateCount = (beforePeriod.recap.diagnostics?.duplicateRoomDates?.length || 0) + (afterPeriod.recap.diagnostics?.duplicateRoomDates?.length || 0);
+  const mainCause = totalDifference === 0
+    ? 'Jumlah timbulan kedua tanggal sama.'
+    : manualIsLeading
+      ? `Perbedaan terbesar berasal dari catatan limbah manual, yang ${formatChange(manualDifference)}.`
+      : leadingRoom
+        ? `Perbedaan terbesar dari data ruangan berasal dari ${leadingRoom.name}, yang ${formatChange(leadingRoom.change)}.`
+        : 'Perubahan tidak berasal dari data per ruangan; periksa catatan limbah manual.';
 
   return `Perbandingan input dan timbulan ruangan
 
-• ${formatDate(left.date)}: ${left.count} ruangan, ${format(leftTotal)} kg — petugas: ${left.officers?.length ? left.officers.join(', ') : 'tidak tercatat'}
-• ${formatDate(right.date)}: ${right.count} ruangan, ${format(rightTotal)} kg — petugas: ${right.officers?.length ? right.officers.join(', ') : 'tidak tercatat'}
+• ${formatDate(before.date)}: ${before.count} ruangan, ${format(beforeTotal)} kg — petugas: ${before.officers?.length ? before.officers.join(', ') : 'tidak tercatat'}
+• ${formatDate(after.date)}: ${after.count} ruangan, ${format(afterTotal)} kg — petugas: ${after.officers?.length ? after.officers.join(', ') : 'tidak tercatat'}
 • Selisih jumlah ruangan: ${countDifference}
 • Selisih timbulan: ${totalDifference === 0 ? 'tetap' : formatChange(totalDifference)}
 
+Sumber perubahan timbulan
+• Data ruangan: ${roomDifference === 0 ? 'tetap' : formatChange(roomDifference)}
+• Catatan manual: ${manualDifference === 0 ? 'tetap' : formatChange(manualDifference)}
+
 Kesamaan nama ruangan
 • Sama pada kedua tanggal: ${same.length}
-• Hanya ${formatDate(left.date)}: ${onlyLeft.length ? onlyLeft.join(', ') : 'tidak ada'}
-• Hanya ${formatDate(right.date)}: ${onlyRight.length ? onlyRight.join(', ') : 'tidak ada'}
+• Hanya ${formatDate(before.date)}: ${onlyBefore.length ? onlyBefore.join(', ') : 'tidak ada'}
+• Hanya ${formatDate(after.date)}: ${onlyAfter.length ? onlyAfter.join(', ') : 'tidak ada'}
 
-Penyumbang perubahan terbesar
+Penyumbang perubahan data ruangan
 ${roomChangeLines.length ? roomChangeLines.join('\n') : '• Tidak ada perubahan timbulan per ruangan.'}
 
 Perubahan berdasarkan jenis
 ${typeChangeLines.length ? typeChangeLines.join('\n') : '• Tidak ada perubahan berdasarkan jenis limbah.'}
 
 Kesimpulan
-${leadingChange ? `Perbedaan terbesar berasal dari ${leadingChange.name}, yang ${formatChange(leadingChange.change)}.` : 'Jumlah timbulan kedua tanggal sama.'}${left.count === right.count && (onlyLeft.length || onlyRight.length) ? ' Walaupun jumlah ruangan sama, susunan nama ruangannya berbeda.' : ''}${duplicateCount ? ` Terdapat ${duplicateCount} kemungkinan data ganda yang perlu diperiksa.` : ''}
+${mainCause}${before.count === after.count && (onlyBefore.length || onlyAfter.length) ? ' Walaupun jumlah ruangan sama, susunan nama ruangannya berbeda.' : ''}${duplicateCount ? ` Terdapat ${duplicateCount} pasangan tanggal dan ruangan dengan catatan ganda yang perlu diperiksa.` : ''}
 
 Jumlah ruangan dihitung berdasarkan nama unik; perbedaan huruf besar, huruf kecil, dan spasi diabaikan. Temuan menunjukkan sumber selisih, bukan memastikan bahwa input salah.`;
 }
