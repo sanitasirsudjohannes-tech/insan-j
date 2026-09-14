@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import Swal from 'sweetalert2';
 import {
   getOfflineQueue,
+  getOfflineStorageHealth,
   removeOfflineQueueItem,
   syncOfflineQueue,
 } from '../lib/offlineStorage';
@@ -23,6 +24,8 @@ export default function OfflineSyncIndicator() {
   const [syncing, setSyncing] = useState(false);
   const [open, setOpen] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState(() => localStorage.getItem(LAST_SYNC_KEY));
+  const [storageHealth, setStorageHealth] = useState(null);
+  const [deferredReason, setDeferredReason] = useState(null);
   const syncingRef = useRef(false);
   const mountedRef = useRef(true);
 
@@ -33,7 +36,8 @@ export default function OfflineSyncIndicator() {
     syncingRef.current = true;
     setSyncing(true);
     try {
-      await syncOfflineQueue(showNotification, force);
+      const result = await syncOfflineQueue(showNotification, force);
+      if (mountedRef.current) setDeferredReason(result?.deferred ? result.reason : null);
     } catch (error) {
       console.error('Sinkronisasi draft offline gagal:', error);
     } finally {
@@ -50,25 +54,33 @@ export default function OfflineSyncIndicator() {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
     const handleQueueChange = () => refreshQueue();
-    const handleSyncFinished = () => {
+    const handleSyncFinished = event => {
       refreshQueue();
-      if (getOfflineQueue().length === 0) {
+      const { result, verified, remaining } = event.detail || {};
+      setDeferredReason(result?.deferred ? result.reason : null);
+      if (verified && result?.success > 0 && remaining === 0) {
         const timestamp = new Date().toISOString();
         localStorage.setItem(LAST_SYNC_KEY, timestamp);
         setLastSyncAt(timestamp);
       }
     };
+    const handleStorageHealth = event => setStorageHealth(event.detail || null);
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     window.addEventListener('offline-queue-changed', handleQueueChange);
     window.addEventListener('offline-sync-finished', handleSyncFinished);
+    window.addEventListener('offline-storage-health', handleStorageHealth);
+    getOfflineStorageHealth().then(health => {
+      if (mountedRef.current) setStorageHealth(health);
+    });
     return () => {
       mountedRef.current = false;
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('offline-queue-changed', handleQueueChange);
       window.removeEventListener('offline-sync-finished', handleSyncFinished);
+      window.removeEventListener('offline-storage-health', handleStorageHealth);
     };
   }, [refreshQueue]);
 
@@ -111,7 +123,14 @@ export default function OfflineSyncIndicator() {
 
   const conflictedItems = queue.filter(item => item.syncConflict);
   const failedItems = queue.filter(item => item.requiresManualRetry);
-  const latestError = [...queue].reverse().find(item => item.lastSyncError)?.lastSyncError;
+  const latestFailedItem = [...queue].reverse().find(item => item.lastSyncError);
+  const latestError = latestFailedItem?.lastSyncError;
+  const errorTypeLabels = {
+    permission: 'Izin akses ditolak',
+    validation: 'Data tidak valid',
+    conflict: 'Data berubah di server',
+    server: 'Server bermasalah',
+  };
 
   const handleManualSync = async () => {
     if (conflictedItems.length === 0) {
@@ -148,7 +167,7 @@ export default function OfflineSyncIndicator() {
 
   const tone = !isOnline ? 'danger' : failedItems.length || conflictedItems.length ? 'warning' : queue.length ? 'info' : 'success';
   const icon = syncing ? 'fas fa-spinner fa-spin' : !isOnline ? 'fas fa-wifi-slash' : failedItems.length || conflictedItems.length ? 'fas fa-exclamation-circle' : queue.length ? 'fas fa-cloud-upload-alt' : 'fas fa-cloud';
-  const label = !isOnline ? 'Offline' : syncing ? 'Sinkronisasi' : queue.length ? `${queue.length} draft` : 'Tersinkron';
+  const label = !isOnline ? 'Offline' : syncing ? 'Sinkronisasi' : queue.length ? `${queue.length} draft` : lastSyncAt ? 'Tersinkron' : 'Tidak ada draft';
   const bannerLabel = !isOnline
     ? `Mode Offline${queue.length ? ` · ${queue.length} Draft` : ''}`
     : syncing
@@ -219,10 +238,26 @@ export default function OfflineSyncIndicator() {
                   {queue.length > 8 && <p className="text-[11px] text-slate-400 mt-2">Dan {queue.length - 8} item lainnya.</p>}
                 </div>
               ) : (
-                <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-4 text-center"><i className="fas fa-check-circle text-emerald-600 text-2xl mb-2" /><p className="text-sm font-bold text-emerald-800">Semua data sudah tersinkron</p><p className="text-xs text-emerald-700 mt-1">Tidak ada draft yang menunggu di perangkat ini.</p></div>
+                <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-4 text-center"><i className="fas fa-check-circle text-emerald-600 text-2xl mb-2" /><p className="text-sm font-bold text-emerald-800">{lastSyncAt ? 'Semua data sudah tersinkron' : 'Tidak ada draft menunggu'}</p><p className="text-xs text-emerald-700 mt-1">{lastSyncAt ? 'Pengiriman terakhir telah dikonfirmasi server.' : 'Belum ada pengiriman offline yang dikonfirmasi pada perangkat ini.'}</p></div>
               )}
 
-              {latestError && <div className="rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs text-rose-700" role="alert"><strong>Kesalahan terakhir:</strong> {latestError}</div>}
+              {latestError && (
+                <div className="rounded-xl bg-rose-50 border border-rose-200 p-3 text-xs text-rose-700" role="alert">
+                  <strong>{errorTypeLabels[latestFailedItem?.syncErrorType] || 'Sinkronisasi gagal'}:</strong> {latestError}
+                </div>
+              )}
+              {deferredReason && (
+                <div className="rounded-xl bg-blue-50 border border-blue-200 p-3 text-xs text-blue-800" role="status">
+                  {deferredReason === 'session'
+                    ? 'Draft tetap aman. Sinkronisasi menunggu sesi login selesai dipulihkan.'
+                    : 'Draft tetap aman. Sinkronisasi akan dilanjutkan setelah koneksi kembali stabil.'}
+                </div>
+              )}
+              {storageHealth?.warning && (
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800" role="alert">
+                  <strong>Penyimpanan perangkat hampir penuh.</strong> Segera hubungkan internet dan sinkronkan seluruh draft. Hindari membersihkan data aplikasi sebelum antrean kosong.
+                </div>
+              )}
 
               {queue.length > 0 && (
                 <button type="button" onClick={handleManualSync} disabled={!isOnline || syncing} className="w-full min-h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition disabled:opacity-50">

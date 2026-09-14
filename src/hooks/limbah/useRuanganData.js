@@ -2,7 +2,8 @@ import { ITEMS_PER_PAGE, FETCH_BATCH_SIZE } from '../../lib/limbah/constants';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import { fetchDaftarRuangan } from '../../lib/api';
-import { getOfflineQueue, getUnsyncedItemsForTable, getOfflineDeletedIds, getCachedServerRows, cacheServerRows } from '../../lib/offlineStorage';
+import { getOfflineQueue, getUnsyncedItemsForTable, getOfflineDeletedIds, getCachedServerRows, cacheServerRows, reconcileCachedServerRows } from '../../lib/offlineStorage';
+import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
 import { compareWasteRows } from '../../lib/limbah/rowOrder';
 
 const getCurrentMonth = () => {
@@ -72,7 +73,31 @@ export default function useRuanganData() {
           dbData.push(...batch);
           if (batch.length < to - from + 1) break;
         }
-        cacheServerRows('limbah_ruangan', dbData); dbFetchSucceeded = true;
+        cacheServerRows('limbah_ruangan', dbData);
+        if (page === 1) {
+          try {
+            const validRows = await fetchAllSupabaseRows(() => {
+              let query = supabase.from('limbah_ruangan').select('id').order('id', { ascending: true });
+              if (filterDate) query = query.eq('tanggal', filterDate);
+              else {
+                const [year, month] = effectiveMonth.split('-');
+                query = query.gte('tanggal', `${year}-${month}-01`)
+                  .lte('tanggal', `${year}-${month}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`);
+              }
+              if (filterRuangan) query = query.eq('ruangan', filterRuangan);
+              if (excludedIds) query = query.not('id', 'in', excludedIds);
+              return query;
+            });
+            reconcileCachedServerRows('limbah_ruangan', validRows.map(row => row.id), {
+              date: filterDate || undefined,
+              month: filterDate ? undefined : effectiveMonth,
+              room: filterRuangan || undefined,
+            });
+          } catch (cacheError) {
+            console.warn('Rekonsiliasi cache limbah ruangan ditunda:', cacheError);
+          }
+        }
+        dbFetchSucceeded = true;
       } catch (e) {
         console.warn('Handling offline/network error during DB fetch:', e);
         dbData = getCachedServerRows('limbah_ruangan').filter(item => {

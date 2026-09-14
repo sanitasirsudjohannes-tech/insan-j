@@ -1,5 +1,5 @@
 import { supabase } from '../supabase';
-import { getUnsyncedItemsForTable, getOfflineDeletedIds, getCachedServerRows, cacheServerRows } from '../offlineStorage';
+import { getUnsyncedItemsForTable, getOfflineDeletedIds, getCachedServerRows, cacheServerRows, reconcileCachedServerRows } from '../offlineStorage';
 import { fetchAllSupabaseRows } from '../supabasePagination';
 import { accumulatePadatRows } from './padatAggregation';
 
@@ -27,6 +27,12 @@ export const getAccumulatedData = async (targetMonth = null) => {
       [dbPadat, dbRuangan] = await Promise.all([fetchAllSupabaseRows(() => buildMonthlyQuery('limbah_padat', 'id, tanggal, infeksius, jarum_suntik, botol_obat, sitotoksik, petugas, waktu_input')), fetchAllSupabaseRows(() => buildMonthlyQuery('limbah_ruangan', 'id, tanggal, ruangan, infeksius, jarum_suntik, botol_obat, sitotoksik, petugas, waktu_input'))]);
       cacheServerRows('limbah_padat', dbPadat);
       cacheServerRows('limbah_ruangan', dbRuangan);
+      reconcileCachedServerRows('limbah_padat', dbPadat.map(row => row.id), {
+        month: targetMonth || undefined,
+      });
+      reconcileCachedServerRows('limbah_ruangan', dbRuangan.map(row => row.id), {
+        month: targetMonth || undefined,
+      });
     } catch (err) {
       console.warn('Network issue fetching accumulated data:', err);
       dbPadat = getCachedServerRows('limbah_padat');

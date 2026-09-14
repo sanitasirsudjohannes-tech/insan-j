@@ -14,6 +14,7 @@ const MAX_SYNCED_IDS_PER_USER = 200;
 const MAX_CACHED_ROWS_PER_TABLE = 500;
 const SYNC_LOCK_TTL_MS = 45000;
 const SYNC_RETRY_DELAYS_MS = [60_000, 5 * 60_000, 15 * 60_000];
+const LOCAL_STORAGE_WARNING_BYTES = 4 * 1024 * 1024;
 const SYNC_TAB_ID = `sync_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
 // Per-tab mutex complemented by Web Locks/localStorage across browser tabs.
@@ -28,6 +29,7 @@ const resetRetryState = (item) => ({
   ...item,
   syncAttempts: 0,
   lastSyncError: null,
+  syncErrorType: null,
   lastSyncAttemptAt: null,
   nextRetryAt: null,
   requiresManualRetry: false,
@@ -38,6 +40,66 @@ const getSyncErrorMessage = (error) => {
   if (typeof error?.message === 'string' && error.message.trim()) return error.message.trim();
   if (typeof error === 'string' && error.trim()) return error.trim();
   return 'Sinkronisasi gagal karena kesalahan yang tidak diketahui.';
+};
+
+const classifySyncError = (error) => {
+  const status = Number(error?.status || error?.statusCode || 0);
+  const code = String(error?.code || '').toLowerCase();
+  const message = getSyncErrorMessage(error).toLowerCase();
+  if (!navigator.onLine || /failed to fetch|network|load failed|fetch/.test(message)) return 'network';
+  if ([401].includes(status) || /jwt|session|refresh.token|authsession/.test(`${code} ${message}`)) return 'session';
+  if ([403].includes(status) || code === '42501' || /permission|row.level security|rls|not allowed/.test(message)) return 'permission';
+  if (isRecordConflictError(error)) return 'conflict';
+  if ([400, 409, 422].includes(status) || /^22|^23/.test(code) || /invalid|validation|required|constraint|duplicate/.test(message)) return 'validation';
+  return 'server';
+};
+
+const getVerifiedSyncSession = async (ownerId) => {
+  try {
+    let { data, error } = await supabase.auth.getSession();
+    if (error) throw error;
+    if (!data?.session?.user && navigator.onLine) {
+      ({ data, error } = await supabase.auth.refreshSession());
+      if (error) throw error;
+    }
+    const sessionUserId = data?.session?.user?.id || null;
+    if (!sessionUserId || sessionUserId !== ownerId) {
+      return { ready: false, reason: 'session' };
+    }
+    return { ready: true, userId: sessionUserId };
+  } catch (error) {
+    return { ready: false, reason: classifySyncError(error), error };
+  }
+};
+
+const getTrackedLocalStorageBytes = () => {
+  const keys = [QUEUE_KEY, SYNCED_IDS_KEY, RECORD_CACHE_KEY];
+  return keys.reduce((total, key) => {
+    const value = localStorage.getItem(key) || '';
+    return total + new Blob([key, value]).size;
+  }, 0);
+};
+
+export const getOfflineStorageHealth = async () => {
+  const trackedBytes = getTrackedLocalStorageBytes();
+  let usage = null;
+  let quota = null;
+  try {
+    const estimate = await navigator.storage?.estimate?.();
+    usage = Number.isFinite(estimate?.usage) ? estimate.usage : null;
+    quota = Number.isFinite(estimate?.quota) ? estimate.quota : null;
+  } catch {
+    // Estimasi storage tidak tersedia pada semua browser.
+  }
+  const nearLocalLimit = trackedBytes >= LOCAL_STORAGE_WARNING_BYTES;
+  const nearOriginQuota = usage !== null && quota > 0 && usage / quota >= 0.8;
+  return { trackedBytes, usage, quota, warning: nearLocalLimit || nearOriginQuota };
+};
+
+const notifyStorageHealth = () => {
+  getOfflineStorageHealth().then(health => {
+    window.dispatchEvent(new CustomEvent('offline-storage-health', { detail: health }));
+  }).catch(() => {});
 };
 
 const getCurrentQueueOwnerId = () => {
@@ -94,8 +156,34 @@ export const cacheServerRows = (tableName, rows) => {
       [tableName]: sortedRows.slice(0, MAX_CACHED_ROWS_PER_TABLE),
     };
     localStorage.setItem(RECORD_CACHE_KEY, JSON.stringify(cache));
+    notifyStorageHealth();
   } catch (error) {
     console.warn('Gagal menyimpan cadangan data offline:', error);
+  }
+};
+
+export const reconcileCachedServerRows = (tableName, validServerIds, scope = {}) => {
+  const ownerId = getCurrentQueueOwnerId();
+  if (!ownerId || !tableName || !Array.isArray(validServerIds)) return;
+  const validIds = new Set(validServerIds.map(String));
+  try {
+    const cache = readRecordCache();
+    const ownerCache = cache[ownerId];
+    if (!ownerCache || !Array.isArray(ownerCache[tableName])) return;
+    const { dateField = 'tanggal', date, month, room } = scope;
+    const isInScope = row => {
+      if (date && row?.[dateField] !== date) return false;
+      if (month && !row?.[dateField]?.startsWith(month)) return false;
+      if (room && row?.ruangan !== room) return false;
+      return true;
+    };
+    cache[ownerId] = {
+      ...ownerCache,
+      [tableName]: ownerCache[tableName].filter(row => !isInScope(row) || validIds.has(String(row.id))),
+    };
+    localStorage.setItem(RECORD_CACHE_KEY, JSON.stringify(cache));
+  } catch (error) {
+    console.warn('Gagal merekonsiliasi cache data server:', error);
   }
 };
 
@@ -222,7 +310,18 @@ const writeCurrentOwnerQueue = (ownerQueue) => {
     if (!previousItems.has(item.id)) changedTables.add(item.table);
   });
 
-  localStorage.setItem(QUEUE_KEY, JSON.stringify([...otherOwnersQueue, ...ownerQueue]));
+  try {
+    localStorage.setItem(QUEUE_KEY, JSON.stringify([...otherOwnersQueue, ...ownerQueue]));
+  } catch (error) {
+    window.dispatchEvent(new CustomEvent('offline-storage-health', {
+      detail: { warning: true, writeFailed: true },
+    }));
+    throw Object.assign(
+      new Error('Penyimpanan perangkat penuh. Hubungkan internet dan sinkronkan draft sebelum menambah data.'),
+      { code: 'offline_storage_full', cause: error },
+    );
+  }
+  notifyStorageHealth();
   const queueEvent = new CustomEvent('offline-queue-changed', { detail: ownerQueue });
   queueEvent.changedTables = [...changedTables];
   queueEvent.syncInProgress = syncInProgress;
@@ -254,6 +353,7 @@ const markQueueItemsFailed = (snapshotItems, error) => {
   const now = new Date();
   const errorMessage = getSyncErrorMessage(error);
   const hasConflict = isRecordConflictError(error);
+  const errorType = classifySyncError(error);
 
   const queue = getOfflineQueue().map(item => {
     const snapshot = snapshots.get(String(item.localId || item.id));
@@ -267,6 +367,7 @@ const markQueueItemsFailed = (snapshotItems, error) => {
       ...item,
       syncAttempts,
       lastSyncError: errorMessage,
+      syncErrorType: errorType,
       lastSyncAttemptAt: now.toISOString(),
       nextRetryAt: retryDelay === null
         ? null
@@ -701,6 +802,14 @@ const performOfflineSync = async (showNotification = true, force = false) => {
   if (!navigator.onLine) return { success: 0, failed: 0, total: 0 };
 
   const allQueue = getOfflineQueue();
+  const ownerId = getCurrentQueueOwnerId();
+  const sessionState = await getVerifiedSyncSession(ownerId);
+  if (!sessionState.ready) {
+    return {
+      success: 0, failed: 0, total: allQueue.length, skipped: allQueue.length,
+      deferred: true, reason: sessionState.reason || 'session',
+    };
+  }
   const initialQueue = allQueue.filter(item => isQueueItemReady(item, force));
   if (allQueue.length === 0) return { success: 0, failed: 0, total: 0, skipped: 0 };
   if (initialQueue.length === 0) {
@@ -735,6 +844,14 @@ const performOfflineSync = async (showNotification = true, force = false) => {
         successCount += await syncOfflineInsertBatch(batchItems);
       } catch (batchError) {
         console.error(`Gagal sinkronisasi batch ${item.batchId}:`, batchError);
+        const errorType = classifySyncError(batchError);
+        if (errorType === 'network' || errorType === 'session') {
+          return {
+            success: successCount, failed: failedCount, total,
+            skipped: Math.max(0, total - successCount - failedCount),
+            deferred: true, reason: errorType,
+          };
+        }
         markQueueItemsFailed(batchItems, batchError);
         failedCount += batchItems.length;
       }
@@ -799,6 +916,14 @@ const performOfflineSync = async (showNotification = true, force = false) => {
 
       if (error) {
         console.error(`Gagal sync item ${item.id}:`, error);
+        const errorType = classifySyncError(error);
+        if (errorType === 'network' || errorType === 'session') {
+          return {
+            success: successCount, failed: failedCount, total,
+            skipped: Math.max(0, total - successCount - failedCount),
+            deferred: true, reason: errorType,
+          };
+        }
         markQueueItemsFailed([item], error);
         failedCount++;
         continue;
@@ -808,6 +933,14 @@ const performOfflineSync = async (showNotification = true, force = false) => {
       successCount++;
     } catch (err) {
       console.error(`Exception sync item ${item.id}:`, err);
+      const errorType = classifySyncError(err);
+      if (errorType === 'network' || errorType === 'session') {
+        return {
+          success: successCount, failed: failedCount, total,
+          skipped: Math.max(0, total - successCount - failedCount),
+          deferred: true, reason: errorType,
+        };
+      }
       markQueueItemsFailed([item], err);
       failedCount++;
       continue;
@@ -908,8 +1041,10 @@ export const syncOfflineQueue = (showNotification = true, force = false) => {
     syncChangedTables = new Set();
     window.dispatchEvent(new CustomEvent('offline-sync-start'));
 
+    let result = null;
     try {
-      return await performOfflineSync(showNotification, force);
+      result = await performOfflineSync(showNotification, force);
+      return result;
     } finally {
       syncInProgress = false;
       const changedTables = [...syncChangedTables];
@@ -925,7 +1060,12 @@ export const syncOfflineQueue = (showNotification = true, force = false) => {
       // cukup memuat ulang satu kali setelah proses reconnect benar-benar
       // selesai. changedTables mempertahankan penyaringan per halaman.
       window.dispatchEvent(new CustomEvent('offline-sync-finished', {
-        detail: { changedTables },
+        detail: {
+          changedTables,
+          result,
+          verified: Boolean(result && !result.deferred && result.failed === 0),
+          remaining: getOfflineQueue().length,
+        },
       }));
     }
   };
@@ -952,5 +1092,11 @@ if (typeof window !== 'undefined') {
     syncOfflineQueue(true).catch((err) => {
       console.error('Auto-sync offline queue gagal:', err);
     });
+  });
+
+  window.addEventListener('insan-j-session-ready', () => {
+    if (navigator.onLine && getOfflineQueue().length > 0) {
+      syncOfflineQueue(false).catch(err => console.error('Sinkronisasi setelah pemulihan sesi gagal:', err));
+    }
   });
 }
