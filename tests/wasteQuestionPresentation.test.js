@@ -28,3 +28,32 @@ test('tautan sumber diarahkan sesuai kelompok data', () => {
   assert.match(room.to, /^\/limbah-dihasilkan\?/);
   assert.match(room.to, /room=ICU/);
 });
+
+
+test('jumlah ruangan dengan dua tanggal meminta pilihan sebelum menghitung', () => {
+  const parsed = parseWasteQuestion('Berapa jumlah ruangan tanggal 13 dan 14 September 2026?');
+  const clarification = findQuestionClarification(parsed.question, parsed);
+  assert.match(clarification.text, /dua tanggal/i);
+  assert.equal(clarification.actions.length, 3);
+  assert.match(clarification.actions[0].question, /Bandingkan jumlah ruangan tanggal 13 September 2026 dan 14 September 2026/);
+});
+
+test('jumlah ruangan bulanan meminta satu tanggal atau pemeriksaan kelengkapan', () => {
+  const parsed = parseWasteQuestion('Berapa jumlah ruangan bulan Agustus 2026?');
+  const clarification = findQuestionClarification(parsed.question, parsed);
+  assert.match(clarification.text, /belum menyebutkan satu tanggal/i);
+  assert.equal(clarification.actions.length, 2);
+  assert.match(clarification.actions[1].question, /belum input selama Agustus 2026/);
+});
+
+test('perbandingan ruangan tanpa dua tanggal tidak langsung dihitung', () => {
+  const parsed = parseWasteQuestion('Bandingkan jumlah ruangan tanggal 14 September 2026 dengan sebelumnya');
+  const clarification = findQuestionClarification(parsed.question, parsed);
+  assert.match(clarification.text, /memerlukan dua tanggal/i);
+  assert.match(clarification.actions[0].question, /13 September 2026 dan 14 September 2026/);
+});
+
+test('pertanyaan jumlah ruangan yang jelas tidak meminta konfirmasi', () => {
+  const parsed = parseWasteQuestion('Berapa jumlah ruangan yang input hari ini?');
+  assert.equal(findQuestionClarification(parsed.question, parsed), null);
+});
