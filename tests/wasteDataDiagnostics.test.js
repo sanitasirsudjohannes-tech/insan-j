@@ -19,4 +19,22 @@ test('diagnostik menemukan tanggal kosong, nol, ruangan terlewat, duplikat, dan 
   assert.equal(diagnostics.duplicateRoomDates[0].roomName, 'ICU');
   assert.equal(diagnostics.transport.lastDate, '2026-08-01');
   assert.equal(diagnostics.transport.daysSinceLast, 2);
+  assert.deepEqual(diagnostics.roomInputs[0], {
+    date: '2026-08-01', count: 1, names: ['ICU'], officers: [],
+  });
+});
+
+test('diagnostik menghitung nama ruangan unik dan petugas per tanggal', () => {
+  const roomRows = [
+    { tanggal: '2026-08-01', ruangan: ' ICU ', petugas: 'Petugas A' },
+    { tanggal: '2026-08-01', ruangan: 'icu', petugas: 'Petugas A' },
+    { tanggal: '2026-08-01', ruangan: 'IGD', petugas: 'Petugas B' },
+  ];
+  const diagnostics = buildWasteDataDiagnostics({
+    start: '2026-08-01', end: '2026-08-01', wasteRows: roomRows, roomRows,
+    knownRooms: ['ICU', 'IGD'],
+  });
+  assert.deepEqual(diagnostics.roomInputs[0], {
+    date: '2026-08-01', count: 2, names: ['ICU', 'IGD'], officers: ['Petugas A', 'Petugas B'],
+  });
 });
