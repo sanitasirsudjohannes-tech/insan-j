@@ -44,7 +44,7 @@ function makeMonthPeriod(year, month, inferredYear) {
 }
 
 function extractExplicitComparisonPeriods(question) {
-  if (!/banding|perbandingan|dibanding|selisih|\bvs\.?\b/i.test(question)) return null;
+  if (!/banding|perbandingan|dibanding|beda|berbeda|selisih|mengapa|kenapa|penyebab|\bvs\.?\b/i.test(question)) return null;
   const now = currentWita();
   const sharedYear = Number(question.match(/\b(20\d{2})\b/)?.[1] || now.year);
   const sharedDateMatch = question.match(new RegExp(`\\b([0-2]?\\d|3[01])\\s+(?:dengan|dan|versus|vs\\.?)\\s+([0-2]?\\d|3[01])\\s+(${MONTH_PATTERN})(?:\\s+(20\\d{2}))?\\b`, 'i'));
@@ -253,6 +253,7 @@ export function parseWasteQuestion(question, context = null, knownRooms = []) {
   const matchedRooms = findRoomCandidates(text, knownRooms);
   let roomName = resolveKnownRoom(text, knownRooms) || (referencesPreviousRoom ? context?.roomName : null) || explicitRoom;
   let intent = detectWasteIntent(text, { type, types, roomName });
+  if (['room_input_count', 'room_input_comparison'].includes(intent)) roomName = null;
   if (['type_rooms', 'never_type_rooms', 'missing_rooms'].includes(intent) && matchedRooms.length === 0) roomName = null;
   if (/tanggal.*(?:lain|itu|tersebut)/i.test(text) && context?.intent) {
     if (context.roomName && type) intent = 'room_type_dates';
