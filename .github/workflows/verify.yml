@@ -27,6 +27,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      - name: Export repaired lockfile for recovery
+        run: node -e 'console.log("LOCKFILE_RECOVERY=" + JSON.stringify(JSON.parse(require("fs").readFileSync("package-lock.json", "utf8"))))'
       - name: Run tests
         run: npm test
       - name: Build application
