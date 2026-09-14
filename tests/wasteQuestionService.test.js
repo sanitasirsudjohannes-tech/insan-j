@@ -437,3 +437,20 @@ test('perbandingan ruangan diurutkan kronologis dan memisahkan catatan manual', 
   assert.match(answer.text, /Catatan manual: naik 20 kg/);
   assert.match(answer.text, /Perbedaan terbesar berasal dari catatan limbah manual/);
 });
+
+
+test('peringatan saldo tidak ditampilkan pada jawaban frekuensi pengangkutan', () => {
+  const negativeRecap = {
+    ...recap,
+    facts: {
+      ...recap.facts,
+      openingBalanceKg: 0,
+      totalGeneratedKg: 10,
+      totalTransportedKg: 20,
+      remainingKg: -10,
+    },
+    diagnostics: { transport: { recordCount: 2, dates: ['2026-01-01', '2026-01-02'] } },
+  };
+  const answer = buildWasteAnswer(parseWasteQuestion('Berapa kali pengangkutan 2026?'), negativeRecap);
+  assert.deepEqual(answer.warnings, []);
+});

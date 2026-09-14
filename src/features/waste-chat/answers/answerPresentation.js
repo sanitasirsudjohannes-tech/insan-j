@@ -1,6 +1,11 @@
 import { formatNumber as format } from '../formatters/wasteAnswerFormatters.js';
 import { buildQuestionUnderstanding, buildSourceLink } from '../presentation/questionPresentation.js';
 
+const BALANCE_WARNING_INTENTS = new Set([
+  'waste_summary', 'analysis', 'remaining', 'opening_balance', 'available_total',
+  'comparison', 'transport_coverage', 'transported', 'data_anomalies',
+]);
+
 const monthlyTimeline = timeline => {
   const months = new Map();
   timeline.forEach(item => {
@@ -31,9 +36,10 @@ export function buildAnswerPresentation(parsed, recap, comparisonRecap, periodRe
   const available = facts.openingBalanceKg + facts.totalGeneratedKg;
   const noRecordedWaste = !Number(facts.openingBalanceKg) && !Number(facts.totalGeneratedKg) && !Number(facts.totalTransportedKg) && !Number(facts.remainingKg);
   const warnings = [];
-  if (facts.remainingKg < 0) warnings.push('Sisa akhir bernilai negatif. Periksa kembali data timbulan dan pengangkutan.');
-  if (facts.totalTransportedKg > available) warnings.push('Pengangkutan lebih besar daripada limbah yang tersedia pada perhitungan periode ini.');
-  if (!noRecordedWaste && !facts.totalGeneratedKg && !facts.totalTransportedKg) warnings.push('Belum ada timbulan maupun pengangkutan pada periode ini.');
+  const showBalanceWarnings = BALANCE_WARNING_INTENTS.has(parsed.intent);
+  if (showBalanceWarnings && facts.remainingKg < 0) warnings.push('Sisa akhir bernilai negatif. Periksa kembali data timbulan dan pengangkutan.');
+  if (showBalanceWarnings && facts.totalTransportedKg > available) warnings.push('Pengangkutan lebih besar daripada limbah yang tersedia pada perhitungan periode ini.');
+  if (showBalanceWarnings && !noRecordedWaste && !facts.totalGeneratedKg && !facts.totalTransportedKg) warnings.push('Belum ada timbulan maupun pengangkutan pada periode ini.');
 
   const cards = !noRecordedWaste && ['waste_summary', 'analysis', 'remaining', 'comparison', 'transport_coverage'].includes(parsed.intent) ? [
     { label: 'Sisa Akhir', value: `${format(facts.remainingKg)} kg`, tone: facts.remainingKg < 0 ? 'red' : 'emerald' },

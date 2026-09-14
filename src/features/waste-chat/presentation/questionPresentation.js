@@ -69,6 +69,19 @@ export function findQuestionClarification(question, parsed) {
   const mentionsRoomCount = /(?:berapa\s+(?:jumlah\s+)?|jumlah\s+|banyaknya\s+|total\s+)(?:ruang|ruangan)\b/i.test(text);
   const comparisonWord = /banding|perbandingan|dibanding|beda|berbeda|selisih|mengapa|kenapa|penyebab|\bvs\.?\b/i.test(text);
   const twoRoomDates = mentionsRoomCount && !comparisonWord ? extractTwoRoomDates(text) : null;
+  const ambiguousTransportAmount = /\bjumlah\s+(?:data\s+)?pengangkutan\b/i.test(text)
+    && !/(?:berapa\s+kali|frekuensi|catatan|tanggal|hari|kg|kilogram|berat|ton)/i.test(text);
+
+  if (ambiguousTransportAmount) {
+    return {
+      text: `“Jumlah pengangkutan” dapat berarti berat limbah atau banyaknya pengangkutan. Pilih yang Anda maksud untuk ${period}.`,
+      actions: [
+        { label: 'Total berat (kg)', question: `Berapa total berat limbah yang diangkut selama ${period}` },
+        { label: 'Frekuensi (kali)', question: `Berapa kali pengangkutan selama ${period}` },
+        { label: 'Daftar tanggal', question: `Tanggal pengangkutan selama ${period}` },
+      ],
+    };
+  }
 
   if (twoRoomDates) {
     return {

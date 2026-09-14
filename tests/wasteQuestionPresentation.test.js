@@ -65,3 +65,24 @@ test('tautan jumlah ruangan membuka data ruangan dengan filter tanggal', () => {
   assert.match(source.to, /start=2026-09-14/);
   assert.match(source.to, /end=2026-09-14/);
 });
+
+
+test('jumlah pengangkutan yang ambigu meminta pilihan satuan', () => {
+  const parsed = parseWasteQuestion('Jumlah pengangkutan 2026');
+  const clarification = findQuestionClarification(parsed.question, parsed);
+  assert.match(clarification.text, /berat limbah atau banyaknya pengangkutan/i);
+  assert.deepEqual(clarification.actions.map(action => action.label), [
+    'Total berat (kg)', 'Frekuensi (kali)', 'Daftar tanggal',
+  ]);
+});
+
+test('pengangkutan dengan satuan jelas tidak meminta konfirmasi', () => {
+  for (const question of [
+    'Berapa kali pengangkutan 2026?',
+    'Berapa total berat pengangkutan 2026?',
+    'Tanggal pengangkutan 2026',
+  ]) {
+    const parsed = parseWasteQuestion(question);
+    assert.equal(findQuestionClarification(parsed.question, parsed), null, question);
+  }
+});
