@@ -80,7 +80,7 @@ export async function answerWasteQuestion(question, { context = null, contextPer
     };
   }
 
-  const diagnosticIntents = new Set(['data_completeness', 'missing_rooms', 'duplicate_data', 'data_anomalies', 'last_transport', 'transport_gap', 'transport_count', 'average_transport', 'transport_dates']);
+  const diagnosticIntents = new Set(['data_completeness', 'missing_rooms', 'room_input_count', 'room_input_comparison', 'duplicate_data', 'data_anomalies', 'last_transport', 'transport_gap', 'transport_count', 'average_transport', 'transport_dates']);
   const balanceIntents = new Set(['waste_summary', 'analysis', 'remaining', 'opening_balance', 'available_total', 'transport_coverage', 'comparison']);
   const transportIntents = new Set(['transported', 'last_transport', 'transport_gap', 'transport_count', 'average_transport', 'transport_dates', 'transport_coverage']);
   const recapOptions = {
@@ -90,6 +90,7 @@ export async function answerWasteQuestion(question, { context = null, contextPer
     includePrevious: parsed.intent === 'analysis' || (parsed.intent === 'comparison' && !parsed.comparisonPeriod && !parsed.comparisonPeriods),
     includeDiagnostics: diagnosticIntents.has(parsed.intent),
   };
+  const isComparisonIntent = ['comparison', 'room_input_comparison'].includes(parsed.intent);
   const comparisonPeriods = parsed.intent === 'comparison' && parsed.comparisonPeriods?.length >= 2
     ? parsed.comparisonPeriods
     : null;
@@ -102,7 +103,7 @@ export async function answerWasteQuestion(question, { context = null, contextPer
     ? [periodRecaps.at(-1), periodRecaps[0]]
     : await Promise.all([
       fetchRecap(parsed.period.start, parsed.period.end, recapOptions),
-      parsed.intent === 'comparison' && parsed.comparisonPeriod
+      isComparisonIntent && parsed.comparisonPeriod
         ? fetchRecap(parsed.comparisonPeriod.start, parsed.comparisonPeriod.end, { ...recapOptions, includePrevious: false })
         : null,
     ]);
