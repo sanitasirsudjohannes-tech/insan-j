@@ -33,6 +33,54 @@ export function buildMissingRoomsAnswer(parsed, diagnostics = {}) {
     : `Seluruh ruangan aktif memiliki catatan pada semua tanggal yang diperiksa selama ${parsed.period.label}.`;
 }
 
+const normalizeRoomName = value => String(value || '').trim().toLocaleLowerCase('id-ID');
+
+function roomInputForDate(diagnostics = {}, date) {
+  return (diagnostics.roomInputs || []).find(item => item.date === date) || { date, count: 0, names: [] };
+}
+
+export function buildRoomInputCountAnswer(parsed, diagnostics = {}) {
+  const input = roomInputForDate(diagnostics, parsed.period.start);
+  const officialCount = (diagnostics.officialRooms || []).length;
+  const coverage = officialCount > 0 ? Math.round((input.count / officialCount) * 100) : null;
+  const duplicates = diagnostics.duplicateRoomDates || [];
+  return `Input ruangan pada ${formatDate(parsed.period.start)}
+
+• Ruangan tercatat: ${input.count}${officialCount ? ` dari ${officialCount} ruangan resmi` : ''}
+${coverage === null ? '' : `• Cakupan: ${coverage}%\n`}• Nama ruangan: ${input.names.length ? input.names.join(', ') : 'Belum ada'}
+
+${duplicates.length ? `Perlu diperiksa: terdapat ${duplicates.length} ruangan dengan lebih dari satu catatan pada tanggal ini. Jumlah ruangan di atas dihitung unik.` : 'Tidak ditemukan nama ruangan ganda pada tanggal ini.'}`;
+}
+
+export function buildRoomInputComparisonAnswer(parsed, recap, comparisonRecap) {
+  if (!comparisonRecap || !parsed.comparisonPeriod) return 'Sebutkan dua tanggal yang ingin dibandingkan.';
+  const left = roomInputForDate(comparisonRecap.diagnostics, parsed.comparisonPeriod.start);
+  const right = roomInputForDate(recap.diagnostics, parsed.period.start);
+  const leftMap = new Map(left.names.map(name => [normalizeRoomName(name), name]));
+  const rightMap = new Map(right.names.map(name => [normalizeRoomName(name), name]));
+  const same = Array.from(leftMap, ([key, name]) => rightMap.has(key) ? name : null).filter(Boolean);
+  const onlyLeft = Array.from(leftMap, ([key, name]) => rightMap.has(key) ? null : name).filter(Boolean);
+  const onlyRight = Array.from(rightMap, ([key, name]) => leftMap.has(key) ? null : name).filter(Boolean);
+  const countDifference = Math.abs(left.count - right.count);
+
+  return `Perbandingan input ruangan
+
+• ${formatDate(left.date)}: ${left.count} ruangan
+• ${formatDate(right.date)}: ${right.count} ruangan
+• Selisih jumlah: ${countDifference} ruangan
+
+Sama pada kedua tanggal (${same.length})
+${same.length ? same.map(name => `• ${name}`).join('\n') : '• Tidak ada'}
+
+Hanya ${formatDate(left.date)} (${onlyLeft.length})
+${onlyLeft.length ? onlyLeft.map(name => `• ${name}`).join('\n') : '• Tidak ada'}
+
+Hanya ${formatDate(right.date)} (${onlyRight.length})
+${onlyRight.length ? onlyRight.map(name => `• ${name}`).join('\n') : '• Tidak ada'}
+
+Jumlah ruangan dihitung berdasarkan nama unik; perbedaan huruf besar, huruf kecil, dan spasi diabaikan.`;
+}
+
 export function buildDuplicateAnswer(parsed, diagnostics = {}) {
   const duplicates = diagnostics.duplicateRoomDates || [];
   return duplicates.length
