@@ -9,6 +9,7 @@ const INTENT_LABELS = {
   room_type_dates: 'Tanggal jenis per ruangan', room_type_total: 'Jenis per ruangan', peak_day: 'Hari tertinggi', trough_day: 'Hari terendah',
   peak_month: 'Bulan tertinggi', peak_week: 'Minggu tertinggi', active_days: 'Hari dengan timbulan', comparison: 'Perbandingan',
   type_total: 'Total berdasarkan jenis', data_completeness: 'Kelengkapan tanggal', missing_rooms: 'Kelengkapan ruangan',
+  room_input_count: 'Jumlah ruangan yang input', room_input_comparison: 'Perbandingan input ruangan',
   duplicate_data: 'Kemungkinan data ganda', data_anomalies: 'Pemeriksaan data',
 };
 
