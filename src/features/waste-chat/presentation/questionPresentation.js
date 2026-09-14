@@ -37,9 +37,82 @@ export function buildSourceLink(parsed) {
   return { label: 'Buka data limbah', to: `/limbah-dihasilkan?${query}` };
 }
 
+const MONTH_NAMES = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+const displayIsoDate = value => {
+  const [year, month, day] = String(value || '').split('-').map(Number);
+  return year && month && day ? `${day} ${MONTH_NAMES[month - 1]} ${year}` : value;
+};
+
+const previousIsoDate = value => {
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isNaN(date.getTime()) ? null : new Date(date.getTime() - 86400000).toISOString().slice(0, 10);
+};
+
+function extractTwoRoomDates(text) {
+  const year = text.match(/\b(20\d{2})\b/)?.[1] || new Intl.DateTimeFormat('en', { timeZone: 'Asia/Makassar', year: 'numeric' }).format(new Date());
+  const shared = text.match(/\b([0-2]?\d|3[01])\s+(?:dan|dengan|,|&|\/|-)\s*(?:tanggal\s+|tgl\.?\s*)?([0-2]?\d|3[01])\s+(Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)(?:\s+(20\d{2}))?\b/i);
+  if (shared) {
+    const usedYear = shared[4] || year;
+    return [`${Number(shared[1])} ${shared[3]} ${usedYear}`, `${Number(shared[2])} ${shared[3]} ${usedYear}`];
+  }
+  const named = [...text.matchAll(/\b([0-2]?\d|3[01])\s+(Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)(?:\s+(20\d{2}))?\b/gi)];
+  if (named.length >= 2) return named.slice(0, 2).map(match => `${Number(match[1])} ${match[2]} ${match[3] || year}`);
+  return null;
+}
+
 export function findQuestionClarification(question, parsed) {
   const text = String(question || '');
   const period = parsed?.period?.label || 'bulan ini';
+  const mentionsRoomCount = /(?:berapa\s+(?:jumlah\s+)?|jumlah\s+|banyaknya\s+|total\s+)(?:ruang|ruangan)\b/i.test(text);
+  const comparisonWord = /banding|perbandingan|dibanding|beda|berbeda|selisih|mengapa|kenapa|penyebab|\bvs\.?\b/i.test(text);
+  const twoRoomDates = mentionsRoomCount && !comparisonWord ? extractTwoRoomDates(text) : null;
+
+  if (twoRoomDates) {
+    return {
+      text: 'Anda menyebutkan dua tanggal. Pilih data jumlah ruangan yang ingin ditampilkan.',
+      actions: [
+        { label: 'Bandingkan keduanya', question: `Bandingkan jumlah ruangan tanggal ${twoRoomDates[0]} dan ${twoRoomDates[1]}` },
+        { label: twoRoomDates[0], question: `Berapa jumlah ruangan yang input tanggal ${twoRoomDates[0]}` },
+        { label: twoRoomDates[1], question: `Berapa jumlah ruangan yang input tanggal ${twoRoomDates[1]}` },
+      ],
+    };
+  }
+
+  if (parsed?.intent === 'room_input_count' && parsed.period?.scope !== 'day') {
+    return {
+      text: `Permintaan jumlah ruangan selama ${period} belum menyebutkan satu tanggal. Jumlah ruangan dapat berbeda setiap hari.`,
+      actions: [
+        { label: 'Gunakan hari ini', question: 'Berapa jumlah ruangan yang input hari ini?' },
+        { label: 'Cek kelengkapan periode', question: `Ruangan mana yang belum input selama ${period}` },
+      ],
+    };
+  }
+
+  if (parsed?.intent === 'room_input_comparison' && (!parsed.comparisonPeriod || parsed.comparisonPeriod.scope !== 'day' || parsed.period?.scope !== 'day')) {
+    const previous = parsed.period?.scope === 'day' ? previousIsoDate(parsed.period.start) : null;
+    return {
+      text: 'Perbandingan jumlah ruangan memerlukan dua tanggal yang jelas. Sebutkan kedua tanggal yang ingin dibandingkan.',
+      actions: previous ? [
+        { label: 'Bandingkan sehari sebelumnya', question: `Bandingkan jumlah ruangan tanggal ${displayIsoDate(previous)} dan ${displayIsoDate(parsed.period.start)}` },
+        { label: 'Lihat tanggal ini saja', question: `Berapa jumlah ruangan yang input tanggal ${displayIsoDate(parsed.period.start)}` },
+      ] : [
+        { label: 'Bandingkan kemarin', question: 'Bandingkan jumlah ruangan kemarin dan hari ini' },
+        { label: 'Jumlah hari ini', question: 'Berapa jumlah ruangan yang input hari ini?' },
+      ],
+    };
+  }
+
+  if (/(?:mengapa|kenapa|penyebab).*(?:limbah|timbulan).*(?:beda|berbeda|selisih)/i.test(text) && !parsed?.comparisonPeriod) {
+    return {
+      text: 'Untuk mencari penyebab perbedaan limbah, sebutkan dua tanggal yang ingin dibandingkan.',
+      actions: [
+        { label: 'Kemarin dan hari ini', question: 'Mengapa limbah kemarin dan hari ini berbeda?' },
+        { label: 'Lihat jumlah hari ini', question: 'Berapa jumlah ruangan yang input hari ini?' },
+      ],
+    };
+  }
+
   const hasSpecificDimension = /tanggal|tgl|hari|ruang|unit|bangsal|jenis|infeksius|jarum|botol|sitotoksik|bulan\s+(?:mana|apa)|minggu|pekan/i.test(text);
   if (!hasSpecificDimension && /limbah.*(?:tertinggi|terbesar|terbanyak|paling\s+(?:tinggi|banyak))/i.test(text)) {
     return {
