@@ -410,8 +410,8 @@ test('jawaban membandingkan jumlah, nama ruangan, dan petugas pada dua tanggal',
     diagnostics: { roomInputs: [{ date: '2026-09-14', count: 2, names: ['icu', 'NICU'], officers: ['Petugas B'] }] },
   };
   const answer = buildWasteAnswer(parsed, right, left);
-  assert.match(answer.text, /13 September 2026: 2 ruangan — petugas: Petugas A/);
-  assert.match(answer.text, /14 September 2026: 2 ruangan — petugas: Petugas B/);
+  assert.match(answer.text, /13 September 2026: 2 ruangan, 40 kg — petugas: Petugas A/);
+  assert.match(answer.text, /14 September 2026: 2 ruangan, 40 kg — petugas: Petugas B/);
   assert.match(answer.text, /Sama pada kedua tanggal \(1\)/);
   assert.match(answer.text, /Hanya 13 September 2026 \(1\)/);
   assert.match(answer.text, /Hanya 14 September 2026 \(1\)/);
