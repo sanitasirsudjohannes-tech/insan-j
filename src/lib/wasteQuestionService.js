@@ -107,9 +107,25 @@ export async function answerWasteQuestion(question, { context = null, contextPer
         ? fetchRecap(parsed.comparisonPeriod.start, parsed.comparisonPeriod.end, { ...recapOptions, includePrevious: false })
         : null,
     ]);
-  const pendingCount = typeof window === 'undefined' ? 0 : getOfflineQueue().filter(item => ['limbah_padat', 'limbah_ruangan', 'pengangkutan_limbah'].includes(item.table)).length;
+  const pendingItems = typeof window === 'undefined'
+    ? []
+    : getOfflineQueue().filter(item => ['limbah_padat', 'limbah_ruangan', 'pengangkutan_limbah'].includes(item.table));
+  const pendingCount = pendingItems.length;
+  const answer = buildWasteAnswer(parsed, recap, comparisonRecap, periodRecaps);
+  if (['room_input_count', 'room_input_comparison'].includes(parsed.intent)) {
+    const requestedDates = new Set([parsed.period?.start, parsed.comparisonPeriod?.start].filter(Boolean));
+    const pendingRoomCount = pendingItems.filter(item => {
+      const itemDate = item.tanggal || item.data?.tanggal || item.payload?.tanggal;
+      return item.table === 'limbah_ruangan' && requestedDates.has(itemDate);
+    }).length;
+    if (pendingRoomCount > 0) {
+      const warning = `Terdapat ${pendingRoomCount} perubahan data ruangan pada tanggal yang diperiksa yang belum tersinkron. Jumlah pada jawaban ini hanya berasal dari data server dan dapat berubah setelah sinkronisasi selesai.`;
+      answer.warnings = [...(answer.warnings || []), warning];
+      answer.text = `${answer.text}\n\nCatatan sinkronisasi\n• ${warning}`;
+    }
+  }
   return {
-    ...buildWasteAnswer(parsed, recap, comparisonRecap, periodRecaps),
+    ...answer,
     dataStatus: { fetchedAt: new Date().toISOString(), pendingCount, online: typeof navigator === 'undefined' ? true : navigator.onLine },
   };
 }
