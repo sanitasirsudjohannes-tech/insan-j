@@ -47,7 +47,7 @@ function extractExplicitComparisonPeriods(question) {
   if (!/banding|perbandingan|dibanding|beda|berbeda|selisih|mengapa|kenapa|penyebab|\bvs\.?\b/i.test(question)) return null;
   const now = currentWita();
   const sharedYear = Number(question.match(/\b(20\d{2})\b/)?.[1] || now.year);
-  const sharedDateMatch = question.match(new RegExp(`\\b([0-2]?\\d|3[01])\\s+(?:dengan|dan|versus|vs\\.?)\\s+([0-2]?\\d|3[01])\\s+(${MONTH_PATTERN})(?:\\s+(20\\d{2}))?\\b`, 'i'));
+  const sharedDateMatch = question.match(new RegExp(`\\b([0-2]?\\d|3[01])\\s*(?:dengan|dan|versus|vs\\.?|,|&|\\/|-)\\s*(?:tanggal\\s+|tgl\\.?\\s*)?([0-2]?\\d|3[01])\\s+(${MONTH_PATTERN})(?:\\s+(20\\d{2}))?\\b`, 'i'));
   if (sharedDateMatch) {
     const year = Number(sharedDateMatch[4] || sharedYear);
     const month = MONTHS.indexOf(sharedDateMatch[3].toLowerCase()) + 1;
