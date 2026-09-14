@@ -286,3 +286,14 @@ test('parser menolak tanggal kalender tidak valid dan rentang terbalik', () => {
   assert.match(invalid.invalidPeriod, /tidak valid/);
   assert.match(reversed.invalidPeriod, /tanggal awal/i);
 });
+
+
+test('parser mendukung variasi dua tanggal dengan bulan bersama', () => {
+  const withTag = parseWasteQuestion('Bandingkan jumlah ruangan tgl 13 dengan tanggal 14 Agustus 2026');
+  const dashed = parseWasteQuestion('Bandingkan jumlah ruangan tanggal 13-14 Agustus 2026');
+  for (const parsed of [withTag, dashed]) {
+    assert.equal(parsed.intent, 'room_input_comparison');
+    assert.equal(parsed.comparisonPeriod.start, '2026-08-13');
+    assert.equal(parsed.period.start, '2026-08-14');
+  }
+});
