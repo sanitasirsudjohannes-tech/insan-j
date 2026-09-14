@@ -2,15 +2,16 @@ import { useMemo, useState } from 'react';
 
 const TEXT_LIMIT = 12;
 
-function Understanding({ value }) {
+function Understanding({ value, onEdit }) {
   if (!value) return null;
   const details = [value.intent, value.period, value.room, value.type].filter(Boolean);
-  return <div className={`mb-3 rounded-xl border px-3 py-2 text-[10px] ${value.status === 'clarification' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-blue-100 bg-blue-50 text-blue-700'}`}><span className="font-black uppercase tracking-wide">{value.status === 'clarification' ? 'Perlu konfirmasi' : 'Dipahami sebagai'}</span><span className="mt-0.5 block leading-relaxed">{details.join(' • ')}</span></div>;
+  return <div className={`mb-3 rounded-xl border px-3 py-2 text-[10px] ${value.status === 'clarification' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-blue-100 bg-blue-50 text-blue-700'}`}><span className="font-black uppercase tracking-wide">{value.status === 'clarification' ? 'Perlu konfirmasi' : 'Dipahami sebagai'}</span><div className="mt-2 flex flex-wrap gap-1.5">{details.map((detail, index) => <span key={index} className="rounded-full border border-current/15 bg-white/80 px-2 py-1 text-xs">{detail}</span>)}</div>{onEdit && <button type="button" onClick={onEdit} className="mt-2 min-h-9 text-xs font-bold underline underline-offset-2">Ubah pertanyaan</button>}</div>;
 }
 
 function DataStatus({ value }) {
   if (!value) return null;
-  const time = new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Makassar' }).format(new Date(value.fetchedAt));
+  const date = new Date(value.fetchedAt);
+  const time = Number.isNaN(date.getTime()) ? 'waktu tidak tersedia' : new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Makassar' }).format(date);
   const incomplete = !value.online || value.pendingCount > 0;
   return <p className={`mt-2 rounded-xl px-3 py-2 text-[10px] leading-relaxed ${incomplete ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}><i className={`fas ${incomplete ? 'fa-triangle-exclamation' : 'fa-circle-check'} mr-1.5`} />{value.online ? `Data server diperiksa ${time} WITA.` : 'Perangkat sedang offline.'}{value.pendingCount > 0 ? ` ${value.pendingCount} data masih menunggu sinkronisasi dan belum masuk dalam jawaban.` : ''}</p>;
 }
@@ -19,10 +20,10 @@ function MiniBars({ data }) {
   const items = Array.isArray(data?.items) ? data.items.filter(item => Number.isFinite(Number(item?.value))) : [];
   if (!items.length) return null;
   const max = Math.max(1, ...items.map(item => Math.max(Number(item.value), 0)));
-  return <div className="mt-3 rounded-2xl bg-slate-50 p-3"><p className="mb-2 text-[11px] font-black uppercase tracking-wide text-slate-500">{data.title}</p><div className="space-y-2">{items.slice(0, 8).map((item, index) => <div key={`${item.label}-${index}`} className="grid grid-cols-[minmax(72px,1fr)_2fr_auto] items-center gap-2 text-[11px]"><span className="truncate text-slate-600">{item.label}</span><span className="h-2 overflow-hidden rounded-full bg-slate-200"><span className="block h-full rounded-full bg-blue-500" style={{ width: `${Math.max((Math.max(Number(item.value), 0) / max) * 100, 2)}%` }} /></span><span className="font-bold text-slate-700">{new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(item.value || 0)}</span></div>)}</div></div>;
+  return <div className="mt-3 rounded-2xl bg-slate-50 p-3"><p className="mb-2 text-[11px] font-black uppercase tracking-wide text-slate-500">{data.title}</p><div className="space-y-2">{items.slice(0, 8).map((item, index) => <div key={`${item.label}-${index}`} className="grid grid-cols-[minmax(72px,1fr)_2fr_auto] items-center gap-2 text-[11px]"><span className="truncate text-slate-600">{item.label}</span><span className="h-2 overflow-hidden rounded-full bg-slate-200"><span className="block h-full rounded-full bg-blue-500" style={{ width: `${(Math.max(Number(item.value), 0) / max) * 100}%` }} /></span><span className="font-bold text-slate-700">{new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(item.value || 0)}</span></div>)}</div></div>;
 }
 
-export default function WasteChatAnswer({ message, onAsk, onReport, onNavigate }) {
+export default function WasteChatAnswer({ message, onAsk, onReport, onNavigate, onEdit, busy = false }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const lines = useMemo(() => String(message.text || '').split('\n'), [message.text]);
@@ -34,16 +35,16 @@ export default function WasteChatAnswer({ message, onAsk, onReport, onNavigate }
     const link = document.createElement('a'); link.href = blobUrl; link.download = `Tanya_INSAN-J_${new Date().toISOString().slice(0, 10)}.txt`; link.click(); window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
   };
   return <div>
-    <Understanding value={message.understanding} />
-    {message.cards?.length > 0 && <div className="mb-3 grid grid-cols-3 gap-1.5">{message.cards.map(card => <div key={card.label} className="rounded-xl border border-slate-200 bg-slate-50 px-2 py-2"><span className="block text-[9px] font-bold uppercase text-slate-400">{card.label}</span><span className="mt-0.5 block text-xs font-black text-slate-800">{card.value}</span></div>)}</div>}
+    <Understanding value={message.understanding} onEdit={onEdit && message.question && !busy ? () => onEdit(message.question) : null} />
+    {message.cards?.length > 0 && <div className="mb-3 grid grid-cols-1 min-[380px]:grid-cols-3 gap-1.5">{message.cards.map(card => <div key={card.label} className="rounded-xl border border-slate-200 bg-linear-to-br from-blue-50 to-white px-3 py-3"><span className="block text-[9px] font-bold uppercase text-slate-400">{card.label}</span><span className="mt-0.5 block break-words text-base font-black text-slate-800">{card.value}</span></div>)}</div>}
     <div className="whitespace-pre-line">{visibleText}</div>
     {truncated && <button type="button" onClick={() => setExpanded(value => !value)} className="mt-2 text-xs font-bold text-blue-600">{expanded ? 'Ringkas kembali' : `Tampilkan semua (${lines.length} baris)`}</button>}
     {message.visualization?.items?.length > 0 && <MiniBars data={message.visualization} />}
     {message.warnings?.map(item => <p key={item} className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800"><i className="fas fa-triangle-exclamation mr-1.5" />{item}</p>)}
     <DataStatus value={message.dataStatus} />
-    {message.source && <p className="mt-3 border-t border-slate-100 pt-2 text-[10px] leading-relaxed text-slate-400">{message.source}</p>}
-    {message.actions?.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{message.actions.map(action => <button key={action.label} type="button" onClick={() => onAsk(action.question)} className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">{action.label}</button>)}</div>}
-    {message.followUps?.length > 0 && <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">{message.followUps.map(action => <button key={action.label} type="button" onClick={() => onAsk(action.question)} className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600">{action.label}</button>)}</div>}
+    {message.source && <details className="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-500"><summary className="cursor-pointer py-2 font-semibold">Sumber dan periode data</summary><p className="pb-2 leading-relaxed">{message.source}</p></details>}
+    {message.actions?.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{message.actions.map(action => <button key={action.label} type="button" disabled={busy} onClick={() => onAsk(action.question)} className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">{action.label}</button>)}</div>}
+    {message.followUps?.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5 pb-1">{message.followUps.map(action => <button key={action.label} type="button" disabled={busy} onClick={() => onAsk(action.question)} className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600">{action.label}</button>)}</div>}
     {message.sourceLink && <button type="button" onClick={() => onNavigate(message.sourceLink.to)} className="mt-2 text-[11px] font-bold text-blue-600"><i className="fas fa-arrow-up-right-from-square mr-1" />{message.sourceLink.label}</button>}
     {message.reportPayload && <div className="mt-3 flex items-center gap-3 border-t border-slate-100 pt-2 text-[11px] font-bold text-slate-500"><button type="button" onClick={copy}><i className="far fa-copy mr-1" />{copied ? 'Tersalin' : 'Salin'}</button><button type="button" onClick={download}><i className="fas fa-download mr-1" />Unduh</button><button type="button" onClick={() => onReport(message)}><i className="fas fa-file-lines mr-1" />Ke Laporan</button></div>}
   </div>;

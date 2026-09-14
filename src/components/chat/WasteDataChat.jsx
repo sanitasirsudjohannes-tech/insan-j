@@ -1,16 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { answerWasteQuestion } from '../../lib/wasteQuestionService';
-import { QUESTION_SUGGESTIONS } from '../../lib/wasteQuestionParser';
+
 import { getCurrentUser } from '../../lib/api';
 import WasteChatAnswer from './WasteChatAnswer';
+
+const CATEGORIES = [
+  { label: 'Hari ini', icon: 'fa-calendar-day', items: ['Berapa ruangan yang input hari ini?', 'Berapa timbulan limbah hari ini?'] },
+  { label: 'Bandingkan', icon: 'fa-code-compare', items: ['Bandingkan jumlah ruangan kemarin dan hari ini', 'Bandingkan timbulan bulan ini dengan sebelumnya'] },
+  { label: 'Cari data', icon: 'fa-magnifying-glass', items: ['Kapan pengangkutan terakhir?', 'Ruangan dengan timbulan terbesar bulan ini'] },
+  { label: 'Periksa data', icon: 'fa-clipboard-check', items: ['Apakah ada data yang perlu diperiksa bulan ini?', 'Apakah ada tanggal yang belum diinput bulan ini?', 'Apakah ada data ganda hari ini?'] },
+];
 
 const STORAGE_KEY = 'insan_j_data_chat';
 const getStorageKey = () => `${STORAGE_KEY}:${getCurrentUser()?.id || 'anonymous'}`;
 const initialMessage = { role: 'assistant', text: 'Tanyakan data limbah. Jawaban dihitung langsung dari data INSAN-J menggunakan template yang tersedia.' };
 
 function loadMessages() {
-  try { return JSON.parse(sessionStorage.getItem(getStorageKey())) || [initialMessage]; } catch { return [initialMessage]; }
+  try { const saved = JSON.parse(sessionStorage.getItem(getStorageKey())); return Array.isArray(saved) && saved.length && saved.every(item => item && ['user', 'assistant'].includes(item.role) && typeof item.text === 'string') ? saved : [initialMessage]; } catch { return [initialMessage]; }
 }
 
 function compactMessages(messages) {
@@ -27,6 +34,10 @@ export default function WasteDataChat({ className = '', hideHeader = false }) {
   const [messages, setMessages] = useState(loadMessages);
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
+  const [category, setCategory] = useState(null);
+  const inputRef = useRef(null);
+  const busyRef = useRef(false);
+  const editQuestion = text => { setQuestion(text || ''); inputRef.current?.focus(); };
   const endRef = useRef(null);
   const showSuggestions = messages.length === 1
     && messages[0]?.role === initialMessage.role
@@ -39,17 +50,18 @@ export default function WasteDataChat({ className = '', hideHeader = false }) {
 
   const ask = async value => {
     const text = String(value || question).trim();
-    if (!text || loading) return;
+    if (!text || busyRef.current) return;
+    busyRef.current = true;
     setQuestion('');
     setMessages(current => [...current, { role: 'user', text }]);
     setLoading(true);
     try {
       const context = [...messages].reverse().find(message => message.role === 'assistant' && message.context)?.context || null;
       const answer = await answerWasteQuestion(text, { context });
-      setMessages(current => [...current, { role: 'assistant', text: answer.text, period: answer.period, context: answer.context, cards: answer.cards, visualization: answer.visualization, warnings: answer.warnings, followUps: answer.followUps, source: answer.source, sourceLink: answer.sourceLink, understanding: answer.understanding, dataStatus: answer.dataStatus, reportPayload: answer.reportPayload, actions: answer.actions, clarification: answer.clarification }]);
+      setMessages(current => [...current, { role: 'assistant', question: text, text: answer.text, period: answer.period, context: answer.context, cards: answer.cards, visualization: answer.visualization, warnings: answer.warnings, followUps: answer.followUps, source: answer.source, sourceLink: answer.sourceLink, understanding: answer.understanding, dataStatus: answer.dataStatus, reportPayload: answer.reportPayload, actions: answer.actions, clarification: answer.clarification }]);
     } catch {
       setMessages(current => [...current, { role: 'assistant', text: 'Data belum dapat diambil. Periksa koneksi dan status sinkronisasi, lalu coba kembali.', error: true }]);
-    } finally { setLoading(false); }
+    } finally { busyRef.current = false; setLoading(false); }
   };
 
   const sendToReport = message => {
@@ -66,15 +78,19 @@ export default function WasteDataChat({ className = '', hideHeader = false }) {
     <section className={`flex min-h-0 flex-1 flex-col bg-white ${className}`}>
       <div className={`flex items-start justify-between gap-3 ${hideHeader ? 'mb-2 justify-end' : 'mb-4'}`}>
         {!hideHeader && <div><h2 className="font-black text-slate-800"><i className="fas fa-comments mr-2 text-blue-600" />Tanya INSAN-J</h2><p className="mt-1 text-xs text-slate-500">Jawaban dihitung dari data yang tersinkron. Percakapan tidak disimpan ke database.</p></div>}
-        <button type="button" onClick={() => setMessages([initialMessage])} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">Bersihkan</button>
+        <button type="button" disabled={loading} onClick={() => { setMessages([initialMessage]); setQuestion(''); setCategory(null); }} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">Percakapan baru</button>
       </div>
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-2xl bg-slate-50 p-3" aria-live="polite">
-        {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`max-w-[92%] rounded-2xl px-4 py-3 text-sm leading-relaxed ${message.role === 'user' ? 'whitespace-pre-line bg-blue-600 text-white' : message.error ? 'border border-red-200 bg-red-50 text-red-700' : 'border border-slate-200 bg-white text-slate-700'}`}>{message.role === 'assistant' ? <WasteChatAnswer message={message} onAsk={ask} onReport={sendToReport} onNavigate={to => navigate(to)} /> : message.text}</div></div>)}
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-2xl bg-slate-50 p-3" role="log" aria-label="Percakapan Tanya INSAN-J" aria-live="polite" aria-busy={loading}>
+        {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`min-w-0 max-w-full rounded-2xl px-4 py-3 text-sm leading-relaxed ${message.role === 'user' ? 'whitespace-pre-line bg-blue-600 text-white' : message.error ? 'border border-red-200 bg-red-50 text-red-700' : 'border border-slate-200 bg-white text-slate-700'}`}>{message.role === 'assistant' ? <WasteChatAnswer message={message} onAsk={ask} busy={loading} onEdit={editQuestion} onReport={sendToReport} onNavigate={to => navigate(to)} /> : message.text}</div></div>)}
         {loading && <div className="flex justify-start"><div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500"><i className="fas fa-spinner fa-spin mr-2" />Menghitung data…</div></div>}
         <div ref={endRef} />
       </div>
-      {showSuggestions && <div className="mt-3 flex gap-2 overflow-x-auto pb-1">{QUESTION_SUGGESTIONS.map(item => <button key={item} type="button" onClick={() => ask(item)} className="shrink-0 rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">{item}</button>)}</div>}
-      <form onSubmit={event => { event.preventDefault(); ask(); }} className="mt-3 flex gap-2"><input value={question} onChange={event => setQuestion(event.target.value)} placeholder="Tanyakan data limbah…" className="min-w-0 flex-1 rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" /><button type="submit" disabled={!question.trim() || loading} className="rounded-2xl bg-blue-600 px-4 text-white disabled:opacity-50" aria-label="Kirim pertanyaan"><i className="fas fa-paper-plane" /></button></form>
+      {showSuggestions && <div className="mt-3 space-y-2">
+        <p className="text-xs font-semibold text-slate-500">Data apa yang ingin diperiksa?</p>
+        <div className="grid grid-cols-2 gap-2">{CATEGORIES.map(item => <button key={item.label} type="button" aria-pressed={category === item.label} onClick={() => setCategory(category === item.label ? null : item.label)} className={`flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-bold ${category === item.label ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600'}`}><i aria-hidden="true" className={`fas ${item.icon}`} />{item.label}</button>)}</div>
+        {category && <div className="max-h-32 space-y-1 overflow-y-auto">{CATEGORIES.find(item => item.label === category)?.items.map(item => <button key={item} type="button" disabled={loading} onClick={() => ask(item)} className="block w-full rounded-xl bg-blue-50 px-3 py-2 text-left text-xs text-blue-700">{item}<span aria-hidden="true" className="ml-2">→</span></button>)}</div>}
+      </div>}
+      <form onSubmit={event => { event.preventDefault(); ask(); }} className="mt-3 flex gap-2"><input ref={inputRef} aria-label="Pertanyaan data limbah" maxLength={1000} value={question} onChange={event => setQuestion(event.target.value)} placeholder="Contoh: berapa ruangan yang input hari ini?" className="min-w-0 flex-1 rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" /><button type="submit" disabled={!question.trim() || loading} className="rounded-2xl bg-blue-600 px-4 text-white disabled:opacity-50" aria-label="Kirim pertanyaan"><i aria-hidden="true" className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-paper-plane'}`} /></button></form>
     </section>
   );
 }
