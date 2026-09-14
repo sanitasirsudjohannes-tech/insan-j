@@ -11,17 +11,28 @@ const getCurrentMonth = () => {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 };
 
+const getInitialDateFilter = () => {
+  if (typeof window === 'undefined') return '';
+  const query = new URLSearchParams(window.location.search);
+  const explicitDate = query.get('date');
+  const start = query.get('start');
+  const end = query.get('end');
+  const candidate = explicitDate || (start && start === end ? start : '');
+  return /^20\d{2}-\d{2}-\d{2}$/.test(candidate || '') ? candidate : '';
+};
+
 export default function useRuanganData() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
   const [totalData, setTotalData] = useState(0);
   const [offlineQueueCount, setOfflineQueueCount] = useState(0);
-  const [filterMonth, setFilterMonthState] = useState(getCurrentMonth);
+  const initialDateFilter = getInitialDateFilter();
+  const [filterMonth, setFilterMonthState] = useState(() => initialDateFilter ? '' : getCurrentMonth());
   const fetchIdRef = useRef(0);
   const [ruanganList, setRuanganList] = useState([]);
   const [filterRuangan, setFilterRuangan] = useState('');
-  const [filterDate, setFilterDateState] = useState('');
+  const [filterDate, setFilterDateState] = useState(initialDateFilter);
 
   const setFilterMonth = useCallback((value) => {
     setFilterMonthState(value || (filterDate ? '' : getCurrentMonth()));
