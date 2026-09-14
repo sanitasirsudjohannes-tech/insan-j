@@ -25,8 +25,13 @@ export function detectWasteIntent(text, { type, types, roomName }) {
   if (roomName && type) return 'room_type_total';
   if (roomName && /kontribusi|persentase|persen|berapa\s*(?:%|persen)/i.test(text)) return 'room_contribution';
   if (roomName && /berapa|jumlah|total|timbulan|dihasilkan/i.test(text)) return 'room_total';
-  if (/(?:tanggal|hari).*(?:timbulan|limbah).*(?:terkecil|tersedikit|terendah|paling\s+(?:sedikit|rendah))|(?:timbulan|limbah).*(?:terkecil|tersedikit|terendah|paling\s+(?:sedikit|rendah)).*(?:tanggal|hari)/i.test(text)) return 'trough_day';
-  if (/(?:tanggal|hari).*(?:timbulan|limbah).*(?:terbesar|terbanyak|tertinggi|paling\s+(?:banyak|tinggi))|(?:timbulan|limbah).*(?:terbesar|terbanyak|tertinggi|paling\s+(?:banyak|tinggi)).*(?:tanggal|hari)/i.test(text)) return 'peak_day';
+  // Pertanyaan pengguna sering meletakkan kata superlatif sebelum objek,
+  // misalnya "tanggal paling besar timbulannya". Periksa seluruh susunan
+  // tanggal/hari + timbulan/limbah + tingkat sebelum fallback ke total timbulan.
+  const asksDayDimension = /tanggal|tgl\.?|hari|kapan/i.test(text);
+  const asksWasteAmount = /timbulan|limbah|hasil\s+timbang|berat/i.test(text);
+  if (asksDayDimension && asksWasteAmount && /terkecil|tersedikit|terendah|paling\s+(?:sedikit|rendah|kecil)/i.test(text)) return 'trough_day';
+  if (asksDayDimension && asksWasteAmount && /terbesar|terbanyak|tertinggi|paling\s+(?:besar|banyak|tinggi)/i.test(text)) return 'peak_day';
   if (/berapa\s+hari|jumlah\s+hari|hari.*(?:tercatat|ada data|ada timbulan)/i.test(text)) return 'active_days';
   if (/jenis.*(?:terkecil|terendah|tersedikit|paling\s+sedikit)/i.test(text)) return 'least_type';
   if (/(?:persentase|persen|%)\s+(?:masing[ -]?masing|setiap|per)\s+jenis|(?:komposisi|rincian).*persen/i.test(text)) return 'type_percentages';

@@ -125,6 +125,9 @@ test('pertanyaan lanjutan memakai konteks periode sebelumnya', () => {
 
 test('parser mengenali pertanyaan analisis tambahan', () => {
   assert.equal(parseWasteQuestion('Tanggal berapa timbulan paling banyak bulan ini?').intent, 'peak_day');
+  assert.equal(parseWasteQuestion('Tanggal paling besar timbulannya').intent, 'peak_day');
+  assert.equal(parseWasteQuestion('Hari mana limbahnya paling tinggi September 2026?').intent, 'peak_day');
+  assert.equal(parseWasteQuestion('Kapan hasil timbang paling rendah bulan ini?').intent, 'trough_day');
   assert.equal(parseWasteQuestion('Berapa hari ada timbulan bulan ini?').intent, 'active_days');
   assert.equal(parseWasteQuestion('Ruangan dengan timbulan paling sedikit bulan ini?').intent, 'bottom_room');
   assert.equal(parseWasteQuestion('Berapa total limbah yang tersedia untuk dikelola?').intent, 'available_total');
