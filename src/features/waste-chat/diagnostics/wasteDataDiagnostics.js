@@ -35,10 +35,14 @@ export function buildWasteDataDiagnostics({ start, end, wasteRows = [], roomRows
   const officialRooms = new Map(knownRooms.map(name => [normalizeRoom(name), name]));
   const roomsByDate = new Map();
   const duplicateGroups = new Map();
+  const officersByDate = new Map();
   roomRows.forEach(row => {
     const roomKey = normalizeRoom(row.ruangan);
     if (!roomsByDate.has(row.tanggal)) roomsByDate.set(row.tanggal, new Set());
     if (roomKey) roomsByDate.get(row.tanggal).add(roomKey);
+    const officer = String(row.petugas || '').trim();
+    if (!officersByDate.has(row.tanggal)) officersByDate.set(row.tanggal, new Set());
+    if (officer) officersByDate.get(row.tanggal).add(officer);
     const key = `${row.tanggal}|${roomKey}`;
     if (roomKey) duplicateGroups.set(key, (duplicateGroups.get(key) || 0) + 1);
   });
@@ -72,7 +76,7 @@ export function buildWasteDataDiagnostics({ start, end, wasteRows = [], roomRows
       const names = Array.from(roomsByDate.get(date) || []).map(roomKey =>
         officialRooms.get(roomKey) || roomRows.find(row => row.tanggal === date && normalizeRoom(row.ruangan) === roomKey)?.ruangan || roomKey
       ).sort((left, right) => left.localeCompare(right, 'id-ID', { sensitivity: 'base' }));
-      return { date, count: names.length, names };
+      return { date, count: names.length, names, officers: Array.from(officersByDate.get(date) || []).sort((left, right) => left.localeCompare(right, 'id-ID', { sensitivity: 'base' })) };
     }),
     roomMissingCounts: Array.from(roomMissingCounts, ([name, days]) => ({ name, days })).sort((a, b) => b.days - a.days),
     duplicateRoomDates: Array.from(duplicateGroups, ([key, count]) => {
