@@ -1,6 +1,6 @@
 import { buildDirectComparison, changeText, formatDate, formatNumber as format, groupTransportDays, groupTypeDays } from '../features/waste-chat/formatters/wasteAnswerFormatters.js';
 import { buildAnalysisAnswer, buildAnswerPresentation } from '../features/waste-chat/answers/answerPresentation.js';
-import { buildAnomalyAnswer, buildCompletenessAnswer, buildDuplicateAnswer, buildLastTransportAnswer, buildMissingRoomsAnswer, buildTransportGapAnswer } from '../features/waste-chat/answers/dataQualityAnswers.js';
+import { buildAnomalyAnswer, buildCompletenessAnswer, buildDuplicateAnswer, buildLastTransportAnswer, buildMissingRoomsAnswer, buildRoomInputComparisonAnswer, buildRoomInputCountAnswer, buildTransportGapAnswer } from '../features/waste-chat/answers/dataQualityAnswers.js';
 import { buildPeakMonthAnswer, buildPeakWeekAnswer } from '../features/waste-chat/answers/periodRankingAnswers.js';
 
 const percentDifference = (current, previous) => Number(previous) ? ((Number(current) - Number(previous)) / Number(previous)) * 100 : null;
@@ -146,6 +146,8 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null, periodRe
     type_total: `${parsed.type?.label || 'Jenis limbah tersebut'} ${during} berjumlah ${format(facts[parsed.type?.key])} kg.${suffix}`,
     data_completeness: buildCompletenessAnswer(parsed, recap.diagnostics),
     missing_rooms: buildMissingRoomsAnswer(parsed, recap.diagnostics),
+    room_input_count: buildRoomInputCountAnswer(parsed, recap.diagnostics),
+    room_input_comparison: buildRoomInputComparisonAnswer(parsed, recap, comparisonRecap),
     duplicate_data: buildDuplicateAnswer(parsed, recap.diagnostics),
     data_anomalies: buildAnomalyAnswer(parsed, recap),
   };
