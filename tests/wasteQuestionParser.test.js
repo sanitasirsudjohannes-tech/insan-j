@@ -41,6 +41,16 @@ test('parser mendukung perbandingan dua tanggal dan dua tahun', () => {
   assert.equal(years.period.end, '2026-12-31');
 });
 
+test('parser mengenali jumlah dan perbandingan input ruangan per tanggal', () => {
+  const count = parseWasteQuestion('Berapa ruangan yang diinput tanggal 14 September 2026?');
+  const comparison = parseWasteQuestion('Bandingkan ruangan yang diinput tanggal 13 dan 14 September 2026');
+  assert.equal(count.intent, 'room_input_count');
+  assert.equal(count.period.start, '2026-09-14');
+  assert.equal(comparison.intent, 'room_input_comparison');
+  assert.equal(comparison.comparisonPeriod.start, '2026-09-13');
+  assert.equal(comparison.period.start, '2026-09-14');
+});
+
 test('pertanyaan yang hanya menyebut tahun menggunakan satu tahun penuh', () => {
   const result = parseWasteQuestion('Berapa data timbulan limbah tahun 2026?');
   assert.equal(result.intent, 'generated');
