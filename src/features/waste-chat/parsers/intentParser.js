@@ -1,5 +1,7 @@
 export function detectWasteIntent(text, { type, types, roomName }) {
   if (/^(?:halo[,!]?\s*)?(?:apa\s+saja\s+)?(?:(?:yang|yg)\s+)?(?:bisa|dapat)\s+(?:kamu|anda|tanya\s+insan-?j)\s+(?:lakukan|kerjakan|jawab)|^(?:kamu|anda|tanya\s+insan-?j)\s+bisa\s+apa|^(?:bantuan|help|daftar\s+(?:fitur|kemampuan))\??$/i.test(text.trim())) return 'capabilities';
+  if (/(?:banding|perbandingan|dibanding|beda|selisih).*(?:ruang|ruangan).*(?:input|diinput|tercatat|mencatat)|(?:ruang|ruangan).*(?:input|diinput|tercatat|mencatat).*(?:banding|perbandingan|dibanding|beda|selisih)/i.test(text)) return 'room_input_comparison';
+  if (/(?:berapa|jumlah|banyaknya|total).*(?:ruang|ruangan).*(?:input|diinput|tercatat|mencatat)|(?:ruang|ruangan).*(?:yang\s+)?(?:input|diinput|tercatat|mencatat).*(?:berapa|jumlah|banyaknya|total)/i.test(text)) return 'room_input_count';
   if (/banding|perbandingan|dibanding|naik|turun|perubahan|selisih|\bvs\.?\b/i.test(text)) return 'comparison';
   if (/bulan\s+(?:mana|apa).*(?:terbesar|terbanyak|tertinggi|paling)|(?:terbesar|terbanyak|tertinggi|paling).*(?:bulan\s+(?:mana|apa))/i.test(text)) return 'peak_month';
   if (/(?:minggu|pekan)\s+(?:mana|apa).*(?:terbesar|terbanyak|tertinggi|paling)|(?:terbesar|terbanyak|tertinggi|paling).*(?:minggu|pekan)\s+(?:mana|apa)/i.test(text)) return 'peak_week';
