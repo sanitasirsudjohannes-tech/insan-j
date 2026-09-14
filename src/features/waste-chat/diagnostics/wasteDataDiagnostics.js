@@ -68,6 +68,12 @@ export function buildWasteDataDiagnostics({ start, end, wasteRows = [], roomRows
     missingDates: dates.filter(date => !wasteDates.has(date)),
     zeroOnlyDates: dates.filter(date => rowsByDate.has(date) && rowsByDate.get(date).every(row => rowTotal(row) === 0)),
     missingRoomDays,
+    roomInputs: dates.map(date => {
+      const names = Array.from(roomsByDate.get(date) || []).map(roomKey =>
+        officialRooms.get(roomKey) || roomRows.find(row => row.tanggal === date && normalizeRoom(row.ruangan) === roomKey)?.ruangan || roomKey
+      ).sort((left, right) => left.localeCompare(right, 'id-ID', { sensitivity: 'base' }));
+      return { date, count: names.length, names };
+    }),
     roomMissingCounts: Array.from(roomMissingCounts, ([name, days]) => ({ name, days })).sort((a, b) => b.days - a.days),
     duplicateRoomDates: Array.from(duplicateGroups, ([key, count]) => {
       const [date, roomKey] = key.split('|');
