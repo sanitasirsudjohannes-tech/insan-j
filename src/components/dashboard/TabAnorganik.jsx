@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
-import { fetchDatabaseAggregation, fetchSharedCachedResource } from '../../lib/databaseAggregations';
+import { fetchDashboardAggregation, fetchSharedCachedResource } from '../../lib/databaseAggregations';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, AreaChart, Area
 } from 'recharts';
 import { DashboardSkeleton, EmptyState, ErrorState } from '../ui/DataStates';
+import OfflineDashboardNotice from './OfflineDashboardNotice';
 
 // Jenis limbah anorganik beserta satuan masing-masing
 const ANORGANIK_TYPES = [
@@ -36,6 +37,7 @@ export default function TabAnorganik() {
   const [fetchError, setFetchError] = useState('');
   const [reloadCount, setReloadCount] = useState(0);
   const fetchIdRef = useRef(0);
+  const [dataSource, setDataSource] = useState({ source: 'server', updatedAt: null });
 
   useEffect(() => {
     if (!loading) {
@@ -60,13 +62,15 @@ export default function TabAnorganik() {
         const start = `${y}-${m}-01`;
         const end   = `${y}-${m}-${String(new Date(+y, +m, 0).getDate()).padStart(2, '0')}`;
 
-        const aggregated = await fetchDatabaseAggregation('dashboard_anorganik_summary', {
+        const response = await fetchDashboardAggregation('dashboard_anorganik_summary', {
           requested_month: selectedMonth,
         });
+        const aggregated = response.data;
 
         if (currentFetchId !== fetchIdRef.current) return;
 
         if (aggregated) {
+          setDataSource({ source: response.source, updatedAt: response.updatedAt });
           setSummary(Object.fromEntries(ANORGANIK_TYPES.map(type => [
             type.key,
             Number(aggregated.summary?.[type.key]) || 0,
@@ -204,6 +208,7 @@ export default function TabAnorganik() {
 
   return (
     <div className="animate-fade-in">
+      <OfflineDashboardNotice {...dataSource} />
       {/* ── Month Picker Header ──────────────────────────────────────── */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>

@@ -4,9 +4,10 @@ import { supabase } from '../../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 import DashboardNotification from './DashboardNotification';
 import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
-import { fetchDatabaseAggregation } from '../../lib/databaseAggregations';
+import { fetchDashboardAggregation } from '../../lib/databaseAggregations';
 import { getWitaMonthString } from '../../lib/localDate';
 import { ErrorState } from '../ui/DataStates';
+import OfflineDashboardNotice from './OfflineDashboardNotice';
 
 export default function DashboardAdmin() {
   const [loading, setLoading] = useState(true);
@@ -21,6 +22,7 @@ export default function DashboardAdmin() {
   const [fetchError, setFetchError] = useState('');
   const [reloadCount, setReloadCount] = useState(0);
   const fetchIdRef = useRef(0);
+  const [dataSource, setDataSource] = useState({ source: 'server', updatedAt: null });
 
   useEffect(() => {
     const relevantTables = new Set([
@@ -69,13 +71,15 @@ export default function DashboardAdmin() {
       setLoading(true);
       setFetchError('');
       try {
-        const aggregated = await fetchDatabaseAggregation('dashboard_admin_inspeksi_summary', {
+        const response = await fetchDashboardAggregation('dashboard_admin_inspeksi_summary', {
           requested_month: selectedMonth || null,
         });
+        const aggregated = response.data;
 
         if (currentFetchId !== fetchIdRef.current) return;
 
         if (aggregated) {
+          setDataSource({ source: response.source, updatedAt: response.updatedAt });
           const totalInspeksi = Number(aggregated.totalInspeksi) || 0;
           setStats({
             totalInspeksi,
@@ -211,6 +215,7 @@ export default function DashboardAdmin() {
           <ErrorState description={fetchError} onRetry={() => setReloadCount(value => value + 1)} />
         ) : (
           <div className="animate-fade-in">
+            <OfflineDashboardNotice {...dataSource} />
             {/* Scorecards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
               <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center hover:shadow-md transition-shadow">
