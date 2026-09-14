@@ -38,3 +38,16 @@ test('diagnostik menghitung nama ruangan unik dan petugas per tanggal', () => {
     date: '2026-08-01', count: 2, names: ['ICU', 'IGD'], officers: ['Petugas A', 'Petugas B'],
   });
 });
+
+
+test('nama petugas dinormalisasi tanpa menggandakan kapitalisasi dan spasi', () => {
+  const roomRows = [
+    { tanggal: '2026-08-01', ruangan: 'ICU', petugas: ' Sunarsih ' },
+    { tanggal: '2026-08-01', ruangan: 'IGD', petugas: 'sunarsih' },
+  ];
+  const diagnostics = buildWasteDataDiagnostics({
+    start: '2026-08-01', end: '2026-08-01', wasteRows: roomRows, roomRows,
+    knownRooms: ['ICU', 'IGD'],
+  });
+  assert.deepEqual(diagnostics.roomInputs[0].officers, ['Sunarsih']);
+});
