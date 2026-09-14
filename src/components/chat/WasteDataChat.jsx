@@ -13,11 +13,15 @@ const CATEGORIES = [
 ];
 
 const STORAGE_KEY = 'insan_j_data_chat';
-const getStorageKey = () => `${STORAGE_KEY}:${getCurrentUser()?.id || 'anonymous'}`;
+const getStorageKey = () => {
+  const userId = getCurrentUser()?.id;
+  return userId ? `${STORAGE_KEY}:${userId}` : null;
+};
 const initialMessage = { role: 'assistant', text: 'Tanyakan data limbah. Jawaban dihitung langsung dari data INSAN-J menggunakan template yang tersedia.' };
 
-function loadMessages() {
-  try { const saved = JSON.parse(sessionStorage.getItem(getStorageKey())); return Array.isArray(saved) && saved.length && saved.every(item => item && ['user', 'assistant'].includes(item.role) && typeof item.text === 'string') ? saved : [initialMessage]; } catch { return [initialMessage]; }
+function loadMessages(storageKey) {
+  if (!storageKey) return [initialMessage];
+  try { const saved = JSON.parse(sessionStorage.getItem(storageKey)); return Array.isArray(saved) && saved.length && saved.every(item => item && ['user', 'assistant'].includes(item.role) && typeof item.text === 'string') ? saved : [initialMessage]; } catch { return [initialMessage]; }
 }
 
 function compactMessages(messages) {
@@ -29,9 +33,10 @@ function compactMessages(messages) {
   });
 }
 
-export default function WasteDataChat({ className = '', hideHeader = false }) {
+export default function WasteDataChat({ className = '', hideHeader = false, onBusyChange = null }) {
   const navigate = useNavigate();
-  const [messages, setMessages] = useState(loadMessages);
+  const storageKeyRef = useRef(getStorageKey());
+  const [messages, setMessages] = useState(() => loadMessages(storageKeyRef.current));
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const [category, setCategory] = useState(null);
@@ -43,7 +48,7 @@ export default function WasteDataChat({ className = '', hideHeader = false }) {
     && messages[0]?.role === initialMessage.role
     && messages[0]?.text === initialMessage.text;
   useEffect(() => {
-    try { sessionStorage.setItem(getStorageKey(), JSON.stringify(compactMessages(messages))); }
+    try { if (storageKeyRef.current) sessionStorage.setItem(storageKeyRef.current, JSON.stringify(compactMessages(messages))); }
     catch (error) { console.warn('Riwayat chat lokal tidak dapat disimpan.', { reason: error?.name }); }
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -52,6 +57,7 @@ export default function WasteDataChat({ className = '', hideHeader = false }) {
     const text = String(value || question).trim();
     if (!text || busyRef.current) return;
     busyRef.current = true;
+    onBusyChange?.(true);
     setQuestion('');
     setMessages(current => [...current, { role: 'user', text }]);
     setLoading(true);
@@ -61,7 +67,7 @@ export default function WasteDataChat({ className = '', hideHeader = false }) {
       setMessages(current => [...current, { role: 'assistant', question: text, text: answer.text, period: answer.period, context: answer.context, cards: answer.cards, visualization: answer.visualization, warnings: answer.warnings, followUps: answer.followUps, source: answer.source, sourceLink: answer.sourceLink, understanding: answer.understanding, dataStatus: answer.dataStatus, reportPayload: answer.reportPayload, actions: answer.actions, clarification: answer.clarification }]);
     } catch {
       setMessages(current => [...current, { role: 'assistant', text: 'Data belum dapat diambil. Periksa koneksi dan status sinkronisasi, lalu coba kembali.', error: true }]);
-    } finally { busyRef.current = false; setLoading(false); }
+    } finally { busyRef.current = false; setLoading(false); onBusyChange?.(false); }
   };
 
   const sendToReport = message => {
@@ -87,7 +93,7 @@ export default function WasteDataChat({ className = '', hideHeader = false }) {
       </div>
       {showSuggestions && <div className="mt-3 space-y-2">
         <p className="text-xs font-semibold text-slate-500">Data apa yang ingin diperiksa?</p>
-        <div className="grid grid-cols-2 gap-2">{CATEGORIES.map(item => <button key={item.label} type="button" aria-pressed={category === item.label} onClick={() => setCategory(category === item.label ? null : item.label)} className={`flex min-h-11 items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs font-bold ${category === item.label ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600'}`}><i aria-hidden="true" className={`fas ${item.icon}`} />{item.label}</button>)}</div>
+        <div className="grid grid-cols-2 gap-2">{CATEGORIES.map(item => <button key={item.label} type="button" disabled={loading} aria-pressed={category === item.label} onClick={() => setCategory(category === item.label ? null : item.label)} className={`flex min-h-11 items-center disabled:cursor-wait disabled:opacity-50 gap-2 rounded-xl border px-3 py-2 text-left text-xs font-bold ${category === item.label ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600'}`}><i aria-hidden="true" className={`fas ${item.icon}`} />{item.label}</button>)}</div>
         {category && <div className="max-h-32 space-y-1 overflow-y-auto">{CATEGORIES.find(item => item.label === category)?.items.map(item => <button key={item} type="button" disabled={loading} onClick={() => ask(item)} className="block w-full rounded-xl bg-blue-50 px-3 py-2 text-left text-xs text-blue-700">{item}<span aria-hidden="true" className="ml-2">→</span></button>)}</div>}
       </div>}
       <form onSubmit={event => { event.preventDefault(); ask(); }} className="mt-3 flex gap-2"><input ref={inputRef} aria-label="Pertanyaan data limbah" maxLength={1000} value={question} onChange={event => setQuestion(event.target.value)} placeholder="Contoh: berapa ruangan yang input hari ini?" className="min-w-0 flex-1 rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" /><button type="submit" disabled={!question.trim() || loading} className="rounded-2xl bg-blue-600 px-4 text-white disabled:opacity-50" aria-label="Kirim pertanyaan"><i aria-hidden="true" className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-paper-plane'}`} /></button></form>

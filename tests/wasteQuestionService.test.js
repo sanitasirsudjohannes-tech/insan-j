@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildWasteAnswer } from '../src/lib/wasteQuestionAnswer.js';
+import { answerWasteQuestion } from '../src/lib/wasteQuestionService.js';
 import { normalizeAiWasteQuestion, parseWasteQuestion } from '../src/lib/wasteQuestionParser.js';
 
 const recap = {
@@ -453,4 +454,31 @@ test('peringatan saldo tidak ditampilkan pada jawaban frekuensi pengangkutan', (
   };
   const answer = buildWasteAnswer(parseWasteQuestion('Berapa kali pengangkutan 2026?'), negativeRecap);
   assert.deepEqual(answer.warnings, []);
+});
+
+
+test('konfirmasi pertanyaan ambigu dilakukan sebelum mengambil daftar ruangan', async () => {
+  let roomFetchCalled = false;
+  const answer = await answerWasteQuestion('Jumlah pengangkutan 2026', {
+    fetchRooms: async () => {
+      roomFetchCalled = true;
+      throw new Error('Daftar ruangan tidak seharusnya diminta');
+    },
+  });
+  assert.equal(answer.clarification, true);
+  assert.equal(roomFetchCalled, false);
+  assert.match(answer.text, /berat limbah atau banyaknya pengangkutan/i);
+});
+
+test('total pengangkutan meminta data saldo agar peringatan dapat dihitung benar', async () => {
+  let receivedOptions = null;
+  await answerWasteQuestion('Berapa total berat limbah yang diangkut tahun 2026?', {
+    fetchRooms: async () => [],
+    fetchRecap: async (_start, _end, options) => {
+      receivedOptions = options;
+      return recap;
+    },
+  });
+  assert.equal(receivedOptions.includeBalance, true);
+  assert.equal(receivedOptions.includeTransport, true);
 });

@@ -6,9 +6,16 @@ const ANIMATION_MS = 250;
 export default function WasteDataChatLauncher() {
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
+  const [chatBusy, setChatBusy] = useState(false);
   const closeTimerRef = useRef(null);
   const closeButtonRef = useRef(null);
   const panelRef = useRef(null);
+  const busyRef = useRef(false);
+
+  const handleBusyChange = value => {
+    busyRef.current = value;
+    setChatBusy(value);
+  };
 
   const showChat = () => {
     window.clearTimeout(closeTimerRef.current);
@@ -17,6 +24,7 @@ export default function WasteDataChatLauncher() {
   };
 
   const hideChat = () => {
+    if (busyRef.current) return;
     setOpen(false);
     closeTimerRef.current = window.setTimeout(() => setMounted(false), ANIMATION_MS);
   };
@@ -66,9 +74,10 @@ export default function WasteDataChatLauncher() {
         <div className="fixed inset-0 z-[70] print:hidden" role="dialog" aria-modal="true" aria-labelledby="waste-chat-title">
           <button
             type="button"
-            aria-label="Tutup Tanya INSAN-J"
+            disabled={chatBusy}
+            aria-label={chatBusy ? "Tunggu hingga penghitungan selesai" : "Tutup Tanya INSAN-J"}
             onClick={hideChat}
-            className={`absolute inset-0 bg-slate-950/45 backdrop-blur-[2px] transition-opacity duration-200 ${open ? 'opacity-100' : 'opacity-0'}`}
+            className={`absolute inset-0 disabled:cursor-wait bg-slate-950/45 backdrop-blur-[2px] transition-opacity duration-200 ${open ? 'opacity-100' : 'opacity-0'}`}
           />
           <section ref={panelRef} className={`absolute inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] flex h-[calc(100dvh-1rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:h-[min(85dvh,46rem)] origin-bottom-right flex-col overflow-hidden rounded-[1.75rem] border border-white/80 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.35)] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[min(36rem,calc(100vw-3rem))] motion-reduce:transition-none ${open ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-16 scale-75 opacity-0'}`}>
             <div className="mb-3 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
@@ -79,9 +88,9 @@ export default function WasteDataChatLauncher() {
                   <p className="text-xs text-emerald-600"><span className="mr-1 inline-block h-2 w-2 rounded-full bg-emerald-500" />Asisten pencarian data</p>
                 </div>
               </div>
-              <button ref={closeButtonRef} type="button" onClick={hideChat} aria-label="Tutup chat" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition hover:bg-slate-200 active:scale-95"><i className="fas fa-xmark" /></button>
+              <button ref={closeButtonRef} type="button" disabled={chatBusy} onClick={hideChat} aria-label={chatBusy ? "Penghitungan sedang berlangsung" : "Tutup chat"} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition hover:bg-slate-200 active:scale-95 disabled:cursor-wait disabled:opacity-50"><i className="fas fa-xmark" /></button>
             </div>
-            <WasteDataChat hideHeader />
+            <WasteDataChat hideHeader onBusyChange={handleBusyChange} />
           </section>
         </div>
       )}

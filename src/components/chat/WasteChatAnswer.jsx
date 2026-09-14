@@ -11,9 +11,10 @@ function Understanding({ value, onEdit }) {
 function DataStatus({ value }) {
   if (!value) return null;
   const date = new Date(value.fetchedAt);
-  const time = Number.isNaN(date.getTime()) ? 'waktu tidak tersedia' : new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Makassar' }).format(date);
+  const validTime = !Number.isNaN(date.getTime());
+  const time = validTime ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Makassar' }).format(date) : null;
   const incomplete = !value.online || value.pendingCount > 0;
-  return <p className={`mt-2 rounded-xl px-3 py-2 text-[10px] leading-relaxed ${incomplete ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}><i className={`fas ${incomplete ? 'fa-triangle-exclamation' : 'fa-circle-check'} mr-1.5`} />{value.online ? `Data server diperiksa ${time} WITA.` : 'Perangkat sedang offline.'}{value.pendingCount > 0 ? ` ${value.pendingCount} data masih menunggu sinkronisasi dan belum masuk dalam jawaban.` : ''}</p>;
+  return <p className={`mt-2 rounded-xl px-3 py-2 text-[10px] leading-relaxed ${incomplete ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}><i className={`fas ${incomplete ? 'fa-triangle-exclamation' : 'fa-circle-check'} mr-1.5`} />{value.online ? (validTime ? `Data server diperiksa ${time} WITA.` : 'Data server sudah diperiksa; waktu pemeriksaan tidak tersedia.') : 'Perangkat sedang offline.'}{value.pendingCount > 0 ? ` ${value.pendingCount} data masih menunggu sinkronisasi dan belum masuk dalam jawaban.` : ''}</p>;
 }
 
 function MiniBars({ data }) {
@@ -45,7 +46,7 @@ export default function WasteChatAnswer({ message, onAsk, onReport, onNavigate, 
     {message.source && <details className="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-500"><summary className="cursor-pointer py-2 font-semibold">Sumber dan periode data</summary><p className="pb-2 leading-relaxed">{message.source}</p></details>}
     {message.actions?.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{message.actions.map(action => <button key={action.label} type="button" disabled={busy} onClick={() => onAsk(action.question)} className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">{action.label}</button>)}</div>}
     {message.followUps?.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5 pb-1">{message.followUps.map(action => <button key={action.label} type="button" disabled={busy} onClick={() => onAsk(action.question)} className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600">{action.label}</button>)}</div>}
-    {message.sourceLink && <button type="button" onClick={() => onNavigate(message.sourceLink.to)} className="mt-2 text-[11px] font-bold text-blue-600"><i className="fas fa-arrow-up-right-from-square mr-1" />{message.sourceLink.label}</button>}
-    {message.reportPayload && <div className="mt-3 flex items-center gap-3 border-t border-slate-100 pt-2 text-[11px] font-bold text-slate-500"><button type="button" onClick={copy}><i className="far fa-copy mr-1" />{copied ? 'Tersalin' : 'Salin'}</button><button type="button" onClick={download}><i className="fas fa-download mr-1" />Unduh</button><button type="button" onClick={() => onReport(message)}><i className="fas fa-file-lines mr-1" />Ke Laporan</button></div>}
+    {message.sourceLink && <button type="button" disabled={busy} onClick={() => onNavigate(message.sourceLink.to)} className="mt-2 text-[11px] font-bold text-blue-600 disabled:cursor-wait disabled:opacity-50"><i className="fas fa-arrow-up-right-from-square mr-1" />{message.sourceLink.label}</button>}
+    {message.reportPayload && <div className="mt-3 flex items-center gap-3 border-t border-slate-100 pt-2 text-[11px] font-bold text-slate-500"><button type="button" disabled={busy} onClick={copy}><i className="far fa-copy mr-1" />{copied ? 'Tersalin' : 'Salin'}</button><button type="button" disabled={busy} onClick={download}><i className="fas fa-download mr-1" />Unduh</button><button type="button" disabled={busy} onClick={() => onReport(message)}><i className="fas fa-file-lines mr-1" />Ke Laporan</button></div>}
   </div>;
 }

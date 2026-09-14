@@ -30,6 +30,15 @@ export async function answerWasteQuestion(question, { context = null, contextPer
       sourceLink: { label: 'Buka Rekap Limbah', to: '/rekap-limbah' },
     };
   }
+  const preliminaryClarification = findQuestionClarification(question, preliminary);
+  if (preliminaryClarification) {
+    return {
+      ...preliminaryClarification,
+      clarification: true,
+      understanding: { status: 'clarification', intent: 'Perlu konfirmasi', period: preliminary.period?.label },
+    };
+  }
+
   let roomNames = typeof localStorage === 'undefined' ? [] : getCachedRuangan();
   if (!roomNames.length) roomNames = await fetchRooms();
   const roomCandidates = findRoomCandidates(question, roomNames);
@@ -81,7 +90,7 @@ export async function answerWasteQuestion(question, { context = null, contextPer
   }
 
   const diagnosticIntents = new Set(['data_completeness', 'missing_rooms', 'room_input_count', 'room_input_comparison', 'duplicate_data', 'data_anomalies', 'last_transport', 'transport_gap', 'transport_count', 'average_transport', 'transport_dates']);
-  const balanceIntents = new Set(['waste_summary', 'analysis', 'remaining', 'opening_balance', 'available_total', 'transport_coverage', 'comparison']);
+  const balanceIntents = new Set(['waste_summary', 'analysis', 'remaining', 'opening_balance', 'available_total', 'transport_coverage', 'transported', 'comparison', 'data_anomalies']);
   const transportIntents = new Set(['transported', 'last_transport', 'transport_gap', 'transport_count', 'average_transport', 'transport_dates', 'transport_coverage']);
   const recapOptions = {
     knownRooms: roomNames,
