@@ -36,7 +36,7 @@ export function buildMissingRoomsAnswer(parsed, diagnostics = {}) {
 const normalizeRoomName = value => String(value || '').trim().toLocaleLowerCase('id-ID');
 
 function roomInputForDate(diagnostics = {}, date) {
-  return (diagnostics.roomInputs || []).find(item => item.date === date) || { date, count: 0, names: [] };
+  return (diagnostics.roomInputs || []).find(item => item.date === date) || { date, count: 0, names: [], officers: [] };
 }
 
 export function buildRoomInputCountAnswer(parsed, diagnostics = {}) {
@@ -47,7 +47,8 @@ export function buildRoomInputCountAnswer(parsed, diagnostics = {}) {
   return `Input ruangan pada ${formatDate(parsed.period.start)}
 
 • Ruangan tercatat: ${input.count}${officialCount ? ` dari ${officialCount} ruangan resmi` : ''}
-${coverage === null ? '' : `• Cakupan: ${coverage}%\n`}• Nama ruangan: ${input.names.length ? input.names.join(', ') : 'Belum ada'}
+${coverage === null ? '' : `• Cakupan: ${coverage}%\n`}• Petugas input: ${input.officers?.length ? input.officers.join(', ') : 'Tidak tercatat'}
+• Nama ruangan: ${input.names.length ? input.names.join(', ') : 'Belum ada'}
 
 ${duplicates.length ? `Perlu diperiksa: terdapat ${duplicates.length} ruangan dengan lebih dari satu catatan pada tanggal ini. Jumlah ruangan di atas dihitung unik.` : 'Tidak ditemukan nama ruangan ganda pada tanggal ini.'}`;
 }
@@ -65,8 +66,8 @@ export function buildRoomInputComparisonAnswer(parsed, recap, comparisonRecap) {
 
   return `Perbandingan input ruangan
 
-• ${formatDate(left.date)}: ${left.count} ruangan
-• ${formatDate(right.date)}: ${right.count} ruangan
+• ${formatDate(left.date)}: ${left.count} ruangan — petugas: ${left.officers?.length ? left.officers.join(', ') : 'tidak tercatat'}
+• ${formatDate(right.date)}: ${right.count} ruangan — petugas: ${right.officers?.length ? right.officers.join(', ') : 'tidak tercatat'}
 • Selisih jumlah: ${countDifference} ruangan
 
 Sama pada kedua tanggal (${same.length})
