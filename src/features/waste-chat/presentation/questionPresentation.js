@@ -15,6 +15,7 @@ const INTENT_LABELS = {
 
 const TRANSPORT_INTENTS = new Set(['transported', 'transport_dates', 'last_transport', 'transport_gap', 'transport_count', 'average_transport', 'transport_coverage']);
 const RECAP_INTENTS = new Set(['waste_summary', 'analysis', 'remaining', 'opening_balance', 'available_total', 'comparison', 'peak_month', 'peak_week']);
+const ROOM_DATA_INTENTS = new Set(['room_input_count', 'room_input_comparison', 'missing_rooms', 'duplicate_data']);
 
 export function buildQuestionUnderstanding(parsed) {
   if (!parsed?.intent || !parsed?.period) return null;
@@ -33,6 +34,7 @@ export function buildSourceLink(parsed) {
   if (parsed.roomName) query.set('room', parsed.roomName);
   if (parsed.type?.key) query.set('type', parsed.type.key);
   if (TRANSPORT_INTENTS.has(parsed.intent)) return { label: 'Buka data pengangkutan', to: `/pengangkutan?${query}` };
+  if (ROOM_DATA_INTENTS.has(parsed.intent)) return { label: 'Buka data ruangan', to: `/limbah-ruangan?${query}` };
   if (RECAP_INTENTS.has(parsed.intent)) return { label: 'Buka rekap data', to: `/rekap-limbah?${query}` };
   return { label: 'Buka data limbah', to: `/limbah-dihasilkan?${query}` };
 }
