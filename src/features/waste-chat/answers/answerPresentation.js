@@ -52,13 +52,30 @@ export function buildAnswerPresentation(parsed, recap, comparisonRecap, periodRe
   else if (['analysis', 'generated'].includes(parsed.intent)) visualization = { title: 'Tren timbulan', items: monthlyTimeline(charts.timeline || []) };
 
   const period = parsed.period.label;
-  const followUps = [
-    { label: 'Rincian jenis', question: `Rincian limbah berdasarkan jenis ${period}` },
-    { label: 'Ruangan terbesar', question: `Ruangan dengan timbulan terbesar ${period}` },
-    { label: 'Bandingkan sebelumnya', question: `Bandingkan limbah ${period} dengan sebelumnya` },
-  ];
-  if (parsed.type) followUps.unshift({ label: 'Lihat per ruangan', question: `Ruangan yang ada ${parsed.type.label} ${period}` });
-  if (parsed.roomName && parsed.type) followUps.unshift({ label: 'Rincian tanggal', question: `Tanggal berapa ${parsed.type.label} pada ruangan ${parsed.roomName} ${period}` });
+  let followUps;
+  if (parsed.intent === 'room_input_count') {
+    const selected = new Date(`${parsed.period.start}T00:00:00Z`);
+    const previous = new Date(selected.getTime() - 86400000).toISOString().slice(0, 10);
+    followUps = [
+      { label: 'Bandingkan sehari sebelumnya', question: `Bandingkan jumlah ruangan tanggal ${previous} dan ${parsed.period.start}` },
+      { label: 'Ruangan belum input', question: `Ruangan mana yang belum input tanggal ${parsed.period.start}` },
+      { label: 'Periksa data ganda', question: `Apakah ada data ganda tanggal ${parsed.period.start}` },
+    ];
+  } else if (parsed.intent === 'room_input_comparison') {
+    followUps = [
+      { label: 'Ruangan belum input', question: `Ruangan mana yang belum input tanggal ${parsed.period.start}` },
+      { label: 'Periksa data ganda', question: `Apakah ada data ganda tanggal ${parsed.period.start}` },
+      { label: 'Rincian jenis', question: `Rincian limbah berdasarkan jenis tanggal ${parsed.period.start}` },
+    ];
+  } else {
+    followUps = [
+      { label: 'Rincian jenis', question: `Rincian limbah berdasarkan jenis ${period}` },
+      { label: 'Ruangan terbesar', question: `Ruangan dengan timbulan terbesar ${period}` },
+      { label: 'Bandingkan sebelumnya', question: `Bandingkan limbah ${period} dengan sebelumnya` },
+    ];
+    if (parsed.type) followUps.unshift({ label: 'Lihat per ruangan', question: `Ruangan yang ada ${parsed.type.label} ${period}` });
+    if (parsed.roomName && parsed.type) followUps.unshift({ label: 'Rincian tanggal', question: `Tanggal berapa ${parsed.type.label} pada ruangan ${parsed.roomName} ${period}` });
+  }
 
   return {
     cards,
