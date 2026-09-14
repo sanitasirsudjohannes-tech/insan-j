@@ -24,7 +24,9 @@ export function buildWasteDataDiagnostics({ start, end, wasteRows = [], roomRows
   const now = currentWita();
   const safeToday = now.hour >= 10 ? now.date : isoDate(new Date(new Date(`${now.date}T00:00:00Z`).getTime() - DAY_MS));
   const effectiveEnd = [end, safeToday].sort()[0];
+  const inputEnd = [end, now.date].sort()[0];
   const dates = start <= effectiveEnd ? datesBetween(start, effectiveEnd) : [];
+  const inputDates = start <= inputEnd ? datesBetween(start, inputEnd) : [];
   const wasteDates = new Set(wasteRows.map(row => row.tanggal));
   const rowsByDate = new Map();
   wasteRows.forEach(row => {
@@ -41,8 +43,11 @@ export function buildWasteDataDiagnostics({ start, end, wasteRows = [], roomRows
     if (!roomsByDate.has(row.tanggal)) roomsByDate.set(row.tanggal, new Set());
     if (roomKey) roomsByDate.get(row.tanggal).add(roomKey);
     const officer = String(row.petugas || '').trim();
-    if (!officersByDate.has(row.tanggal)) officersByDate.set(row.tanggal, new Set());
-    if (officer) officersByDate.get(row.tanggal).add(officer);
+    if (!officersByDate.has(row.tanggal)) officersByDate.set(row.tanggal, new Map());
+    if (officer) {
+      const officerKey = officer.toLocaleLowerCase('id-ID');
+      if (!officersByDate.get(row.tanggal).has(officerKey)) officersByDate.get(row.tanggal).set(officerKey, officer);
+    }
     const key = `${row.tanggal}|${roomKey}`;
     if (roomKey) duplicateGroups.set(key, (duplicateGroups.get(key) || 0) + 1);
   });
@@ -72,11 +77,11 @@ export function buildWasteDataDiagnostics({ start, end, wasteRows = [], roomRows
     missingDates: dates.filter(date => !wasteDates.has(date)),
     zeroOnlyDates: dates.filter(date => rowsByDate.has(date) && rowsByDate.get(date).every(row => rowTotal(row) === 0)),
     missingRoomDays,
-    roomInputs: dates.map(date => {
+    roomInputs: inputDates.map(date => {
       const names = Array.from(roomsByDate.get(date) || []).map(roomKey =>
         officialRooms.get(roomKey) || roomRows.find(row => row.tanggal === date && normalizeRoom(row.ruangan) === roomKey)?.ruangan || roomKey
       ).sort((left, right) => left.localeCompare(right, 'id-ID', { sensitivity: 'base' }));
-      return { date, count: names.length, names, officers: Array.from(officersByDate.get(date) || []).sort((left, right) => left.localeCompare(right, 'id-ID', { sensitivity: 'base' })) };
+      return { date, count: names.length, names, officers: Array.from((officersByDate.get(date) || new Map()).values()).sort((left, right) => left.localeCompare(right, 'id-ID', { sensitivity: 'base' })) };
     }),
     roomMissingCounts: Array.from(roomMissingCounts, ([name, days]) => ({ name, days })).sort((a, b) => b.days - a.days),
     duplicateRoomDates: Array.from(duplicateGroups, ([key, count]) => {
