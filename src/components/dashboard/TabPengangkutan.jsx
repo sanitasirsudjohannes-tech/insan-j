@@ -7,12 +7,13 @@ import {
 import { fetchDashboardAggregation } from '../../lib/databaseAggregations';
 import { DashboardSkeleton, EmptyState, ErrorState } from '../ui/DataStates';
 import OfflineDashboardNotice from './OfflineDashboardNotice';
+import { getWitaDateString } from '../../lib/localDate';
 
 export default function TabPengangkutan() {
   const [chartData, setChartData] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState('');
   const [availableMonths, setAvailableMonths] = useState([]);
-  const [summary, setSummary] = useState({ masuk: 0, diangkut: 0, sisa: 0 });
+  const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [chartReady, setChartReady] = useState(false);
   const loadedMonthRef = useRef(null);
@@ -63,11 +64,7 @@ export default function TabPengangkutan() {
           loadedMonthRef.current = resolvedMonth;
           setAvailableMonths(aggregated.availableMonths || []);
           setChartData(formattedRows);
-          setSummary({
-            masuk: Math.round(Number(aggregated.summary?.masuk) || 0),
-            diangkut: Math.round(Number(aggregated.summary?.diangkut) || 0),
-            sisa: Math.round(Number(aggregated.summary?.sisa) || 0),
-          });
+          setSummary(aggregated.annualSummary || null);
           if (resolvedMonth !== selectedMonth) setSelectedMonth(resolvedMonth);
           return;
         }
@@ -89,14 +86,19 @@ export default function TabPengangkutan() {
     };
   }, [selectedMonth, reloadCount]);
 
+  const year = summary?.year || Number(getWitaDateString().slice(0, 4));
+  const formatWeight = value => value == null ? '—' : `${Number(value).toLocaleString('id-ID', { maximumFractionDigits: 0 })} kg`;
+  const asOfDate = summary?.asOfDate;
+  const dateLabel = asOfDate ? new Date(`${asOfDate}T00:00:00+08:00`).toLocaleDateString('id-ID', { timeZone: 'Asia/Makassar', day: 'numeric', month: 'long', year: 'numeric' }) : '';
   const cards = [
-    { label: 'Total Limbah Masuk — Semua Waktu', value: `${summary.masuk} Kg`, icon: 'fa-plus-circle', color: 'border-blue-500', iconBg: 'bg-blue-100 text-blue-500' },
-    { label: 'Total Diangkut — Semua Waktu', value: `${summary.diangkut} Kg`, icon: 'fa-truck', color: 'border-orange-500', iconBg: 'bg-orange-100 text-orange-500' },
-    { label: 'Sisa Limbah Saat Ini', value: `${summary.sisa} Kg`, icon: 'fa-biohazard', color: parseFloat(summary.sisa) > 0 ? 'border-red-500' : 'border-green-500', iconBg: parseFloat(summary.sisa) > 0 ? 'bg-red-100 text-red-500' : 'bg-green-100 text-green-500', mobileSpan: 'col-span-2 md:col-span-1' },
+    { label: `Sisa Akhir ${year - 1}`, detail: `Sampai 31 Desember ${year - 1}`, value: formatWeight(summary?.opening), icon: 'fa-box-archive', color: 'border-violet-500', iconBg: 'bg-violet-100 text-violet-500' },
+    { label: `Timbulan ${year}`, detail: `1 Januari – ${dateLabel || 'tanggal data'}`, value: formatWeight(summary?.masuk), icon: 'fa-plus-circle', color: 'border-blue-500', iconBg: 'bg-blue-100 text-blue-500' },
+    { label: `Pengangkutan ${year}`, detail: `1 Januari – ${dateLabel || 'tanggal data'}`, value: formatWeight(summary?.diangkut), icon: 'fa-truck', color: 'border-orange-500', iconBg: 'bg-orange-100 text-orange-500' },
+    { label: dataSource.source === 'offline' || (asOfDate && asOfDate !== getWitaDateString()) ? 'Sisa Limbah Tercatat' : 'Sisa Limbah Saat Ini', detail: dateLabel ? `Per ${dateLabel}` : 'Menunggu ringkasan', value: formatWeight(summary?.sisa), icon: 'fa-biohazard', color: 'border-emerald-500', iconBg: 'bg-emerald-100 text-emerald-600' },
   ];
 
   if (loading) {
-    return <DashboardSkeleton cards={3} />;
+    return <DashboardSkeleton cards={4} />;
   }
 
   if (fetchError) {
@@ -107,13 +109,14 @@ export default function TabPengangkutan() {
     <div className="animate-fade-in">
       <OfflineDashboardNotice {...dataSource} />
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-3">
         {cards.map(c => (
           <div key={c.label} className={`bg-white p-4 sm:p-6 rounded-lg shadow-sm border-b-4 ${c.color} ${c.mobileSpan || ''} hover:shadow-md transition-shadow`}>
             <div className="flex justify-between items-center gap-2">
               <div className="min-w-0">
                 <p className="text-[10px] sm:text-xs text-gray-500 font-bold uppercase tracking-wide sm:tracking-wider leading-tight">{c.label}</p>
-                <h3 className="text-lg sm:text-2xl font-black text-gray-800 mt-1 truncate">{c.value}</h3>
+                <h3 className="text-lg sm:text-2xl font-black text-gray-800 mt-1 break-words">{c.value}</h3>
+                <p className="text-xs text-gray-500 mt-2">{c.detail}</p>
               </div>
               <div className={`w-9 h-9 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-base sm:text-xl shadow-inner ${c.iconBg}`}>
                 <i className={`fas ${c.icon}`}></i>
@@ -121,6 +124,12 @@ export default function TabPengangkutan() {
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="mb-8 text-xs text-gray-600 space-y-2" role="status">
+        {summary ? <>
+          {Number(summary.sisa) < 0 && <p className="text-red-700">Sisa limbah negatif. Periksa kelengkapan timbulan dan catatan pengangkutan.</p>}
+        </> : <p>Ringkasan tahunan belum tersedia. {dataSource.source === 'offline' ? 'Hubungkan internet untuk memuat ringkasan terbaru.' : 'Administrator perlu memperbarui agregasi dashboard Supabase.'}</p>}
       </div>
 
       {chartData.length === 0 ? (
