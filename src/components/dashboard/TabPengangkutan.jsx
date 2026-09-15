@@ -87,7 +87,7 @@ export default function TabPengangkutan() {
   }, [selectedMonth, reloadCount]);
 
   const year = summary?.year || Number(getWitaDateString().slice(0, 4));
-  const formatWeight = value => value == null ? '—' : `${Number(value).toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg`;
+  const formatWeight = value => value == null ? '—' : `${Number(value).toLocaleString('id-ID', { maximumFractionDigits: 0 })} kg`;
   const asOfDate = summary?.asOfDate;
   const dateLabel = asOfDate ? new Date(`${asOfDate}T00:00:00+08:00`).toLocaleDateString('id-ID', { timeZone: 'Asia/Makassar', day: 'numeric', month: 'long', year: 'numeric' }) : '';
   const cards = [
@@ -128,8 +128,6 @@ export default function TabPengangkutan() {
 
       <div className="mb-8 text-xs text-gray-600 space-y-2" role="status">
         {summary ? <>
-          <p>Sisa akhir {year - 1} + timbulan {year} − pengangkutan {year} = sisa limbah.</p>
-          <p>Data sampai {dateLabel} (WITA). Filter bulan hanya mengubah grafik.</p>
           {Number(summary.sisa) < 0 && <p className="text-red-700">Sisa limbah negatif. Periksa kelengkapan timbulan dan catatan pengangkutan.</p>}
         </> : <p>Ringkasan tahunan belum tersedia. {dataSource.source === 'offline' ? 'Hubungkan internet untuk memuat ringkasan terbaru.' : 'Administrator perlu memperbarui agregasi dashboard Supabase.'}</p>}
       </div>
