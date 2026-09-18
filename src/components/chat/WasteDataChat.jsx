@@ -6,10 +6,10 @@ import { getCurrentUser } from '../../lib/api';
 import WasteChatAnswer from './WasteChatAnswer';
 
 const CATEGORIES = [
-  { label: 'Hari ini', icon: 'fa-calendar-day', items: ['Berapa ruangan yang input hari ini?', 'Berapa timbulan limbah hari ini?'] },
-  { label: 'Bandingkan', icon: 'fa-code-compare', items: ['Bandingkan jumlah ruangan kemarin dan hari ini', 'Bandingkan timbulan bulan ini dengan sebelumnya'] },
-  { label: 'Cari data', icon: 'fa-magnifying-glass', items: ['Kapan pengangkutan terakhir?', 'Ruangan dengan timbulan terbesar bulan ini'] },
-  { label: 'Periksa data', icon: 'fa-clipboard-check', items: ['Apakah ada data yang perlu diperiksa bulan ini?', 'Apakah ada tanggal yang belum diinput bulan ini?', 'Apakah ada data ganda hari ini?'] },
+  { label: 'Hari ini', icon: 'fa-calendar-day', items: ['Berapa ruangan yang input hari ini?', 'Berapa timbulan limbah hari ini?', 'Siapa petugas input hari ini?', 'Apa yang perlu diperiksa hari ini?'] },
+  { label: 'Bandingkan', icon: 'fa-code-compare', items: ['Bandingkan jumlah ruangan kemarin dan hari ini', 'Bandingkan timbulan bulan ini dengan sebelumnya', 'Ruangan mana yang menyumbang kenaikan terbesar bulan ini?', 'Berapa selisih timbulan jika hanya menghitung ruangan yang tercatat pada kedua tanggal kemarin dan hari ini?'] },
+  { label: 'Cari data', icon: 'fa-magnifying-glass', items: ['Kapan pengangkutan terakhir?', 'Ruangan dengan timbulan terbesar bulan ini', 'Tampilkan jumlah ruangan yang diinput setiap hari bulan ini', 'Berapa timbulan sejak pengangkutan terakhir bulan ini?'] },
+  { label: 'Periksa data', icon: 'fa-clipboard-check', items: ['Apakah ada data yang perlu diperiksa bulan ini?', 'Apakah ada tanggal yang belum diinput bulan ini?', 'Apakah ada data ganda hari ini?', 'Apakah ada catatan tanpa nama petugas bulan ini?', 'Apakah ada data bertanggal setelah hari ini?', 'Apakah ada berat yang berbeda dari kebiasaan ruangan bulan ini?'] },
 ];
 
 const STORAGE_KEY = 'insan_j_data_chat';

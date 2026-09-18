@@ -12,11 +12,20 @@ const INTENT_LABELS = {
   room_input_count: 'Jumlah ruangan yang input', room_input_comparison: 'Perbandingan input ruangan',
   duplicate_data: 'Kemungkinan data ganda', data_anomalies: 'Pemeriksaan data',
   generated_difference: 'Rincian selisih timbulan',
+  day_extremes: 'Timbulan tertinggi dan terendah', transport_vs_generated: 'Pengangkutan dibanding timbulan', transport_vs_available: 'Pengangkutan dibanding limbah tersedia',
+  input_officers: 'Petugas input ruangan', room_input_history: 'Riwayat jumlah ruangan',
+  fewest_room_inputs: 'Input ruangan paling sedikit', room_record_days: 'Hari tercatat ruangan',
+  exact_duplicates: 'Kemungkinan catatan identik', negative_records: 'Nilai negatif',
+  zero_rooms: 'Catatan ruangan nol', unknown_rooms: 'Nama ruangan tidak resmi',
+  missing_officers: 'Nama petugas kosong', future_records: 'Tanggal masa depan',
+  room_outliers: 'Pola berat ruangan', negative_balance_dates: 'Tanggal sisa negatif',
+  since_transport: 'Timbulan setelah tanggal pengangkutan', transport_balance: 'Sisa pada hari pengangkutan',
+  recorded_day_average: 'Rata-rata per hari tercatat', daily_details: 'Rincian harian',
 };
 
 const TRANSPORT_INTENTS = new Set(['transported', 'transport_dates', 'last_transport', 'transport_gap', 'transport_count', 'average_transport', 'transport_coverage']);
 const RECAP_INTENTS = new Set(['waste_summary', 'analysis', 'remaining', 'opening_balance', 'available_total', 'comparison', 'peak_month', 'peak_week']);
-const ROOM_DATA_INTENTS = new Set(['room_input_count', 'room_input_comparison', 'missing_rooms', 'duplicate_data']);
+const ROOM_DATA_INTENTS = new Set(['room_input_count', 'room_input_comparison', 'missing_rooms', 'duplicate_data', 'input_officers', 'room_input_history', 'fewest_room_inputs', 'room_record_days', 'exact_duplicates', 'zero_rooms', 'unknown_rooms', 'missing_officers', 'room_outliers']);
 
 export function buildQuestionUnderstanding(parsed) {
   if (!parsed?.intent || !parsed?.period) return null;

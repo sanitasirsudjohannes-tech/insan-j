@@ -1,4 +1,12 @@
+import { detectOperationalIntent } from './operationalIntents.js';
+
 export function detectWasteIntent(text, { type, types, roomName }) {
+  const operational = detectOperationalIntent(text);
+  if (operational) return operational;
+  if (/sisa.*tahun\s+sebelumnya.*(?:dibawa|tahun\s+ini)/i.test(text)) return 'opening_balance';
+  if (/ruang.*(?:sama\s+dengan\s+kemarin|kemarin.*(?:belum|tidak).*hari\s+ini|salah\s+satu\s+tanggal)/i.test(text)) return 'room_input_comparison';
+  if (/apa.*perlu\s+(?:diperiksa|dicek)/i.test(text)) return 'data_anomalies';
+  if (/(?:penyumbang|menyumbang).*(?:kenaikan|penurunan)|selisih.*(?:manual|ruangan|kedua)|komposisi.*berbeda|(?:selisih|perubahan).*berasal/i.test(text)) return 'generated_difference';
   if (/^(?:halo[,!]?\s*)?(?:apa\s+saja\s+)?(?:(?:yang|yg)\s+)?(?:bisa|dapat)\s+(?:kamu|anda|tanya\s+insan-?j)\s+(?:lakukan|kerjakan|jawab)|^(?:kamu|anda|tanya\s+insan-?j)\s+bisa\s+apa|^(?:bantuan|help|daftar\s+(?:fitur|kemampuan))\??$/i.test(text.trim())) return 'capabilities';
   if (/(?:banding|perbandingan|dibanding|beda|selisih).*(?:jumlah\s+)?(?:ruang|ruangan)|(?:jumlah\s+)?(?:ruang|ruangan).*(?:banding|perbandingan|dibanding|beda|selisih)|(?:mengapa|kenapa|penyebab).*(?:limbah|timbulan).*(?:beda|berbeda|selisih)/i.test(text)) return 'room_input_comparison';
   if (/(?:berapa\s+(?:jumlah\s+)?|jumlah\s+|banyaknya\s+|total\s+)(?:ruang|ruangan)\b|(?:ruang|ruangan).*(?:yang\s+)?(?:input|diinput|tercatat|mencatat).*(?:berapa|jumlah|banyaknya|total)/i.test(text)) return 'room_input_count';

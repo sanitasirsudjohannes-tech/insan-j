@@ -3,6 +3,7 @@ import { buildAnalysisAnswer, buildAnswerPresentation } from '../features/waste-
 import { buildAnomalyAnswer, buildCompletenessAnswer, buildDuplicateAnswer, buildLastTransportAnswer, buildMissingRoomsAnswer, buildRoomInputComparisonAnswer, buildRoomInputCountAnswer, buildTransportGapAnswer } from '../features/waste-chat/answers/dataQualityAnswers.js';
 import { buildPeakMonthAnswer, buildPeakWeekAnswer } from '../features/waste-chat/answers/periodRankingAnswers.js';
 import { buildGeneratedDifferenceAnswer } from '../features/waste-chat/answers/generatedDifferenceAnswer.js';
+import { buildOperationalAnswer } from '../features/waste-chat/answers/operationalAnswers.js';
 
 const percentDifference = (current, previous) => Number(previous) ? ((Number(current) - Number(previous)) / Number(previous)) * 100 : null;
 const comparisonLine = (label, previous, current) => {
@@ -63,8 +64,8 @@ function buildScopedComparison(parsed, recap, comparisonRecap) {
     const currentValue = recap.facts[parsed.type.key];
     return `Perbandingan ${parsed.type.label}\n\n${comparisonLine(parsed.type.label, previousValue || 0, currentValue || 0)}`;
   }
-  if (/setiap\s+jenis|masing[ -]?masing\s+jenis|perubahan.*jenis/i.test(parsed.question) && recap.analytics.types?.length) {
-    return `Perubahan setiap jenis limbah selama ${parsed.period.label}\n\n${recap.analytics.types.map(item => comparisonLine(item.name, item.previous, item.current)).join('\n')}`;
+  if (/setiap\s+jenis|masing[ -]?masing\s+jenis|perubahan.*jenis|berdasarkan\s+jenis/i.test(parsed.question) && recap.analytics.types?.length) {
+    return `Perubahan setiap jenis limbah selama ${parsed.period.label}\n\n${recap.analytics.types.map(item => comparisonLine(item.name, comparisonRecap ? comparisonRecap.facts[item.key] : item.previous, recap.facts[item.key])).join('\n')}`;
   }
   return null;
 }
@@ -84,6 +85,8 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null, periodRe
     ? (charts.roomDetails || []).filter(item => Number(item[parsed.type.key]) > 0).sort((left, right) => right[parsed.type.key] - left[parsed.type.key])
     : [];
   const requestedRoom = (charts.roomDetails || []).find(item => item.name.toLocaleLowerCase('id-ID') === parsed.roomName?.toLocaleLowerCase('id-ID'));
+  const roomContributionOnly = /total\s+timbulan\s+ruangan/i.test(parsed.question);
+  const contributionBase = roomContributionOnly ? (facts.roomGeneratedKg ?? (charts.roomDetails || []).reduce((sum, row) => sum + row.totalKg, 0)) : facts.totalGeneratedKg;
   const suffix = parsed.period.inferredYear ? ' Tahun tidak disebutkan, sehingga digunakan tahun berjalan.' : '';
   const during = parsed.period.scope === 'day' ? `pada ${parsed.period.label}` : `selama ${parsed.period.label}`;
   const selectedTypes = parsed.types?.length ? parsed.types : [
@@ -123,7 +126,7 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null, periodRe
     least_type: analytics.types?.filter(item => item.current > 0).length ? (() => { const item = [...analytics.types].filter(entry => entry.current > 0).sort((a, b) => a.current - b.current)[0]; return `Jenis limbah dengan jumlah paling sedikit ${during} adalah ${item.name} sebanyak ${format(item.current)} kg.${suffix}`; })() : `Belum ada data jenis limbah untuk ${parsed.period.label}.`,
     type_breakdown: `Rincian timbulan berdasarkan jenis ${during}\n\n${selectedTypes.map(item => `• ${item.label}: ${format(facts[item.key])} kg`).join('\n')}\n\nTotal: ${format(facts.totalGeneratedKg)} kg${suffix}`,
     type_percentages: `Persentase timbulan berdasarkan jenis ${during}\n\n${selectedTypes.map(item => `• ${item.label}: ${facts.totalGeneratedKg > 0 ? format((facts[item.key] / facts.totalGeneratedKg) * 100) : 0}% (${format(facts[item.key])} kg)`).join('\n')}\n\nTotal timbulan: ${format(facts.totalGeneratedKg)} kg${suffix}`,
-    top_rooms: roomTotals.length ? `Ruangan penghasil limbah terbesar ${during}\n\n${roomTotals.slice(0, 5).map((item, index) => `${index + 1}. ${item.name}: ${format(item.value)} kg`).join('\n')}\n\nTerbesar: ${roomTotals[0].name} dengan ${format(roomTotals[0].value)} kg${suffix}` : `Belum ada data limbah per ruangan untuk ${parsed.period.label}.`,
+    top_rooms: roomTotals.length ? `Ruangan penghasil limbah terbesar ${during}\n\n${roomTotals.slice(0, parsed.allRooms ? roomTotals.length : 5).map((item, index) => `${index + 1}. ${item.name}: ${format(item.value)} kg`).join('\n')}\n\nTerbesar: ${roomTotals[0].name} dengan ${format(roomTotals[0].value)} kg${suffix}` : `Belum ada data limbah per ruangan untuk ${parsed.period.label}.`,
     bottom_room: roomTotals.filter(item => item.value > 0).length ? `Ruangan dengan timbulan paling sedikit ${during} adalah ${roomTotals.filter(item => item.value > 0).at(-1).name} sebanyak ${format(roomTotals.filter(item => item.value > 0).at(-1).value)} kg.${suffix}` : `Belum ada data limbah per ruangan untuk ${parsed.period.label}.`,
     type_rooms: roomsForType.length
       ? `Ruangan dengan ${parsed.type.label} ${during}\n\n${roomsForType.map((item, index) => `${index + 1}. ${item.name}: ${format(item[parsed.type.key])} kg`).join('\n')}\n\nTotal: ${format(roomsForType.reduce((sum, item) => sum + (Number(item[parsed.type.key]) || 0), 0))} kg dari ${roomsForType.length} ruangan${suffix}`
@@ -134,7 +137,7 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null, periodRe
       return roomsWithoutType.length ? `Ruangan tanpa catatan ${parsed.type.label} selama ${parsed.period.label}\n\n${roomsWithoutType.map(name => `• ${name}`).join('\n')}\n\nTotal: ${roomsWithoutType.length} ruangan. Tidak adanya catatan belum tentu berarti data belum diinput.${suffix}` : `Seluruh ruangan aktif memiliki catatan ${parsed.type.label} selama ${parsed.period.label}.${suffix}`;
     })() : undefined,
     room_total: requestedRoom ? `Total timbulan dari ${requestedRoom.name} ${during} adalah ${format(requestedRoom.totalKg)} kg.${suffix}` : `Data untuk ruangan “${parsed.roomName}” tidak ditemukan pada ${parsed.period.label}. Periksa kembali penulisan nama ruangan.`,
-    room_contribution: requestedRoom ? `Kontribusi timbulan ${requestedRoom.name} ${during} adalah ${facts.totalGeneratedKg > 0 ? format((requestedRoom.totalKg / facts.totalGeneratedKg) * 100) : 0}%\n\n• Timbulan ruangan: ${format(requestedRoom.totalKg)} kg\n• Total timbulan: ${format(facts.totalGeneratedKg)} kg${suffix}` : `Data untuk ruangan “${parsed.roomName}” tidak ditemukan pada ${parsed.period.label}. Periksa kembali penulisan nama ruangan.`,
+    room_contribution: requestedRoom ? `Kontribusi timbulan ${requestedRoom.name} ${during} adalah ${contributionBase > 0 ? format((requestedRoom.totalKg / contributionBase) * 100) : 0}%\n\n• Timbulan ruangan: ${format(requestedRoom.totalKg)} kg\n• Total timbulan${roomContributionOnly ? ' ruangan (tanpa manual)' : ''}: ${format(contributionBase)} kg${suffix}` : `Data untuk ruangan “${parsed.roomName}” tidak ditemukan pada ${parsed.period.label}. Periksa kembali penulisan nama ruangan.`,
     room_type_total: requestedRoom ? `${parsed.type?.label || 'Jenis limbah tersebut'} dari ${requestedRoom.name} ${during} berjumlah ${format(requestedRoom[parsed.type?.key])} kg.${suffix}` : `Data untuk ruangan “${parsed.roomName}” tidak ditemukan pada ${parsed.period.label}. Periksa kembali penulisan nama ruangan.`,
     peak_day: timeline.filter(item => item.generated > 0).length ? (() => { const peak = [...timeline].sort((a, b) => b.generated - a.generated)[0]; return `Timbulan tertinggi selama ${parsed.period.label} terjadi pada ${peak.date.split('-').reverse().join('/')} sebanyak ${format(peak.generated)} kg.${suffix}`; })() : `Belum ada timbulan yang tercatat selama ${parsed.period.label}.`,
     trough_day: activeGeneratedDays.length ? (() => { const trough = [...activeGeneratedDays].sort((a, b) => a.generated - b.generated)[0]; return `Timbulan tercatat paling rendah selama ${parsed.period.label} terjadi pada ${formatDate(trough.date)} sebanyak ${format(trough.generated)} kg. Tanggal tanpa input dan nilai nol tidak disertakan.${suffix}`; })() : `Belum ada timbulan yang tercatat selama ${parsed.period.label}.`,
@@ -163,5 +166,5 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null, periodRe
   if (!Number(facts.totalTransportedKg) && ['transported', 'transport_dates', 'transport_count', 'average_transport'].includes(parsed.intent)) {
     answers[parsed.intent] = `Belum ada pengangkutan yang tercatat selama ${parsed.period.label}.${suffix}`;
   }
-  return { text: answers[parsed.intent], parsed, period: parsed.period, context: { period: parsed.period, comparisonPeriod: parsed.comparisonPeriod, intent: parsed.intent, roomName: parsed.roomName, type: parsed.type }, facts, ...buildAnswerPresentation(parsed, recap, comparisonRecap, periodRecaps) };
+  return { text: buildOperationalAnswer(parsed, recap) || answers[parsed.intent], parsed, period: parsed.period, context: { period: parsed.period, comparisonPeriod: parsed.comparisonPeriod, intent: parsed.intent, roomName: parsed.roomName, type: parsed.type }, facts, ...buildAnswerPresentation(parsed, recap, comparisonRecap, periodRecaps) };
 }

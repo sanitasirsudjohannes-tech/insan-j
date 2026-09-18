@@ -155,6 +155,11 @@ export function buildAnomalyAnswer(parsed, recap) {
   if (duplicates.length) findings.push(`• Terdapat ${duplicates.length} kemungkinan data ganda berdasarkan tanggal dan ruangan.`);
   duplicates.slice(0, 5).forEach(item => findings.push(`• ${formatDate(item.date)} — ${item.roomName}: ${item.count} catatan; perlu diperiksa, belum tentu duplikat.`));
   negative.slice(0, 5).forEach(item => findings.push(`• Nilai negatif pada ${formatDate(item.date)}${item.roomName ? ` — ${item.roomName}` : ' — catatan manual'}.`));
+  if (diagnostics.missingOfficers?.length) findings.push(`• ${diagnostics.missingOfficers.length} catatan ruangan tanpa nama petugas.`);
+  if (diagnostics.unknownRooms?.length) findings.push(`• Nama di luar daftar resmi: ${diagnostics.unknownRooms.join(', ')}.`);
+  if (diagnostics.zeroRooms?.length) findings.push(`• ${diagnostics.zeroRooms.length} catatan ruangan memiliki semua jenis limbah nol.`);
+  if (diagnostics.futureRows?.length) findings.push(`• ${diagnostics.futureRows.length} catatan bertanggal setelah hari ini dalam periode yang diperiksa.`);
+  if (diagnostics.missingDates?.length) findings.push(`• ${diagnostics.missingDates.length} tanggal tanpa input sampai batas pemeriksaan kelengkapan.`);
   unusual.slice(0, 10).forEach(item => findings.push(`• Timbulan ${formatDate(item.date)} mencapai ${format(item.value)} kg, lebih tinggi dari pola rata-rata periode.`));
   return findings.length
     ? `Data yang perlu diperiksa selama ${parsed.period.label}\n\n${findings.join('\n')}\n\nTemuan ini merupakan indikator pemeriksaan, bukan bukti bahwa data pasti salah.`

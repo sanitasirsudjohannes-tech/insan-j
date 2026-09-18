@@ -5,10 +5,17 @@ import { fetchDaftarRuangan, getCachedRuangan } from './api.js';
 import { findRoomCandidates, resolveKnownRoom } from '../features/waste-chat/parsers/roomNameResolver.js';
 import { getOfflineQueue } from './offlineStorage.js';
 import { findQuestionClarification } from '../features/waste-chat/presentation/questionPresentation.js';
+import { OPERATIONAL_INTENTS } from '../features/waste-chat/parsers/operationalIntents.js';
+import { buildSourceLink } from '../features/waste-chat/presentation/questionPresentation.js';
+import { fetchSharedCachedResource } from './databaseAggregations';
 
 export async function answerWasteQuestion(question, { context = null, contextPeriod = null, fetchRecap = fetchMedicalWasteRecap, fetchRooms = fetchDaftarRuangan } = {}) {
   const conversationContext = context || (contextPeriod ? { period: contextPeriod } : null);
   const preliminary = parseWasteQuestion(question, conversationContext, []);
+  if (preliminary.intent === 'source_records') {
+    if (!conversationContext?.period) return { text: 'Tanyakan data terlebih dahulu agar catatan sumbernya dapat ditentukan.', clarification: true };
+    return { text: 'Buka catatan sumber dari jawaban sebelumnya. Periksa filter periode pada halaman data.', sourceLink: buildSourceLink(conversationContext), context: conversationContext };
+  }
   if (preliminary.invalidPeriod) {
     return {
       text: preliminary.invalidPeriod,
@@ -94,26 +101,34 @@ export async function answerWasteQuestion(question, { context = null, contextPer
   const transportIntents = new Set(['transported', 'last_transport', 'transport_gap', 'transport_count', 'average_transport', 'transport_dates', 'transport_coverage']);
   const recapOptions = {
     knownRooms: roomNames,
-    includeBalance: balanceIntents.has(parsed.intent),
-    includeTransport: balanceIntents.has(parsed.intent) || transportIntents.has(parsed.intent),
+    includeBalance: balanceIntents.has(parsed.intent) || ['negative_balance_dates', 'transport_balance', 'transport_vs_available'].includes(parsed.intent),
+    includeTransport: balanceIntents.has(parsed.intent) || transportIntents.has(parsed.intent) || ['negative_balance_dates', 'since_transport', 'transport_balance', 'future_records', 'daily_details', 'transport_vs_available', 'transport_vs_generated'].includes(parsed.intent),
     includePrevious: parsed.intent === 'analysis' || (parsed.intent === 'comparison' && !parsed.comparisonPeriod && !parsed.comparisonPeriods),
-    includeDiagnostics: diagnosticIntents.has(parsed.intent),
+    includeDiagnostics: diagnosticIntents.has(parsed.intent) || OPERATIONAL_INTENTS.has(parsed.intent) || parsed.intent === 'never_type_rooms',
   };
   const isComparisonIntent = ['comparison', 'room_input_comparison', 'generated_difference'].includes(parsed.intent);
   const comparisonPeriods = parsed.intent === 'comparison' && parsed.comparisonPeriods?.length >= 2
     ? parsed.comparisonPeriods
     : null;
+  const loadRecap = (start, end, options) => fetchRecap !== fetchMedicalWasteRecap
+    ? fetchRecap(start, end, options)
+    : fetchSharedCachedResource('waste-chat:recap', async () => ({
+      ...await fetchRecap(start, end, options), queryFetchedAt: new Date().toISOString(),
+    }), {
+      parameters: { start, end, ...options },
+      tables: ['limbah_padat', 'limbah_ruangan', 'pengangkutan_limbah', 'ruangan'],
+    });
   const periodRecaps = comparisonPeriods
     ? await Promise.all(comparisonPeriods.map(period =>
-      fetchRecap(period.start, period.end, { ...recapOptions, includePrevious: false })
+      loadRecap(period.start, period.end, { ...recapOptions, includePrevious: false })
     ))
     : null;
   const [recap, comparisonRecap] = periodRecaps
     ? [periodRecaps.at(-1), periodRecaps[0]]
     : await Promise.all([
-      fetchRecap(parsed.period.start, parsed.period.end, recapOptions),
+      loadRecap(parsed.period.start, parsed.period.end, recapOptions),
       isComparisonIntent && parsed.comparisonPeriod
-        ? fetchRecap(parsed.comparisonPeriod.start, parsed.comparisonPeriod.end, { ...recapOptions, includePrevious: false })
+        ? loadRecap(parsed.comparisonPeriod.start, parsed.comparisonPeriod.end, { ...recapOptions, includePrevious: false })
         : null,
     ]);
   const pendingItems = typeof window === 'undefined'
@@ -135,6 +150,6 @@ export async function answerWasteQuestion(question, { context = null, contextPer
   }
   return {
     ...answer,
-    dataStatus: { fetchedAt: new Date().toISOString(), pendingCount, online: typeof navigator === 'undefined' ? true : navigator.onLine },
+    dataStatus: { fetchedAt: [recap, comparisonRecap, ...(periodRecaps || [])].map(item => item?.queryFetchedAt).filter(Boolean).sort()[0] || new Date().toISOString(), pendingCount, online: typeof navigator === 'undefined' ? true : navigator.onLine },
   };
 }

@@ -69,11 +69,45 @@ export function buildWasteDataDiagnostics({ start, end, wasteRows = [], roomRows
     days: Math.max(0, Math.round((new Date(`${date}T00:00:00Z`) - new Date(`${transportDates[index]}T00:00:00Z`)) / DAY_MS) - 1),
   })).sort((left, right) => right.days - left.days);
 
+  const exactGroups = new Map();
+  const roomDaily = new Map();
+  roomRows.forEach(row => {
+    const key = JSON.stringify([row.tanggal, normalizeRoom(row.ruangan), ...WASTE_KEYS.map(k => Number(row[k]) || 0)]);
+    const item = exactGroups.get(key) || { date: row.tanggal, roomName: row.ruangan, count: 0 };
+    item.count += 1;
+    exactGroups.set(key, item);
+    const roomKey = normalizeRoom(row.ruangan);
+    if (!roomDaily.has(roomKey)) roomDaily.set(roomKey, { name: row.ruangan, days: new Map() });
+    const days = roomDaily.get(roomKey).days;
+    days.set(row.tanggal, (days.get(row.tanggal) || 0) + rowTotal(row));
+  });
+  const roomOutliers = [];
+  for (const room of roomDaily.values()) {
+    // Compare each day with at least five OTHER recorded days; absent days are not zeros.
+    for (const [date, amount] of room.days) {
+      const others = [...room.days].filter(([d]) => d !== date && d <= now.date).map(([, value]) => value).sort((a, b) => a - b);
+      if (others.length < 5 || date > now.date) continue;
+      const middle = Math.floor(others.length / 2);
+      const median = others.length % 2 ? others[middle] : (others[middle - 1] + others[middle]) / 2;
+      if (median > 0 && amount > median * 3) roomOutliers.push({ date, roomName: room.name, amount, median });
+    }
+  }
+
   return {
     checkedThrough: effectiveEnd,
     completenessCutoffHourWita: 10,
     expectedDays: dates.length,
     officialRooms: Array.from(officialRooms.values()),
+    exactDuplicates: [...exactGroups.values()].filter(item => item.count > 1),
+    zeroRooms: roomRows.filter(row => WASTE_KEYS.every(key => Number(row[key] || 0) === 0)).map(row => ({ date: row.tanggal, roomName: row.ruangan })),
+    unknownRooms: knownRooms.length ? [...new Set(roomRows.filter(row => !officialRooms.has(normalizeRoom(row.ruangan))).map(row => row.ruangan || '(nama kosong)'))] : null,
+    missingOfficers: roomRows.filter(row => !String(row.petugas || '').trim()).map(row => ({ date: row.tanggal, roomName: row.ruangan })),
+    futureRows: [...wasteRows, ...transportRows].filter(row => row.tanggal > now.date).map(row => ({ date: row.tanggal, roomName: row.ruangan || ('jumlah_kg' in row ? 'Pengangkutan' : 'Catatan manual') })),
+    roomOutliers,
+    roomPatternNames: [...roomDaily.values()].filter(room => [...room.days.keys()].filter(date => date <= now.date).length >= 6).map(room => room.name),
+    officerRecords: roomRows.map(row => ({ date: row.tanggal, roomName: row.ruangan, officer: String(row.petugas || '').trim() })),
+    roomPatternCount: [...roomDaily.values()].filter(room => [...room.days.keys()].filter(date => date <= now.date).length >= 6).length,
+    recordedWasteDays: wasteDates.size,
     missingDates: dates.filter(date => !wasteDates.has(date)),
     zeroOnlyDates: dates.filter(date => rowsByDate.has(date) && rowsByDate.get(date).every(row => rowTotal(row) === 0)),
     missingRoomDays,

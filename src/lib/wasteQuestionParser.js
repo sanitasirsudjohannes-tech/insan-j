@@ -243,9 +243,14 @@ export function parseWasteQuestion(question, context = null, knownRooms = []) {
   const invalidPeriod = validateExplicitPeriod(text);
   const explicitComparison = extractExplicitComparisonPeriods(text);
   const referencesPreviousPeriod = /(?:tanggal|tgl|periode|waktu)\s+(?:itu|tersebut|lainnya)|di\s+sana/i.test(text);
-  const hasExplicitPeriod = new RegExp(`\\b(?:${MONTH_PATTERN}|20\\d{2}|kemarin|hari ini|bulan ini|tahun ini|minggu ini|bulan lalu|tahun lalu|minggu lalu)\\b|\\b\\d{1,2}[/-]\\d{1,2}|(?:tanggal|tgl)\\s*\\d`, 'i').test(text);
+  const hasExplicitPeriod = new RegExp(`\\b(?:${MONTH_PATTERN}|20\\d{2}|kemarin|hari ini|bulan ini|tahun ini|minggu ini|pekan ini|bulan lalu|tahun lalu|minggu lalu|sebelumnya)\\b|\\d+\\s+hari\\s+terakhir|\\b\\d{1,2}[/-]\\d{1,2}|(?:tanggal|tgl)\\s*\\d`, 'i').test(text);
   const inheritPeriod = Boolean(contextPeriod?.start && !hasExplicitPeriod);
-  const period = explicitComparison?.period || ((referencesPreviousPeriod || inheritPeriod) && contextPeriod?.start ? { ...contextPeriod } : extractPeriod(text));
+  let period = explicitComparison?.period || ((referencesPreviousPeriod || inheritPeriod) && contextPeriod?.start ? { ...contextPeriod } : extractPeriod(text));
+  if (/^(?:kalau|bagaimana\s+(?:dengan|jika))\s+bulan\s+sebelumnya[?.!]*$/i.test(text) && contextPeriod?.start) {
+    const date = new Date(`${contextPeriod.start}T00:00:00Z`);
+    date.setUTCMonth(date.getUTCMonth() - 1, 1);
+    period = makeMonthPeriod(date.getUTCFullYear(), date.getUTCMonth() + 1, false);
+  }
   let types = WASTE_TYPES.filter(item => item.pattern.test(text));
   const referencesPreviousType = /(?:jenis|limbah)\s+(?:itu|tersebut)|jenis\s+yang\s+sama/i.test(text);
   if (!types.length && referencesPreviousType && context?.type) types = [context.type];
@@ -255,6 +260,34 @@ export function parseWasteQuestion(question, context = null, knownRooms = []) {
   const matchedRooms = findRoomCandidates(text, knownRooms);
   let roomName = resolveKnownRoom(text, knownRooms) || (referencesPreviousRoom ? context?.roomName : null) || explicitRoom;
   let intent = detectWasteIntent(text, { type, types, roomName });
+  const shortFollowUp = /^(?:kalau|bagaimana\s+(?:dengan|jika)|khusus)\b|^(?:rinci|rincian)\s+per\s+tanggal/i.test(text)
+    || (/saja[?.!]*$/i.test(text) && Boolean(type || resolveKnownRoom(text, knownRooms)) && !/tanggal|berapa|mana/i.test(text));
+  if (shortFollowUp && context?.intent) {
+    roomName = resolveKnownRoom(text, knownRooms) || context.roomName || null;
+    if (!type && context.type) { type = context.type; types = [type]; }
+    if (intent !== 'daily_details') intent = roomName ? (type ? 'room_type_total' : 'room_total') : type ? 'type_total' : context.intent;
+  }
+  if (/tampilkan\s+semua\s+ruang|urutkan\s+dari\s+yang\s+terbesar/i.test(text)) {
+    if (!type && context?.type) { type = context.type; types = [type]; }
+    intent = type ? 'type_rooms' : 'top_rooms'; roomName = null;
+  }
+  if (/catatan\s+sumber|sumbernya/i.test(text)) intent = 'source_records';
+  if (['room_input_history', 'fewest_room_inputs', 'zero_rooms', 'unknown_rooms', 'exact_duplicates', 'input_officers'].includes(intent) && !resolveKnownRoom(text, knownRooms)) roomName = null;
+  if (intent === 'generated_difference' && !resolveKnownRoom(text, knownRooms)) roomName = context?.roomName || null;
+  if (intent === 'opening_balance' && /sisa.*tahun\s+sebelumnya.*(?:dibawa|tahun\s+ini)/i.test(text)) {
+    const year = currentWita().year;
+    period = { ...makeRange(`${year}-01-01`, `${year}-12-31`), scope: 'year', year, label: `tahun ${year}` };
+  }
+  if (intent === 'future_records' && !new RegExp(`\\b(?:${MONTH_PATTERN}|20\\d{2})\\b`, 'i').test(text)) {
+    const now = currentWita();
+    const today = iso(now.year, now.month, now.day);
+    period = makeRange(today, new Date(Date.UTC(now.year, now.month - 1, now.day + 90)).toISOString().slice(0, 10));
+  }
+  if (['since_transport', 'transport_balance'].includes(intent) && !contextPeriod?.start && !new RegExp(`\\b(?:${MONTH_PATTERN}|20\\d{2}|bulan|tahun)\\b|(?:tanggal|tgl)\\s*\\d`, 'i').test(text)) {
+    const now = currentWita();
+    period = makeRange(new Date(Date.UTC(now.year, now.month - 1, now.day - 89)).toISOString().slice(0, 10), iso(now.year, now.month, now.day));
+  }
+  if (intent === 'daily_details' && context) { roomName = roomName || context.roomName; if (!type && context.type) { type = context.type; types = [type]; } }
   const asksDifference = /(?:kenapa|mengapa|penyebab|jelaskan).*(?:turun|naik|beda|selisih|perubahan)/i.test(text);
   if (asksDifference && inheritPeriod) {
     if (!type && context?.type) { type = context.type; types = [type]; }
@@ -264,6 +297,14 @@ export function parseWasteQuestion(question, context = null, knownRooms = []) {
     && (!context?.intent || /transport|remaining|opening_balance|available_total/.test(context.intent));
   if (asksDifference && !/angkut|sisa|jumlah\s+ruangan/i.test(text)) intent = 'generated_difference';
   let comparisonPeriod = explicitComparison?.comparisonPeriod || null;
+  if (intent === 'room_input_comparison' && !comparisonPeriod && inheritPeriod && context?.comparisonPeriod) comparisonPeriod = context.comparisonPeriod;
+  if (intent === 'room_input_comparison' && !comparisonPeriod && /kemarin.*hari\s+ini|hari\s+ini.*kemarin/i.test(text)) {
+    const now = currentWita();
+    const today = iso(now.year, now.month, now.day);
+    period = makeRange(today, today);
+    const previous = new Date(Date.UTC(now.year, now.month - 1, now.day - 1)).toISOString().slice(0, 10);
+    comparisonPeriod = makeRange(previous, previous);
+  }
   if (intent === 'generated_difference' && !comparisonPeriod) {
     comparisonPeriod = inheritPeriod && context?.comparisonPeriod ? context.comparisonPeriod : null;
     if (!comparisonPeriod && period?.start && period?.end) {
@@ -296,5 +337,9 @@ export function parseWasteQuestion(question, context = null, knownRooms = []) {
     roomName,
     roomNames: matchedRooms,
     question: text,
+    detailIntent: context?.intent,
+    allRooms: /semua|urutkan/i.test(text),
+    sameRoomsOnly: /hanya.*ruangan.*kedua|ruangan.*tercatat.*kedua/i.test(text),
+    changeDirection: /menyumbang.*kenaikan|penyumbang.*kenaikan/i.test(text) ? 'up' : /menyumbang.*penurunan|penyumbang.*penurunan/i.test(text) ? 'down' : null,
   };
 }
