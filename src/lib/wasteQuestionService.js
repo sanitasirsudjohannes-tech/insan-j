@@ -79,7 +79,7 @@ export async function answerWasteQuestion(question, { context = null, contextPer
       understanding: { status: 'understood', intent: 'Template belum tersedia', period: null },
     };
   }
-  if (parsed.intent === 'comparison' && parsed.tooManyComparisonMonths) {
+  if (['comparison', 'generated_difference'].includes(parsed.intent) && parsed.tooManyComparisonMonths) {
     return {
       text: `Perbandingan melalui Tanya INSAN-J dibatasi maksimal 3 bulan agar jawaban tetap ringkas dan mudah diperiksa. Anda meminta ${parsed.requestedComparisonCount} bulan. Untuk melihat periode yang lebih panjang dan lebih lengkap, buka menu Rekap Limbah lalu pilih periode yang diperlukan.`,
       parsed,
@@ -99,7 +99,7 @@ export async function answerWasteQuestion(question, { context = null, contextPer
     includePrevious: parsed.intent === 'analysis' || (parsed.intent === 'comparison' && !parsed.comparisonPeriod && !parsed.comparisonPeriods),
     includeDiagnostics: diagnosticIntents.has(parsed.intent),
   };
-  const isComparisonIntent = ['comparison', 'room_input_comparison'].includes(parsed.intent);
+  const isComparisonIntent = ['comparison', 'room_input_comparison', 'generated_difference'].includes(parsed.intent);
   const comparisonPeriods = parsed.intent === 'comparison' && parsed.comparisonPeriods?.length >= 2
     ? parsed.comparisonPeriods
     : null;

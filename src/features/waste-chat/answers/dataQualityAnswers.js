@@ -153,6 +153,8 @@ export function buildAnomalyAnswer(parsed, recap) {
   if (recap.facts.totalTransportedKg > recap.facts.openingBalanceKg + recap.facts.totalGeneratedKg) findings.push('• Pengangkutan melebihi limbah yang tersedia pada periode ini.');
   if (negative.length) findings.push(`• Terdapat ${negative.length} catatan dengan angka negatif.`);
   if (duplicates.length) findings.push(`• Terdapat ${duplicates.length} kemungkinan data ganda berdasarkan tanggal dan ruangan.`);
+  duplicates.slice(0, 5).forEach(item => findings.push(`• ${formatDate(item.date)} — ${item.roomName}: ${item.count} catatan; perlu diperiksa, belum tentu duplikat.`));
+  negative.slice(0, 5).forEach(item => findings.push(`• Nilai negatif pada ${formatDate(item.date)}${item.roomName ? ` — ${item.roomName}` : ' — catatan manual'}.`));
   unusual.slice(0, 10).forEach(item => findings.push(`• Timbulan ${formatDate(item.date)} mencapai ${format(item.value)} kg, lebih tinggi dari pola rata-rata periode.`));
   return findings.length
     ? `Data yang perlu diperiksa selama ${parsed.period.label}\n\n${findings.join('\n')}\n\nTemuan ini merupakan indikator pemeriksaan, bukan bukti bahwa data pasti salah.`

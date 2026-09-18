@@ -64,7 +64,7 @@ export default function WasteDataChat({ className = '', hideHeader = false, onBu
     try {
       const context = [...messages].reverse().find(message => message.role === 'assistant' && message.context)?.context || null;
       const answer = await answerWasteQuestion(text, { context });
-      setMessages(current => [...current, { role: 'assistant', question: text, text: answer.text, period: answer.period, context: answer.context, cards: answer.cards, visualization: answer.visualization, warnings: answer.warnings, followUps: answer.followUps, source: answer.source, sourceLink: answer.sourceLink, understanding: answer.understanding, dataStatus: answer.dataStatus, reportPayload: answer.reportPayload, actions: answer.actions, clarification: answer.clarification }]);
+      setMessages(current => [...current, { role: 'assistant', question: text, text: answer.text, period: answer.period, context: answer.context, cards: answer.cards, visualization: answer.visualization, warnings: answer.warnings, followUps: answer.followUps, source: answer.source, sourceLink: answer.sourceLink, sourceLinks: answer.sourceLinks, understanding: answer.understanding, dataStatus: answer.dataStatus, reportPayload: answer.reportPayload, actions: answer.actions, clarification: answer.clarification }]);
     } catch {
       setMessages(current => [...current, { role: 'assistant', text: 'Data belum dapat diambil. Periksa koneksi dan status sinkronisasi, lalu coba kembali.', error: true }]);
     } finally { busyRef.current = false; setLoading(false); onBusyChange?.(false); }

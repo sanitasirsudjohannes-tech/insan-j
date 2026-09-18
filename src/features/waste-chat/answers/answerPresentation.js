@@ -81,9 +81,15 @@ export function buildAnswerPresentation(parsed, recap, comparisonRecap, periodRe
     ];
     if (parsed.type) followUps.unshift({ label: 'Lihat per ruangan', question: `Ruangan yang ada ${parsed.type.label} ${period}` });
     if (parsed.roomName && parsed.type) followUps.unshift({ label: 'Rincian tanggal', question: `Tanggal berapa ${parsed.type.label} pada ruangan ${parsed.roomName} ${period}` });
+    if (['generated', 'comparison'].includes(parsed.intent)) followUps.unshift({ label: 'Telusuri selisih timbulan', question: 'Jelaskan selisih timbulan' });
   }
 
   return {
+    sourceLinks: ['generated_difference', 'room_input_comparison'].includes(parsed.intent)
+      ? [parsed.comparisonPeriod, parsed.period].filter(period => period?.scope === 'day').map(period => ({
+        label: `Catatan ruangan ${period.label}`,
+        to: `/limbah-ruangan?${new URLSearchParams({ date: period.start, ...(parsed.roomName ? { room: parsed.roomName } : {}) })}`,
+      })) : [],
     cards,
     visualization,
     warnings,

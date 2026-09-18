@@ -11,6 +11,7 @@ const INTENT_LABELS = {
   type_total: 'Total berdasarkan jenis', data_completeness: 'Kelengkapan tanggal', missing_rooms: 'Kelengkapan ruangan',
   room_input_count: 'Jumlah ruangan yang input', room_input_comparison: 'Perbandingan input ruangan',
   duplicate_data: 'Kemungkinan data ganda', data_anomalies: 'Pemeriksaan data',
+  generated_difference: 'Rincian selisih timbulan',
 };
 
 const TRANSPORT_INTENTS = new Set(['transported', 'transport_dates', 'last_transport', 'transport_gap', 'transport_count', 'average_transport', 'transport_coverage']);
@@ -22,7 +23,7 @@ export function buildQuestionUnderstanding(parsed) {
   return {
     status: 'understood',
     intent: INTENT_LABELS[parsed.intent] || 'Data limbah',
-    period: parsed.period.label,
+    period: parsed.comparisonPeriod ? `${parsed.comparisonPeriod.label} dibanding ${parsed.period.label}` : parsed.period.label,
     room: parsed.roomName || (parsed.roomNames?.length > 1 ? parsed.roomNames.join(' dan ') : null),
     type: parsed.type?.label || null,
   };
@@ -65,6 +66,12 @@ function extractTwoRoomDates(text) {
 
 export function findQuestionClarification(question, parsed) {
   const text = String(question || '');
+  if (parsed?.needsDifferenceSubject) {
+    return { text: 'Selisih yang dimaksud timbulan, pengangkutan, atau sisa limbah? Sebutkan objek dan dua periode agar pemeriksaan sesuai.' };
+  }
+  if (parsed?.intent === 'generated_difference' && parsed.comparisonPeriods?.length > 2) {
+    return { text: 'Penjelasan sumber selisih memerlukan dua periode. Sebutkan dua bulan atau dua tanggal yang ingin ditelusuri.' };
+  }
   const period = parsed?.period?.label || 'bulan ini';
   const mentionsRoomCount = /(?:berapa\s+(?:jumlah\s+)?|jumlah\s+|banyaknya\s+|total\s+)(?:ruang|ruangan)\b/i.test(text);
   const comparisonWord = /banding|perbandingan|dibanding|beda|berbeda|selisih|mengapa|kenapa|penyebab|\bvs\.?\b/i.test(text);

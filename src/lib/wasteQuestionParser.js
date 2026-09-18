@@ -243,16 +243,37 @@ export function parseWasteQuestion(question, context = null, knownRooms = []) {
   const invalidPeriod = validateExplicitPeriod(text);
   const explicitComparison = extractExplicitComparisonPeriods(text);
   const referencesPreviousPeriod = /(?:tanggal|tgl|periode|waktu)\s+(?:itu|tersebut|lainnya)|di\s+sana/i.test(text);
-  const period = explicitComparison?.period || (referencesPreviousPeriod && contextPeriod ? { ...contextPeriod } : extractPeriod(text));
+  const hasExplicitPeriod = new RegExp(`\\b(?:${MONTH_PATTERN}|20\\d{2}|kemarin|hari ini|bulan ini|tahun ini|minggu ini|bulan lalu|tahun lalu|minggu lalu)\\b|\\b\\d{1,2}[/-]\\d{1,2}|(?:tanggal|tgl)\\s*\\d`, 'i').test(text);
+  const inheritPeriod = Boolean(contextPeriod?.start && !hasExplicitPeriod);
+  const period = explicitComparison?.period || ((referencesPreviousPeriod || inheritPeriod) && contextPeriod?.start ? { ...contextPeriod } : extractPeriod(text));
   let types = WASTE_TYPES.filter(item => item.pattern.test(text));
   const referencesPreviousType = /(?:jenis|limbah)\s+(?:itu|tersebut)|jenis\s+yang\s+sama/i.test(text);
   if (!types.length && referencesPreviousType && context?.type) types = [context.type];
-  const type = types[0];
+  let type = types[0];
   const explicitRoom = cleanRoomCandidate(text.match(/(?:ruang(?:an)?|unit|bangsal)\s+(.+?)(?=\s+(?:tanggal|tgl\.?|pertanggal|bulan|tahun|dari|pada|berapa|yang|ada|januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember)\b|[?.,]|$)/i)?.[1]);
   const referencesPreviousRoom = /(?:ruang|ruangan|unit|bangsal)\s+(?:itu|tersebut|yang sama)/i.test(text);
   const matchedRooms = findRoomCandidates(text, knownRooms);
   let roomName = resolveKnownRoom(text, knownRooms) || (referencesPreviousRoom ? context?.roomName : null) || explicitRoom;
   let intent = detectWasteIntent(text, { type, types, roomName });
+  const asksDifference = /(?:kenapa|mengapa|penyebab|jelaskan).*(?:turun|naik|beda|selisih|perubahan)/i.test(text);
+  if (asksDifference && inheritPeriod) {
+    if (!type && context?.type) { type = context.type; types = [type]; }
+    if (!roomName && context?.roomName) roomName = context.roomName;
+  }
+  const needsDifferenceSubject = asksDifference && !/timbulan|limbah|ruangan/i.test(text)
+    && (!context?.intent || /transport|remaining|opening_balance|available_total/.test(context.intent));
+  if (asksDifference && !/angkut|sisa|jumlah\s+ruangan/i.test(text)) intent = 'generated_difference';
+  let comparisonPeriod = explicitComparison?.comparisonPeriod || null;
+  if (intent === 'generated_difference' && !comparisonPeriod) {
+    comparisonPeriod = inheritPeriod && context?.comparisonPeriod ? context.comparisonPeriod : null;
+    if (!comparisonPeriod && period?.start && period?.end) {
+      const start = new Date(`${period.start}T00:00:00Z`);
+      const duration = new Date(`${period.end}T00:00:00Z`) - start + 86400000;
+      comparisonPeriod = period.scope === 'month'
+        ? makeMonthPeriod(period.month === 1 ? period.year - 1 : period.year, period.month === 1 ? 12 : period.month - 1, false)
+        : makeRange(new Date(start.getTime() - duration).toISOString().slice(0, 10), new Date(start.getTime() - 86400000).toISOString().slice(0, 10));
+    }
+  }
   if (['room_input_count', 'room_input_comparison'].includes(intent)) roomName = null;
   if (['type_rooms', 'never_type_rooms', 'missing_rooms'].includes(intent) && matchedRooms.length === 0) roomName = null;
   if (/tanggal.*(?:lain|itu|tersebut)/i.test(text) && context?.intent) {
@@ -263,7 +284,9 @@ export function parseWasteQuestion(question, context = null, knownRooms = []) {
   return {
     intent,
     period,
-    comparisonPeriod: explicitComparison?.comparisonPeriod || null,
+    comparisonPeriod,
+    inheritedPeriod: inheritPeriod,
+    needsDifferenceSubject,
     comparisonPeriods: explicitComparison?.comparisonPeriods || null,
     requestedComparisonCount: explicitComparison?.requestedComparisonCount || null,
     tooManyComparisonMonths: Boolean(explicitComparison?.tooManyComparisonMonths),

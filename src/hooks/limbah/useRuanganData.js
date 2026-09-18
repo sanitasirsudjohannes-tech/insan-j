@@ -31,7 +31,7 @@ export default function useRuanganData() {
   const [filterMonth, setFilterMonthState] = useState(() => initialDateFilter ? '' : getCurrentMonth());
   const fetchIdRef = useRef(0);
   const [ruanganList, setRuanganList] = useState([]);
-  const [filterRuangan, setFilterRuangan] = useState('');
+  const [filterRuangan, setFilterRuangan] = useState(() => typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('room') || '');
   const [filterDate, setFilterDateState] = useState(initialDateFilter);
 
   const setFilterMonth = useCallback((value) => {

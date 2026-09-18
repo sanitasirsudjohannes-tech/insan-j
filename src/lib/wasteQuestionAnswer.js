@@ -2,6 +2,7 @@ import { buildDirectComparison, changeText, formatDate, formatNumber as format, 
 import { buildAnalysisAnswer, buildAnswerPresentation } from '../features/waste-chat/answers/answerPresentation.js';
 import { buildAnomalyAnswer, buildCompletenessAnswer, buildDuplicateAnswer, buildLastTransportAnswer, buildMissingRoomsAnswer, buildRoomInputComparisonAnswer, buildRoomInputCountAnswer, buildTransportGapAnswer } from '../features/waste-chat/answers/dataQualityAnswers.js';
 import { buildPeakMonthAnswer, buildPeakWeekAnswer } from '../features/waste-chat/answers/periodRankingAnswers.js';
+import { buildGeneratedDifferenceAnswer } from '../features/waste-chat/answers/generatedDifferenceAnswer.js';
 
 const percentDifference = (current, previous) => Number(previous) ? ((Number(current) - Number(previous)) / Number(previous)) * 100 : null;
 const comparisonLine = (label, previous, current) => {
@@ -148,6 +149,7 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null, periodRe
     missing_rooms: buildMissingRoomsAnswer(parsed, recap.diagnostics),
     room_input_count: buildRoomInputCountAnswer(parsed, recap.diagnostics),
     room_input_comparison: buildRoomInputComparisonAnswer(parsed, recap, comparisonRecap),
+    generated_difference: parsed.intent === 'generated_difference' ? buildGeneratedDifferenceAnswer(parsed, recap, comparisonRecap) : null,
     duplicate_data: buildDuplicateAnswer(parsed, recap.diagnostics),
     data_anomalies: buildAnomalyAnswer(parsed, recap),
   };
@@ -161,5 +163,5 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null, periodRe
   if (!Number(facts.totalTransportedKg) && ['transported', 'transport_dates', 'transport_count', 'average_transport'].includes(parsed.intent)) {
     answers[parsed.intent] = `Belum ada pengangkutan yang tercatat selama ${parsed.period.label}.${suffix}`;
   }
-  return { text: answers[parsed.intent], parsed, period: parsed.period, context: { period: parsed.period, intent: parsed.intent, roomName: parsed.roomName, type: parsed.type }, facts, ...buildAnswerPresentation(parsed, recap, comparisonRecap, periodRecaps) };
+  return { text: answers[parsed.intent], parsed, period: parsed.period, context: { period: parsed.period, comparisonPeriod: parsed.comparisonPeriod, intent: parsed.intent, roomName: parsed.roomName, type: parsed.type }, facts, ...buildAnswerPresentation(parsed, recap, comparisonRecap, periodRecaps) };
 }
