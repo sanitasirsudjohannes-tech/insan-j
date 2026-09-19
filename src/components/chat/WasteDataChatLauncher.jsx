@@ -1,16 +1,20 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import WasteDataChat from './WasteDataChat';
 
-const ANIMATION_MS = 720;
+const ANIMATION_MS = 650;
 
 export default function WasteDataChatLauncher() {
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [chatBusy, setChatBusy] = useState(false);
+  const [animating, setAnimating] = useState(false);
   const [panelOrigin, setPanelOrigin] = useState('100% 100%');
   const [collapsedClip, setCollapsedClip] = useState('polygon(98% 98%, 100% 98%, 100% 100%, 98% 100%)');
   const closeTimerRef = useRef(null);
-  const openTimerRef = useRef(null);
+  const animationTimerRef = useRef(null);
+  const firstFrameRef = useRef(null);
+  const secondFrameRef = useRef(null);
+  const pendingOpenRef = useRef(false);
   const launcherButtonRef = useRef(null);
   const closeButtonRef = useRef(null);
   const panelRef = useRef(null);
@@ -26,9 +30,35 @@ export default function WasteDataChatLauncher() {
       return;
     }
     mountedRef.current = false;
+    setAnimating(false);
     setMounted(false);
     window.requestAnimationFrame(() => launcherButtonRef.current?.focus());
   }, []);
+
+  const calculateAnchor = useCallback(() => {
+    if (!launcherButtonRef.current || !panelRef.current) return;
+    const launcherRect = launcherButtonRef.current.getBoundingClientRect();
+    const panel = panelRef.current;
+    const originX = launcherRect.left + launcherRect.width / 2 - panel.offsetLeft;
+    const originY = launcherRect.top + launcherRect.height / 2 - panel.offsetTop;
+    setPanelOrigin(`${originX}px ${originY}px`);
+    setCollapsedClip(`polygon(${originX - 5}px ${originY - 3}px, ${originX + 5}px ${originY - 3}px, ${originX + 3}px ${originY + 3}px, ${originX - 3}px ${originY + 3}px)`);
+  }, []);
+
+  const scheduleOpening = useCallback(() => {
+    window.cancelAnimationFrame(firstFrameRef.current);
+    window.cancelAnimationFrame(secondFrameRef.current);
+    firstFrameRef.current = window.requestAnimationFrame(() => {
+      secondFrameRef.current = window.requestAnimationFrame(() => {
+        calculateAnchor();
+        setAnimating(true);
+        openRef.current = true;
+        setOpen(true);
+        window.clearTimeout(animationTimerRef.current);
+        animationTimerRef.current = window.setTimeout(() => setAnimating(false), ANIMATION_MS);
+      });
+    });
+  }, [calculateAnchor]);
 
   const handleBusyChange = useCallback(value => {
     busyRef.current = value;
@@ -38,28 +68,35 @@ export default function WasteDataChatLauncher() {
 
   const showChat = useCallback(() => {
     window.clearTimeout(closeTimerRef.current);
-    window.clearTimeout(openTimerRef.current);
+    window.clearTimeout(animationTimerRef.current);
     closeAnimationDoneRef.current = false;
-    mountedRef.current = true;
-    setMounted(true);
     if (!historyEntryRef.current) {
       window.history.pushState({ ...window.history.state, wasteChatOpen: true }, '');
       historyEntryRef.current = true;
     }
-    openTimerRef.current = window.setTimeout(() => {
-      openRef.current = true;
-      setOpen(true);
-    }, 50);
-  }, []);
+    if (mountedRef.current && panelRef.current) {
+      scheduleOpening();
+      return;
+    }
+    pendingOpenRef.current = true;
+    mountedRef.current = true;
+    setMounted(true);
+  }, [scheduleOpening]);
 
   const startClosing = useCallback(() => {
     if (!mountedRef.current) return;
-    window.clearTimeout(openTimerRef.current);
+    pendingOpenRef.current = false;
+    window.cancelAnimationFrame(firstFrameRef.current);
+    window.cancelAnimationFrame(secondFrameRef.current);
+    calculateAnchor();
+    setAnimating(true);
     openRef.current = false;
     setOpen(false);
     window.clearTimeout(closeTimerRef.current);
+    window.clearTimeout(animationTimerRef.current);
+    animationTimerRef.current = window.setTimeout(() => setAnimating(false), ANIMATION_MS);
     closeTimerRef.current = window.setTimeout(finishClose, ANIMATION_MS);
-  }, [finishClose]);
+  }, [calculateAnchor, finishClose]);
 
   const hideChat = useCallback(() => {
     startClosing();
@@ -70,17 +107,18 @@ export default function WasteDataChatLauncher() {
   }, [startClosing]);
 
   useLayoutEffect(() => {
-    if (!mounted || !launcherButtonRef.current || !panelRef.current) return;
-    const launcherRect = launcherButtonRef.current.getBoundingClientRect();
-    const panel = panelRef.current;
-    const originX = launcherRect.left + launcherRect.width / 2 - panel.offsetLeft;
-    const originY = launcherRect.top + launcherRect.height / 2 - panel.offsetTop;
-    setPanelOrigin(`${originX}px ${originY}px`);
-    setCollapsedClip(`polygon(${originX - 5}px ${originY - 3}px, ${originX + 5}px ${originY - 3}px, ${originX + 3}px ${originY + 3}px, ${originX - 3}px ${originY + 3}px)`);
-  }, [mounted]);
+    if (!mounted) return;
+    calculateAnchor();
+    if (pendingOpenRef.current) {
+      pendingOpenRef.current = false;
+      scheduleOpening();
+    }
+  }, [calculateAnchor, mounted, scheduleOpening]);
 
   useEffect(() => {
     if (!open) return undefined;
+    const viewport = window.visualViewport;
+    const handleViewportChange = () => calculateAnchor();
     const handleKeyDown = event => {
       if (event.key === 'Escape') hideChat();
       if (event.key === 'Tab') {
@@ -100,16 +138,22 @@ export default function WasteDataChatLauncher() {
       startClosing();
     };
     window.addEventListener('popstate', handlePopState);
+    window.addEventListener('resize', handleViewportChange);
+    viewport?.addEventListener('resize', handleViewportChange);
     closeButtonRef.current?.focus();
     return () => {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('resize', handleViewportChange);
+      viewport?.removeEventListener('resize', handleViewportChange);
     };
-  }, [hideChat, open, startClosing]);
+  }, [calculateAnchor, hideChat, open, startClosing]);
 
   useEffect(() => () => {
-    window.clearTimeout(openTimerRef.current);
+    window.cancelAnimationFrame(firstFrameRef.current);
+    window.cancelAnimationFrame(secondFrameRef.current);
+    window.clearTimeout(animationTimerRef.current);
     window.clearTimeout(closeTimerRef.current);
   }, []);
 
@@ -125,7 +169,7 @@ export default function WasteDataChatLauncher() {
           style={{
             opacity: open ? 0 : 1,
             transform: open ? 'translateY(0.5rem) scale(0.85)' : 'translateY(0) scale(1)',
-            transition: 'transform 400ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms ease-out',
+            transition: `transform ${ANIMATION_MS}ms cubic-bezier(0.16, 1, 0.3, 1), opacity ${ANIMATION_MS}ms ease-in-out`,
           }}
           className={`group fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-4 z-30 isolate flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-white/90 bg-linear-to-br from-white/80 via-blue-100/55 to-cyan-200/40 text-blue-700 shadow-[0_12px_32px_rgba(30,64,175,0.24),inset_0_1px_0_rgba(255,255,255,0.95),inset_0_-1px_0_rgba(59,130,246,0.16)] backdrop-blur-xl backdrop-saturate-150 hover:-translate-y-1 hover:scale-105 hover:border-white hover:shadow-[0_16px_38px_rgba(30,64,175,0.3),inset_0_1px_0_white] active:translate-y-0 active:scale-95 md:bottom-6 md:right-6 ${open ? 'pointer-events-none' : ''}`}
         >
@@ -142,25 +186,25 @@ export default function WasteDataChatLauncher() {
             type="button"
             aria-label="Tutup Tanya INSAN-J"
             onClick={hideChat}
-            style={{ opacity: open ? 1 : 0, transition: 'opacity 450ms ease-out' }}
-            className="absolute inset-0 bg-slate-950/45 backdrop-blur-[2px]"
+            style={{ opacity: open ? 1 : 0, transition: `opacity ${ANIMATION_MS}ms ease-in-out`, backdropFilter: animating ? 'none' : 'blur(2px)' }}
+            className="absolute inset-0 bg-slate-950/45"
           />
           <section
             ref={panelRef}
             aria-busy={chatBusy}
             style={{
               transformOrigin: panelOrigin,
-              transform: open ? 'scale(1, 1)' : 'scale(0.16, 0.05)',
+              transform: open ? 'scale(1, 1)' : 'scale(0.92, 0.68)',
               opacity: open ? 1 : 0,
               clipPath: open ? 'polygon(0 0, 100% 0, 100% 100%, 0 100%)' : collapsedClip,
               borderRadius: open ? '1.75rem' : '999px',
               transition: [
-                'transform 720ms cubic-bezier(0.22, 0.8, 0.2, 1)',
-                'clip-path 720ms cubic-bezier(0.4, 0, 0.2, 1)',
-                'border-radius 600ms ease-in-out',
-                'opacity 520ms ease-in-out',
+                `transform ${ANIMATION_MS}ms cubic-bezier(0.22, 0.8, 0.2, 1)`,
+                `clip-path ${ANIMATION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`,
+                `border-radius ${ANIMATION_MS}ms ease-in-out`,
+                `opacity ${ANIMATION_MS}ms ease-in-out`,
               ].join(', '),
-              willChange: 'transform, opacity, clip-path',
+              willChange: animating ? 'transform, opacity, clip-path' : 'auto',
             }}
             className="absolute inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] flex h-[calc(100dvh-1rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:h-[min(85dvh,46rem)] flex-col overflow-hidden rounded-[1.75rem] border border-white/80 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.35)] sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[min(36rem,calc(100vw-3rem))]"
           >
