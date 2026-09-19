@@ -14,6 +14,7 @@ export default function WasteDataChatLauncher() {
   const duration = reducedMotion ? 0 : ANIMATION_MS;
   const [panelOrigin, setPanelOrigin] = useState('100% 100%');
   const [collapsedClip, setCollapsedClip] = useState('polygon(98% 98%, 100% 98%, 100% 100%, 98% 100%)');
+  const [anchorViewport, setAnchorViewport] = useState({ x: 0, y: 0 });
   const closeTimerRef = useRef(null);
   const animationTimerRef = useRef(null);
   const firstFrameRef = useRef(null);
@@ -42,6 +43,7 @@ export default function WasteDataChatLauncher() {
     const panel = panelRef.current;
     const originX = launcher.offsetLeft + launcher.offsetWidth / 2 - panel.offsetLeft;
     const originY = launcher.offsetTop + launcher.offsetHeight / 2 - panel.offsetTop;
+    setAnchorViewport({ x: launcher.offsetLeft + launcher.offsetWidth / 2, y: launcher.offsetTop + launcher.offsetHeight / 2 });
     setPanelOrigin(`${originX}px ${originY}px`);
     setCollapsedClip(`polygon(${originX - 5}px ${originY - 3}px, ${originX + 5}px ${originY - 3}px, ${originX + 3}px ${originY + 3}px, ${originX - 3}px ${originY + 3}px)`);
   }, []);
@@ -221,22 +223,44 @@ export default function WasteDataChatLauncher() {
             style={{ opacity: open ? 1 : 0, transition: `opacity ${duration}ms ease-in-out` }}
             className="absolute inset-0 bg-slate-950/45"
           />
+          {!reducedMotion && (
+            <span
+              aria-hidden="true"
+              style={{
+                left: `${anchorViewport.x}px`,
+                top: `${anchorViewport.y}px`,
+                opacity: animating ? (open ? 0.42 : 0.28) : 0,
+                transform: open
+                  ? 'translate(-50%, -50%) translateY(-1.5rem) scale(6, 2.4) rotate(-8deg)'
+                  : 'translate(-50%, -50%) scale(1.1, 0.7) rotate(8deg)',
+                transition: `transform ${duration}ms cubic-bezier(0.16, 1, 0.3, 1), opacity ${Math.max(240, duration)}ms ease-in-out`,
+                willChange: animating ? 'transform, opacity' : 'auto',
+              }}
+              className="pointer-events-none absolute h-16 w-16 rounded-full bg-[radial-gradient(circle,rgba(125,211,252,0.9)_0%,rgba(59,130,246,0.38)_42%,transparent_72%)] blur-md"
+            />
+          )}
           <section
             ref={panelRef}
             aria-busy={chatBusy}
             style={{
               transformOrigin: panelOrigin,
-              transform: open ? 'scale(1, 1)' : 'scale(0.92, 0.68)',
+              transform: open
+                ? 'scale(1, 1) rotate(0deg) skewX(0deg)'
+                : 'scale(0.72, 0.34) rotate(7deg) skewX(-7deg)',
               opacity: open ? 1 : 0,
               clipPath: open ? 'polygon(0 0, 100% 0, 100% 100%, 0 100%)' : collapsedClip,
-              borderRadius: open ? '1.75rem' : '2.5rem',
+              borderRadius: open ? '1.75rem' : '4rem',
+              boxShadow: animating
+                ? '0 18px 65px rgba(37,99,235,0.34), 0 0 32px rgba(56,189,248,0.22)'
+                : undefined,
               transition: [
                 `transform ${duration}ms cubic-bezier(0.22, 0.8, 0.2, 1)`,
                 `clip-path ${duration}ms cubic-bezier(0.4, 0, 0.2, 1)`,
                 `border-radius ${duration}ms ease-in-out`,
                 `opacity ${duration}ms ease-in-out`,
+                `box-shadow ${duration}ms ease-in-out`,
               ].join(', '),
-              willChange: animating ? 'transform, opacity, clip-path' : 'auto',
+              willChange: animating ? 'transform, opacity, clip-path, box-shadow' : 'auto',
             }}
             className="absolute inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] flex h-[calc(100dvh-1rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:h-[min(85dvh,46rem)] flex-col overflow-hidden rounded-[1.75rem] border border-white/80 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.35)] sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[min(36rem,calc(100vw-3rem))]"
           >
