@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import WasteDataChat from './WasteDataChat';
 
-const ANIMATION_MS = 450;
+const ANIMATION_MS = 600;
 
 export default function WasteDataChatLauncher() {
   const [mounted, setMounted] = useState(false);
@@ -9,6 +9,7 @@ export default function WasteDataChatLauncher() {
   const [chatBusy, setChatBusy] = useState(false);
   const [panelOrigin, setPanelOrigin] = useState('100% 100%');
   const closeTimerRef = useRef(null);
+  const openTimerRef = useRef(null);
   const launcherButtonRef = useRef(null);
   const closeButtonRef = useRef(null);
   const panelRef = useRef(null);
@@ -36,6 +37,7 @@ export default function WasteDataChatLauncher() {
 
   const showChat = useCallback(() => {
     window.clearTimeout(closeTimerRef.current);
+    window.clearTimeout(openTimerRef.current);
     closeAnimationDoneRef.current = false;
     mountedRef.current = true;
     setMounted(true);
@@ -43,16 +45,15 @@ export default function WasteDataChatLauncher() {
       window.history.pushState({ ...window.history.state, wasteChatOpen: true }, '');
       historyEntryRef.current = true;
     }
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        openRef.current = true;
-        setOpen(true);
-      });
-    });
+    openTimerRef.current = window.setTimeout(() => {
+      openRef.current = true;
+      setOpen(true);
+    }, 50);
   }, []);
 
   const startClosing = useCallback(() => {
-    if (!mountedRef.current || !openRef.current) return;
+    if (!mountedRef.current) return;
+    window.clearTimeout(openTimerRef.current);
     openRef.current = false;
     setOpen(false);
     window.clearTimeout(closeTimerRef.current);
@@ -105,7 +106,10 @@ export default function WasteDataChatLauncher() {
     };
   }, [hideChat, open, startClosing]);
 
-  useEffect(() => () => window.clearTimeout(closeTimerRef.current), []);
+  useEffect(() => () => {
+    window.clearTimeout(openTimerRef.current);
+    window.clearTimeout(closeTimerRef.current);
+  }, []);
 
   return (
     <>
@@ -116,7 +120,12 @@ export default function WasteDataChatLauncher() {
           aria-label="Buka Tanya INSAN-J"
           aria-hidden={open}
           tabIndex={open ? -1 : 0}
-          className={`group fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-4 z-30 isolate flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-white/90 bg-linear-to-br from-white/80 via-blue-100/55 to-cyan-200/40 text-blue-700 shadow-[0_12px_32px_rgba(30,64,175,0.24),inset_0_1px_0_rgba(255,255,255,0.95),inset_0_-1px_0_rgba(59,130,246,0.16)] backdrop-blur-xl backdrop-saturate-150 transition-all duration-[350ms] ease-out motion-reduce:transition-none hover:-translate-y-1 hover:scale-105 hover:border-white hover:shadow-[0_16px_38px_rgba(30,64,175,0.3),inset_0_1px_0_white] active:translate-y-0 active:scale-95 md:bottom-6 md:right-6 ${open ? 'pointer-events-none translate-y-2 scale-90 opacity-0' : 'translate-y-0 scale-100 opacity-100'}`}
+          style={{
+            opacity: open ? 0 : 1,
+            transform: open ? 'translateY(0.5rem) scale(0.85)' : 'translateY(0) scale(1)',
+            transition: 'transform 400ms cubic-bezier(0.16, 1, 0.3, 1), opacity 300ms ease-out',
+          }}
+          className={`group fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-4 z-30 isolate flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-white/90 bg-linear-to-br from-white/80 via-blue-100/55 to-cyan-200/40 text-blue-700 shadow-[0_12px_32px_rgba(30,64,175,0.24),inset_0_1px_0_rgba(255,255,255,0.95),inset_0_-1px_0_rgba(59,130,246,0.16)] backdrop-blur-xl backdrop-saturate-150 hover:-translate-y-1 hover:scale-105 hover:border-white hover:shadow-[0_16px_38px_rgba(30,64,175,0.3),inset_0_1px_0_white] active:translate-y-0 active:scale-95 md:bottom-6 md:right-6 ${open ? 'pointer-events-none' : ''}`}
         >
           <span className="absolute -left-2 -top-3 h-9 w-9 rounded-full bg-white/90 blur-md" />
           <span className="absolute bottom-1 right-1 h-4 w-4 rounded-full bg-cyan-400/35 blur-sm" />
@@ -131,9 +140,21 @@ export default function WasteDataChatLauncher() {
             type="button"
             aria-label="Tutup Tanya INSAN-J"
             onClick={hideChat}
-            className={`absolute inset-0 bg-slate-950/45 backdrop-blur-[2px] transition-opacity duration-[400ms] ease-out motion-reduce:transition-none ${open ? 'opacity-100' : 'opacity-0'}`}
+            style={{ opacity: open ? 1 : 0, transition: 'opacity 450ms ease-out' }}
+            className="absolute inset-0 bg-slate-950/45 backdrop-blur-[2px]"
           />
-          <section ref={panelRef} aria-busy={chatBusy} style={{ transformOrigin: panelOrigin }} className={`absolute inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] flex h-[calc(100dvh-1rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:h-[min(85dvh,46rem)] flex-col overflow-hidden rounded-[1.75rem] border border-white/80 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.35)] transition-[transform,opacity] duration-[450ms] ease-[cubic-bezier(0.16,1,0.3,1)] sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[min(36rem,calc(100vw-3rem))] motion-reduce:transition-none ${open ? 'scale-100 opacity-100' : 'scale-[0.08] opacity-0'}`}>
+          <section
+            ref={panelRef}
+            aria-busy={chatBusy}
+            style={{
+              transformOrigin: panelOrigin,
+              transform: open ? 'scale(1)' : 'scale(0.06)',
+              opacity: open ? 1 : 0,
+              transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1), opacity 350ms ease-out',
+              willChange: 'transform, opacity',
+            }}
+            className="absolute inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] flex h-[calc(100dvh-1rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:h-[min(85dvh,46rem)] flex-col overflow-hidden rounded-[1.75rem] border border-white/80 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.35)] sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[min(36rem,calc(100vw-3rem))]"
+          >
             <div className="mb-3 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div className="flex min-w-0 items-center gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-blue-500 to-blue-700 text-white shadow-md"><i className="fas fa-comments" /></span>
