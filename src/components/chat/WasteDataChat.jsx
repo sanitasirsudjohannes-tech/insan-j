@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { answerWasteQuestion } from '../../lib/wasteQuestionService';
 
@@ -33,10 +33,11 @@ function compactMessages(messages) {
   });
 }
 
-function AccountWasteDataChat({ className = '', hideHeader = false, onBusyChange = null }) {
+function AccountWasteDataChat({ className = '', hideHeader = false, onBusyChange = null, onNavigateRequest = null }) {
   const navigate = useNavigate();
   const storageKeyRef = useRef(getStorageKey());
   const [messages, setMessages] = useState(() => loadMessages(storageKeyRef.current));
+  const messagesRef = useRef(messages);
   const favoriteKey = storageKeyRef.current ? `${storageKeyRef.current}:favorites` : null;
   const [favorites, setFavorites] = useState(() => {
     if (!favoriteKey) return [];
@@ -57,14 +58,23 @@ function AccountWasteDataChat({ className = '', hideHeader = false, onBusyChange
   const busyRef = useRef(false);
   const editQuestion = text => { setQuestion(text || ''); inputRef.current?.focus(); };
   const endRef = useRef(null);
+  const persistMessages = useCallback(nextMessages => {
+    messagesRef.current = nextMessages;
+    try { if (storageKeyRef.current) sessionStorage.setItem(storageKeyRef.current, JSON.stringify(compactMessages(nextMessages))); }
+    catch (error) { console.warn('Riwayat chat lokal tidak dapat disimpan.', { reason: error?.name }); }
+  }, []);
+  const appendMessage = useCallback(message => {
+    const nextMessages = [...messagesRef.current, message];
+    persistMessages(nextMessages);
+    setMessages(nextMessages);
+  }, [persistMessages]);
   const showSuggestions = messages.length === 1
     && messages[0]?.role === initialMessage.role
     && messages[0]?.text === initialMessage.text;
   useEffect(() => {
-    try { if (storageKeyRef.current) sessionStorage.setItem(storageKeyRef.current, JSON.stringify(compactMessages(messages))); }
-    catch (error) { console.warn('Riwayat chat lokal tidak dapat disimpan.', { reason: error?.name }); }
+    persistMessages(messages);
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, persistMessages]);
 
   const ask = async value => {
     const text = String(value || question).trim();
@@ -72,14 +82,14 @@ function AccountWasteDataChat({ className = '', hideHeader = false, onBusyChange
     busyRef.current = true;
     onBusyChange?.(true);
     setQuestion('');
-    setMessages(current => [...current, { role: 'user', text }]);
+    const context = [...messagesRef.current].reverse().find(message => message.role === 'assistant' && message.context)?.context || null;
+    appendMessage({ role: 'user', text });
     setLoading(true);
     try {
-      const context = [...messages].reverse().find(message => message.role === 'assistant' && message.context)?.context || null;
       const answer = await answerWasteQuestion(text, { context });
-      setMessages(current => [...current, { role: 'assistant', question: text, favoriteQuestion: answer.favoriteQuestion, text: answer.text, period: answer.period, context: answer.context, cards: answer.cards, visualization: answer.visualization, warnings: answer.warnings, followUps: answer.followUps, source: answer.source, sourceLink: answer.sourceLink, sourceLinks: answer.sourceLinks, understanding: answer.understanding, dataStatus: answer.dataStatus, reportPayload: answer.reportPayload, actions: answer.actions, clarification: answer.clarification }]);
+      appendMessage({ role: 'assistant', question: text, favoriteQuestion: answer.favoriteQuestion, text: answer.text, period: answer.period, context: answer.context, cards: answer.cards, visualization: answer.visualization, warnings: answer.warnings, followUps: answer.followUps, source: answer.source, sourceLink: answer.sourceLink, sourceLinks: answer.sourceLinks, understanding: answer.understanding, dataStatus: answer.dataStatus, reportPayload: answer.reportPayload, actions: answer.actions, clarification: answer.clarification });
     } catch {
-      setMessages(current => [...current, { role: 'assistant', text: 'Data belum dapat diambil. Periksa koneksi dan status sinkronisasi, lalu coba kembali.', error: true }]);
+      appendMessage({ role: 'assistant', text: 'Data belum dapat diambil. Periksa koneksi dan status sinkronisasi, lalu coba kembali.', error: true });
     } finally { busyRef.current = false; setLoading(false); onBusyChange?.(false); }
   };
 
@@ -90,17 +100,18 @@ function AccountWasteDataChat({ className = '', hideHeader = false, onBusyChange
       form: { reportType: 'medical_waste', period: payload.period, facts: payload.facts, analytics: payload.analytics, constraints: '', actions: '', additionalNotes: `Ringkasan dari Tanya INSAN-J:\n${message.text}` },
       draft: '', chartData: payload.chartData,
     }));
-    navigate('/asisten-laporan');
+    if (onNavigateRequest) onNavigateRequest('/asisten-laporan');
+    else navigate('/asisten-laporan');
   };
 
   return (
     <section className={`flex min-h-0 flex-1 flex-col bg-white ${className}`}>
       <div className={`flex items-start justify-between gap-3 ${hideHeader ? 'mb-2 justify-end' : 'mb-4'}`}>
         {!hideHeader && <div><h2 className="font-black text-slate-800"><i className="fas fa-comments mr-2 text-blue-600" />Tanya INSAN-J</h2><p className="mt-1 text-xs text-slate-500">Jawaban dihitung dari data yang tersinkron. Percakapan tidak disimpan ke database.</p></div>}
-        <button type="button" disabled={loading} onClick={() => { setMessages([initialMessage]); setQuestion(''); setCategory(null); }} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">Percakapan baru</button>
+        <button type="button" disabled={loading} onClick={() => { persistMessages([initialMessage]); setMessages([initialMessage]); setQuestion(''); setCategory(null); }} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">Percakapan baru</button>
       </div>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-2xl bg-slate-50 p-3" role="log" aria-label="Percakapan Tanya INSAN-J" aria-live="polite" aria-busy={loading}>
-        {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`min-w-0 max-w-full rounded-2xl px-4 py-3 text-sm leading-relaxed ${message.role === 'user' ? 'whitespace-pre-line bg-blue-600 text-white' : message.error ? 'border border-red-200 bg-red-50 text-red-700' : 'border border-slate-200 bg-white text-slate-700'}`}>{message.role === 'assistant' ? <WasteChatAnswer message={message} onFavorite={toggleFavorite} isFavorite={favorites.includes(message.favoriteQuestion)} onAsk={ask} busy={loading} onEdit={editQuestion} onReport={sendToReport} onNavigate={to => navigate(to)} /> : message.text}</div></div>)}
+        {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`min-w-0 max-w-full rounded-2xl px-4 py-3 text-sm leading-relaxed ${message.role === 'user' ? 'whitespace-pre-line bg-blue-600 text-white' : message.error ? 'border border-red-200 bg-red-50 text-red-700' : 'border border-slate-200 bg-white text-slate-700'}`}>{message.role === 'assistant' ? <WasteChatAnswer message={message} onFavorite={toggleFavorite} isFavorite={favorites.includes(message.favoriteQuestion)} onAsk={ask} busy={loading} onEdit={editQuestion} onReport={sendToReport} onNavigate={to => onNavigateRequest ? onNavigateRequest(to) : navigate(to)} /> : message.text}</div></div>)}
         {loading && <div className="flex justify-start"><div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500"><i className="fas fa-spinner fa-spin mr-2" />Menghitung data…</div></div>}
         <div ref={endRef} />
       </div>
