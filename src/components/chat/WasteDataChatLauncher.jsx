@@ -8,6 +8,8 @@ export default function WasteDataChatLauncher() {
   const [open, setOpen] = useState(false);
   const [chatBusy, setChatBusy] = useState(false);
   const [animating, setAnimating] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const duration = reducedMotion ? 0 : ANIMATION_MS;
   const [panelOrigin, setPanelOrigin] = useState('100% 100%');
   const [collapsedClip, setCollapsedClip] = useState('polygon(98% 98%, 100% 98%, 100% 100%, 98% 100%)');
   const closeTimerRef = useRef(null);
@@ -18,29 +20,23 @@ export default function WasteDataChatLauncher() {
   const launcherButtonRef = useRef(null);
   const closeButtonRef = useRef(null);
   const panelRef = useRef(null);
-  const busyRef = useRef(false);
   const openRef = useRef(false);
   const mountedRef = useRef(false);
   const historyEntryRef = useRef(false);
-  const closeAnimationDoneRef = useRef(false);
+  const historyBackPendingRef = useRef(false);
 
   const finishClose = useCallback(() => {
-    if (busyRef.current) {
-      closeAnimationDoneRef.current = true;
-      return;
-    }
-    mountedRef.current = false;
     setAnimating(false);
-    setMounted(false);
-    window.requestAnimationFrame(() => launcherButtonRef.current?.focus());
+    // Keep the chat alive so an in-flight answer can render and persist.
+    if (!openRef.current) launcherButtonRef.current?.focus({ preventScroll: true });
   }, []);
 
   const calculateAnchor = useCallback(() => {
     if (!launcherButtonRef.current || !panelRef.current) return;
-    const launcherRect = launcherButtonRef.current.getBoundingClientRect();
+    const launcher = launcherButtonRef.current;
     const panel = panelRef.current;
-    const originX = launcherRect.left + launcherRect.width / 2 - panel.offsetLeft;
-    const originY = launcherRect.top + launcherRect.height / 2 - panel.offsetTop;
+    const originX = launcher.offsetLeft + launcher.offsetWidth / 2 - panel.offsetLeft;
+    const originY = launcher.offsetTop + launcher.offsetHeight / 2 - panel.offsetTop;
     setPanelOrigin(`${originX}px ${originY}px`);
     setCollapsedClip(`polygon(${originX - 5}px ${originY - 3}px, ${originX + 5}px ${originY - 3}px, ${originX + 3}px ${originY + 3}px, ${originX - 3}px ${originY + 3}px)`);
   }, []);
@@ -55,21 +51,19 @@ export default function WasteDataChatLauncher() {
         openRef.current = true;
         setOpen(true);
         window.clearTimeout(animationTimerRef.current);
-        animationTimerRef.current = window.setTimeout(() => setAnimating(false), ANIMATION_MS);
+        animationTimerRef.current = window.setTimeout(() => setAnimating(false), duration);
       });
     });
-  }, [calculateAnchor]);
+  }, [calculateAnchor, duration]);
 
   const handleBusyChange = useCallback(value => {
-    busyRef.current = value;
     setChatBusy(value);
-    if (!value && !openRef.current && closeAnimationDoneRef.current) finishClose();
-  }, [finishClose]);
+  }, []);
 
   const showChat = useCallback(() => {
+    if (historyBackPendingRef.current) return;
     window.clearTimeout(closeTimerRef.current);
     window.clearTimeout(animationTimerRef.current);
-    closeAnimationDoneRef.current = false;
     if (!historyEntryRef.current) {
       window.history.pushState({ ...window.history.state, wasteChatOpen: true }, '');
       historyEntryRef.current = true;
@@ -94,14 +88,15 @@ export default function WasteDataChatLauncher() {
     setOpen(false);
     window.clearTimeout(closeTimerRef.current);
     window.clearTimeout(animationTimerRef.current);
-    animationTimerRef.current = window.setTimeout(() => setAnimating(false), ANIMATION_MS);
-    closeTimerRef.current = window.setTimeout(finishClose, ANIMATION_MS);
-  }, [calculateAnchor, finishClose]);
+    animationTimerRef.current = window.setTimeout(() => setAnimating(false), duration);
+    closeTimerRef.current = window.setTimeout(finishClose, duration);
+  }, [calculateAnchor, duration, finishClose]);
 
   const hideChat = useCallback(() => {
     startClosing();
     if (historyEntryRef.current) {
       historyEntryRef.current = false;
+      historyBackPendingRef.current = true;
       window.history.back();
     }
   }, [startClosing]);
@@ -116,9 +111,35 @@ export default function WasteDataChatLauncher() {
   }, [calculateAnchor, mounted, scheduleOpening]);
 
   useEffect(() => {
-    if (!open) return undefined;
     const viewport = window.visualViewport;
     const handleViewportChange = () => calculateAnchor();
+    const handlePopState = () => {
+      historyBackPendingRef.current = false;
+      if (!historyEntryRef.current) return;
+      historyEntryRef.current = false;
+      startClosing();
+    };
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('resize', handleViewportChange);
+    viewport?.addEventListener('resize', handleViewportChange);
+    viewport?.addEventListener('scroll', handleViewportChange);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('resize', handleViewportChange);
+      viewport?.removeEventListener('resize', handleViewportChange);
+      viewport?.removeEventListener('scroll', handleViewportChange);
+    };
+  }, [calculateAnchor, startClosing]);
+
+  useEffect(() => {
+    const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const update = () => setReducedMotion(preference.matches);
+    preference.addEventListener('change', update);
+    return () => preference.removeEventListener('change', update);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return undefined;
     const handleKeyDown = event => {
       if (event.key === 'Escape') hideChat();
       if (event.key === 'Tab') {
@@ -132,23 +153,12 @@ export default function WasteDataChatLauncher() {
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     document.addEventListener('keydown', handleKeyDown);
-    const handlePopState = () => {
-      if (!mountedRef.current) return;
-      historyEntryRef.current = false;
-      startClosing();
-    };
-    window.addEventListener('popstate', handlePopState);
-    window.addEventListener('resize', handleViewportChange);
-    viewport?.addEventListener('resize', handleViewportChange);
     closeButtonRef.current?.focus();
     return () => {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('popstate', handlePopState);
-      window.removeEventListener('resize', handleViewportChange);
-      viewport?.removeEventListener('resize', handleViewportChange);
     };
-  }, [calculateAnchor, hideChat, open, startClosing]);
+  }, [hideChat, open]);
 
   useEffect(() => () => {
     window.cancelAnimationFrame(firstFrameRef.current);
@@ -169,7 +179,7 @@ export default function WasteDataChatLauncher() {
           style={{
             opacity: open ? 0 : 1,
             transform: open ? 'translateY(0.5rem) scale(0.85)' : 'translateY(0) scale(1)',
-            transition: `transform ${ANIMATION_MS}ms cubic-bezier(0.16, 1, 0.3, 1), opacity ${ANIMATION_MS}ms ease-in-out`,
+            transition: `transform ${duration}ms cubic-bezier(0.16, 1, 0.3, 1), opacity ${duration}ms ease-in-out`,
           }}
           className={`group fixed bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-4 z-30 isolate flex h-14 w-14 items-center justify-center overflow-hidden rounded-full border border-white/90 bg-linear-to-br from-white/80 via-blue-100/55 to-cyan-200/40 text-blue-700 shadow-[0_12px_32px_rgba(30,64,175,0.24),inset_0_1px_0_rgba(255,255,255,0.95),inset_0_-1px_0_rgba(59,130,246,0.16)] backdrop-blur-xl backdrop-saturate-150 hover:-translate-y-1 hover:scale-105 hover:border-white hover:shadow-[0_16px_38px_rgba(30,64,175,0.3),inset_0_1px_0_white] active:translate-y-0 active:scale-95 md:bottom-6 md:right-6 ${open ? 'pointer-events-none' : ''}`}
         >
@@ -186,7 +196,7 @@ export default function WasteDataChatLauncher() {
             type="button"
             aria-label="Tutup Tanya INSAN-J"
             onClick={hideChat}
-            style={{ opacity: open ? 1 : 0, transition: `opacity ${ANIMATION_MS}ms ease-in-out`, backdropFilter: animating ? 'none' : 'blur(2px)' }}
+            style={{ opacity: open ? 1 : 0, transition: `opacity ${duration}ms ease-in-out` }}
             className="absolute inset-0 bg-slate-950/45"
           />
           <section
@@ -199,10 +209,10 @@ export default function WasteDataChatLauncher() {
               clipPath: open ? 'polygon(0 0, 100% 0, 100% 100%, 0 100%)' : collapsedClip,
               borderRadius: open ? '1.75rem' : '999px',
               transition: [
-                `transform ${ANIMATION_MS}ms cubic-bezier(0.22, 0.8, 0.2, 1)`,
-                `clip-path ${ANIMATION_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`,
-                `border-radius ${ANIMATION_MS}ms ease-in-out`,
-                `opacity ${ANIMATION_MS}ms ease-in-out`,
+                `transform ${duration}ms cubic-bezier(0.22, 0.8, 0.2, 1)`,
+                `clip-path ${duration}ms cubic-bezier(0.4, 0, 0.2, 1)`,
+                `border-radius ${duration}ms ease-in-out`,
+                `opacity ${duration}ms ease-in-out`,
               ].join(', '),
               willChange: animating ? 'transform, opacity, clip-path' : 'auto',
             }}
