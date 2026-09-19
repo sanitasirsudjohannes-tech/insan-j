@@ -55,5 +55,6 @@ export function detectWasteIntent(text, { type, types, roomName }) {
   if (/diangkut|terangkut|pengangkutan|angkut|dibawa|dikirim|pengiriman|keluar/i.test(text)) return 'transported';
   if (/\blimbah\b.*(?:tanggal|tgl|hari)|(?:tanggal|tgl|hari).*\blimbah\b/i.test(text)) return 'generated';
   if (/timbulan|dihasilkan|menghasilkan|produksi|terkumpul|hasil\s+timbang|berat\s+limbah|total limbah|limbah masuk/i.test(text)) return 'generated';
+  if (/berapa\s+(?:jumlah\s+)?limbah\b/i.test(text)) return 'generated';
   return 'unknown';
 }

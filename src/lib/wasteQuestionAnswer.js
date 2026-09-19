@@ -4,6 +4,7 @@ import { buildAnomalyAnswer, buildCompletenessAnswer, buildDuplicateAnswer, buil
 import { buildPeakMonthAnswer, buildPeakWeekAnswer } from '../features/waste-chat/answers/periodRankingAnswers.js';
 import { buildGeneratedDifferenceAnswer } from '../features/waste-chat/answers/generatedDifferenceAnswer.js';
 import { buildOperationalAnswer } from '../features/waste-chat/answers/operationalAnswers.js';
+import { calculationExplanation } from '../features/waste-chat/answers/calculationExplanation.js';
 
 const percentDifference = (current, previous) => Number(previous) ? ((Number(current) - Number(previous)) / Number(previous)) * 100 : null;
 const comparisonLine = (label, previous, current) => {
@@ -149,6 +150,7 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null, periodRe
       : `Perbandingan ${parsed.period.label} dengan periode sebelumnya\n\n• Sisa limbah: ${analytics.changes.remainingKg >= 0 ? 'bertambah' : 'berkurang'} ${format(Math.abs(analytics.changes.remainingKg))} kg\n• Timbulan: ${changeText(analytics.changes.generatedPercent)}\n• Pengangkutan: ${changeText(analytics.changes.transportedPercent)}${suffix}`),
     type_total: `${parsed.type?.label || 'Jenis limbah tersebut'} ${during} berjumlah ${format(facts[parsed.type?.key])} kg.${suffix}`,
     data_completeness: buildCompletenessAnswer(parsed, recap.diagnostics),
+    daily_review: parsed.intent === 'daily_review' ? `${buildRoomInputCountAnswer(parsed, recap.diagnostics)}\n\n${buildAnomalyAnswer(parsed, recap)}` : null,
     missing_rooms: buildMissingRoomsAnswer(parsed, recap.diagnostics),
     room_input_count: buildRoomInputCountAnswer(parsed, recap.diagnostics),
     room_input_comparison: buildRoomInputComparisonAnswer(parsed, recap, comparisonRecap),
@@ -166,5 +168,5 @@ export function buildWasteAnswer(parsed, recap, comparisonRecap = null, periodRe
   if (!Number(facts.totalTransportedKg) && ['transported', 'transport_dates', 'transport_count', 'average_transport'].includes(parsed.intent)) {
     answers[parsed.intent] = `Belum ada pengangkutan yang tercatat selama ${parsed.period.label}.${suffix}`;
   }
-  return { text: buildOperationalAnswer(parsed, recap) || answers[parsed.intent], parsed, period: parsed.period, context: { period: parsed.period, comparisonPeriod: parsed.comparisonPeriod, intent: parsed.intent, roomName: parsed.roomName, type: parsed.type }, facts, ...buildAnswerPresentation(parsed, recap, comparisonRecap, periodRecaps) };
+  return { text: buildOperationalAnswer(parsed, recap) || answers[parsed.intent], parsed, period: parsed.period, context: { period: parsed.period, periodHistory: parsed.periodHistory, comparisonPeriod: parsed.comparisonPeriod, intent: parsed.intent, roomName: parsed.roomName, type: parsed.type, calculation: calculationExplanation(parsed, recap) }, facts, ...buildAnswerPresentation(parsed, recap, comparisonRecap, periodRecaps) };
 }

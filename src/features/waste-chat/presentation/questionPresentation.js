@@ -12,6 +12,7 @@ const INTENT_LABELS = {
   room_input_count: 'Jumlah ruangan yang input', room_input_comparison: 'Perbandingan input ruangan',
   duplicate_data: 'Kemungkinan data ganda', data_anomalies: 'Pemeriksaan data',
   generated_difference: 'Rincian selisih timbulan',
+  daily_review: 'Ringkasan pemeriksaan harian',
   day_extremes: 'Timbulan tertinggi dan terendah', transport_vs_generated: 'Pengangkutan dibanding timbulan', transport_vs_available: 'Pengangkutan dibanding limbah tersedia',
   input_officers: 'Petugas input ruangan', room_input_history: 'Riwayat jumlah ruangan',
   fewest_room_inputs: 'Input ruangan paling sedikit', room_record_days: 'Hari tercatat ruangan',
@@ -75,6 +76,8 @@ function extractTwoRoomDates(text) {
 
 export function findQuestionClarification(question, parsed) {
   const text = String(question || '');
+  if (parsed?.conversationClarification) return { text: parsed.conversationClarification };
+  if (parsed?.intent === 'daily_review' && parsed.period?.scope !== 'day') return { text: 'Ringkasan harian memerlukan satu tanggal. Sebutkan tanggal atau pilih hari ini.', actions: [{ label: 'Hari ini', question: 'Ringkasan pemeriksaan harian hari ini' }] };
   if (parsed?.needsDifferenceSubject) {
     return { text: 'Selisih yang dimaksud timbulan, pengangkutan, atau sisa limbah? Sebutkan objek dan dua periode agar pemeriksaan sesuai.' };
   }

@@ -1,6 +1,7 @@
 import { ALLOWED_INTENTS, MONTH_PATTERN, MONTHS, QUESTION_SUGGESTIONS, WASTE_TYPES } from '../features/waste-chat/constants/wasteQuestionConstants.js';
 import { detectWasteIntent } from '../features/waste-chat/parsers/intentParser.js';
 import { cleanRoomCandidate, findRoomCandidates, resolveKnownRoom } from '../features/waste-chat/parsers/roomNameResolver.js';
+import { normalizeConversationQuestion, rememberPeriods } from '../features/waste-chat/parsers/conversationMemory.js';
 
 export { QUESTION_SUGGESTIONS, WASTE_TYPES };
 const iso = (year, month, day) => `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -238,7 +239,7 @@ export function normalizeAiWasteQuestion(question, interpretation) {
 }
 
 export function parseWasteQuestion(question, context = null, knownRooms = []) {
-  const text = String(question || '').trim();
+  const { text, correction, rejected } = normalizeConversationQuestion(question);
   const contextPeriod = context?.period || context;
   const invalidPeriod = validateExplicitPeriod(text);
   const explicitComparison = extractExplicitComparisonPeriods(text);
@@ -260,12 +261,15 @@ export function parseWasteQuestion(question, context = null, knownRooms = []) {
   const matchedRooms = findRoomCandidates(text, knownRooms);
   let roomName = resolveKnownRoom(text, knownRooms) || (referencesPreviousRoom ? context?.roomName : null) || explicitRoom;
   let intent = detectWasteIntent(text, { type, types, roomName });
-  const shortFollowUp = /^(?:kalau|bagaimana\s+(?:dengan|jika)|khusus)\b|^(?:rinci|rincian)\s+per\s+tanggal/i.test(text)
+  const shortFollowUp = correction || /^(?:kalau|bagaimana\s+(?:dengan|jika)|khusus)\b|^(?:rinci|rincian)\s+per\s+tanggal/i.test(text)
     || (/saja[?.!]*$/i.test(text) && Boolean(type || resolveKnownRoom(text, knownRooms)) && !/tanggal|berapa|mana/i.test(text));
   if (shortFollowUp && context?.intent) {
     roomName = resolveKnownRoom(text, knownRooms) || context.roomName || null;
     if (!type && context.type) { type = context.type; types = [type]; }
     if (intent !== 'daily_details') intent = roomName ? (type ? 'room_type_total' : 'room_total') : type ? 'type_total' : context.intent;
+  }
+  if (shortFollowUp && contextPeriod?.year && !/\b20\d{2}\b/.test(text) && new RegExp(`\\b(?:${MONTH_PATTERN})\\b`, 'i').test(text) && period.scope === 'month') {
+    period = makeMonthPeriod(contextPeriod.year, period.month, false);
   }
   if (/tampilkan\s+semua\s+ruang|urutkan\s+dari\s+yang\s+terbesar/i.test(text)) {
     if (!type && context?.type) { type = context.type; types = [type]; }
@@ -322,12 +326,37 @@ export function parseWasteQuestion(question, context = null, knownRooms = []) {
     else if (type) intent = 'type_dates';
     else if (/transport|angkut/i.test(context.intent)) intent = 'transport_dates';
   }
+  const compareRemembered = /^(?:bandingkan|banding|perbandingan)\s+(?:keduanya|dua\s+periode\s+(?:itu|tadi)|dua\s+bulan\s+tadi)[?.!]*$/i.test(text);
+  const remembered = rememberPeriods(context, context?.period, { roomName: context?.roomName, type: context?.type });
+  if (compareRemembered && remembered.length === 2) {
+    const ordered = [...remembered].sort((a, b) => a.start.localeCompare(b.start));
+    [comparisonPeriod, period] = ordered;
+    roomName = context.roomName || null;
+    type = context.type; types = type ? [type] : [];
+    intent = 'comparison';
+  }
+  if (correction && context?.intent === 'comparison' && context.comparisonPeriod) {
+    intent = 'comparison'; comparisonPeriod = context.comparisonPeriod;
+    if (hasExplicitPeriod && rejected) {
+      const rejectedPeriod = extractPeriod(`${rejected} ${context.comparisonPeriod.year}`);
+      if (rejectedPeriod.start === context.comparisonPeriod.start && rejectedPeriod.end === context.comparisonPeriod.end) {
+        comparisonPeriod = period; period = context.period;
+      }
+    }
+  }
+  if (/angka\s+ini\s+dari\s+mana|cara\s+(?:menghitung|hitung)|jelaskan\s+perhitungannya/i.test(text)) intent = 'calculation_help';
+  if (/ringkasan\s+pemeriksaan\s+harian|cek\s+harian|ringkasan\s+input\s+hari\s+ini/i.test(text)) {
+    intent = 'daily_review';
+    if (!hasExplicitPeriod && !context?.period) period = extractPeriod('hari ini');
+  }
   return {
     intent,
     period,
     comparisonPeriod,
     inheritedPeriod: inheritPeriod,
     needsDifferenceSubject,
+    conversationClarification: correction && !context?.period ? 'Belum ada pertanyaan yang dapat dikoreksi. Sebutkan data dan periode yang ingin diperiksa.' : compareRemembered && remembered.length < 2 ? 'Belum ada dua periode untuk dibandingkan. Sebutkan dua tanggal atau dua bulan.' : null,
+    periodHistory: rememberPeriods(context, period, { roomName, type, correction }),
     comparisonPeriods: explicitComparison?.comparisonPeriods || null,
     requestedComparisonCount: explicitComparison?.requestedComparisonCount || null,
     tooManyComparisonMonths: Boolean(explicitComparison?.tooManyComparisonMonths),

@@ -33,10 +33,23 @@ function compactMessages(messages) {
   });
 }
 
-export default function WasteDataChat({ className = '', hideHeader = false, onBusyChange = null }) {
+function AccountWasteDataChat({ className = '', hideHeader = false, onBusyChange = null }) {
   const navigate = useNavigate();
   const storageKeyRef = useRef(getStorageKey());
   const [messages, setMessages] = useState(() => loadMessages(storageKeyRef.current));
+  const favoriteKey = storageKeyRef.current ? `${storageKeyRef.current}:favorites` : null;
+  const [favorites, setFavorites] = useState(() => {
+    if (!favoriteKey) return [];
+    try { const saved = JSON.parse(localStorage.getItem(favoriteKey) || '[]'); return Array.isArray(saved) ? saved.filter(item => typeof item === 'string').slice(0, 8) : []; } catch { return []; }
+  });
+  const toggleFavorite = text => {
+    if (!favoriteKey || !text) return;
+    setFavorites(current => {
+      const next = current.includes(text) ? current.filter(item => item !== text) : [...current, text].slice(-8);
+      try { localStorage.setItem(favoriteKey, JSON.stringify(next)); } catch { /* Favorit tetap tersedia selama sesi ini. */ }
+      return next;
+    });
+  };
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   const [category, setCategory] = useState(null);
@@ -64,7 +77,7 @@ export default function WasteDataChat({ className = '', hideHeader = false, onBu
     try {
       const context = [...messages].reverse().find(message => message.role === 'assistant' && message.context)?.context || null;
       const answer = await answerWasteQuestion(text, { context });
-      setMessages(current => [...current, { role: 'assistant', question: text, text: answer.text, period: answer.period, context: answer.context, cards: answer.cards, visualization: answer.visualization, warnings: answer.warnings, followUps: answer.followUps, source: answer.source, sourceLink: answer.sourceLink, sourceLinks: answer.sourceLinks, understanding: answer.understanding, dataStatus: answer.dataStatus, reportPayload: answer.reportPayload, actions: answer.actions, clarification: answer.clarification }]);
+      setMessages(current => [...current, { role: 'assistant', question: text, favoriteQuestion: answer.favoriteQuestion, text: answer.text, period: answer.period, context: answer.context, cards: answer.cards, visualization: answer.visualization, warnings: answer.warnings, followUps: answer.followUps, source: answer.source, sourceLink: answer.sourceLink, sourceLinks: answer.sourceLinks, understanding: answer.understanding, dataStatus: answer.dataStatus, reportPayload: answer.reportPayload, actions: answer.actions, clarification: answer.clarification }]);
     } catch {
       setMessages(current => [...current, { role: 'assistant', text: 'Data belum dapat diambil. Periksa koneksi dan status sinkronisasi, lalu coba kembali.', error: true }]);
     } finally { busyRef.current = false; setLoading(false); onBusyChange?.(false); }
@@ -87,7 +100,7 @@ export default function WasteDataChat({ className = '', hideHeader = false, onBu
         <button type="button" disabled={loading} onClick={() => { setMessages([initialMessage]); setQuestion(''); setCategory(null); }} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">Percakapan baru</button>
       </div>
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-2xl bg-slate-50 p-3" role="log" aria-label="Percakapan Tanya INSAN-J" aria-live="polite" aria-busy={loading}>
-        {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`min-w-0 max-w-full rounded-2xl px-4 py-3 text-sm leading-relaxed ${message.role === 'user' ? 'whitespace-pre-line bg-blue-600 text-white' : message.error ? 'border border-red-200 bg-red-50 text-red-700' : 'border border-slate-200 bg-white text-slate-700'}`}>{message.role === 'assistant' ? <WasteChatAnswer message={message} onAsk={ask} busy={loading} onEdit={editQuestion} onReport={sendToReport} onNavigate={to => navigate(to)} /> : message.text}</div></div>)}
+        {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`min-w-0 max-w-full rounded-2xl px-4 py-3 text-sm leading-relaxed ${message.role === 'user' ? 'whitespace-pre-line bg-blue-600 text-white' : message.error ? 'border border-red-200 bg-red-50 text-red-700' : 'border border-slate-200 bg-white text-slate-700'}`}>{message.role === 'assistant' ? <WasteChatAnswer message={message} onFavorite={toggleFavorite} isFavorite={favorites.includes(message.favoriteQuestion)} onAsk={ask} busy={loading} onEdit={editQuestion} onReport={sendToReport} onNavigate={to => navigate(to)} /> : message.text}</div></div>)}
         {loading && <div className="flex justify-start"><div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500"><i className="fas fa-spinner fa-spin mr-2" />Menghitung data…</div></div>}
         <div ref={endRef} />
       </div>
@@ -96,7 +109,12 @@ export default function WasteDataChat({ className = '', hideHeader = false, onBu
         <div className="grid grid-cols-2 gap-2">{CATEGORIES.map(item => <button key={item.label} type="button" disabled={loading} aria-pressed={category === item.label} onClick={() => setCategory(category === item.label ? null : item.label)} className={`flex min-h-11 items-center disabled:cursor-wait disabled:opacity-50 gap-2 rounded-xl border px-3 py-2 text-left text-xs font-bold ${category === item.label ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600'}`}><i aria-hidden="true" className={`fas ${item.icon}`} />{item.label}</button>)}</div>
         {category && <div className="max-h-32 space-y-1 overflow-y-auto">{CATEGORIES.find(item => item.label === category)?.items.map(item => <button key={item} type="button" disabled={loading} onClick={() => ask(item)} className="block w-full rounded-xl bg-blue-50 px-3 py-2 text-left text-xs text-blue-700">{item}<span aria-hidden="true" className="ml-2">→</span></button>)}</div>}
       </div>}
+      {favorites.length > 0 && <details className="mt-2 text-xs text-slate-600"><summary className="cursor-pointer py-2 font-bold">Pertanyaan favorit ({favorites.length}/8)</summary><div className="max-h-32 overflow-y-auto">{favorites.map(text => <div key={text} className="flex gap-2"><button type="button" disabled={loading} onClick={() => ask(text)} className="flex-1 py-2 text-left text-blue-700">{text}</button><button type="button" onClick={() => toggleFavorite(text)} aria-label={`Hapus favorit ${text}`}>×</button></div>)}</div></details>}
       <form onSubmit={event => { event.preventDefault(); ask(); }} className="mt-3 flex gap-2"><input ref={inputRef} aria-label="Pertanyaan data limbah" maxLength={1000} value={question} onChange={event => setQuestion(event.target.value)} placeholder="Contoh: berapa ruangan yang input hari ini?" className="min-w-0 flex-1 rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" /><button type="submit" disabled={!question.trim() || loading} className="rounded-2xl bg-blue-600 px-4 text-white disabled:opacity-50" aria-label="Kirim pertanyaan"><i aria-hidden="true" className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-paper-plane'}`} /></button></form>
     </section>
   );
+}
+
+export default function WasteDataChat(props) {
+  return <AccountWasteDataChat key={getStorageKey() || "anonymous"} {...props} />;
 }

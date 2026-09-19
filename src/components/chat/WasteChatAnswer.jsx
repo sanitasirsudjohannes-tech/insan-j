@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 
-const TEXT_LIMIT = 12;
+const TEXT_LIMIT = 8;
 
 function Understanding({ value, onEdit }) {
   if (!value) return null;
@@ -24,7 +24,7 @@ function MiniBars({ data }) {
   return <div className="mt-3 rounded-2xl bg-slate-50 p-3"><p className="mb-2 text-[11px] font-black uppercase tracking-wide text-slate-500">{data.title}</p><div className="space-y-2">{items.slice(0, 8).map((item, index) => <div key={`${item.label}-${index}`} className="grid grid-cols-[minmax(72px,1fr)_2fr_auto] items-center gap-2 text-[11px]"><span className="truncate text-slate-600">{item.label}</span><span className="h-2 overflow-hidden rounded-full bg-slate-200"><span className="block h-full rounded-full bg-blue-500" style={{ width: `${(Math.max(Number(item.value), 0) / max) * 100}%` }} /></span><span className="font-bold text-slate-700">{new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(item.value || 0)}</span></div>)}</div></div>;
 }
 
-export default function WasteChatAnswer({ message, onAsk, onReport, onNavigate, onEdit, busy = false }) {
+export default function WasteChatAnswer({ message, onAsk, onReport, onNavigate, onEdit, onFavorite, isFavorite = false, busy = false }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const lines = useMemo(() => String(message.text || '').split('\n'), [message.text]);
@@ -42,6 +42,8 @@ export default function WasteChatAnswer({ message, onAsk, onReport, onNavigate, 
     {truncated && <button type="button" onClick={() => setExpanded(value => !value)} className="mt-2 text-xs font-bold text-blue-600">{expanded ? 'Ringkas kembali' : `Tampilkan semua (${lines.length} baris)`}</button>}
     {message.visualization?.items?.length > 0 && <MiniBars data={message.visualization} />}
     {message.warnings?.map(item => <p key={item} className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800"><i className="fas fa-triangle-exclamation mr-1.5" />{item}</p>)}
+    {message.context?.calculation && <details className="mt-3 text-xs text-slate-600"><summary className="cursor-pointer py-2 font-semibold">Cara menghitung</summary><p className="whitespace-pre-line">{message.context.calculation}</p></details>}
+    {message.favoriteQuestion && onFavorite && <button type="button" onClick={() => onFavorite(message.favoriteQuestion)} aria-pressed={isFavorite} className="mt-2 text-xs font-bold text-blue-600">{isFavorite ? '★ Hapus dari favorit' : '☆ Simpan pertanyaan'}</button>}
     <DataStatus value={message.dataStatus} />
     {message.source && <details className="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-500"><summary className="cursor-pointer py-2 font-semibold">Sumber dan periode data</summary><p className="pb-2 leading-relaxed">{message.source}</p></details>}
     {message.actions?.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{message.actions.map(action => <button key={action.label} type="button" disabled={busy} onClick={() => onAsk(action.question)} className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">{action.label}</button>)}</div>}

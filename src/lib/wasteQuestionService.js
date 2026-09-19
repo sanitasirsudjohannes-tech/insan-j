@@ -2,16 +2,23 @@ import { fetchMedicalWasteRecap } from './reportRecap.js';
 import { parseWasteQuestion } from './wasteQuestionParser.js';
 import { buildWasteAnswer } from './wasteQuestionAnswer.js';
 import { fetchDaftarRuangan, getCachedRuangan } from './api.js';
-import { findRoomCandidates, resolveKnownRoom } from '../features/waste-chat/parsers/roomNameResolver.js';
+import { findRoomCandidates, resolveKnownRoom, normalizeRoomName } from '../features/waste-chat/parsers/roomNameResolver.js';
 import { getOfflineQueue } from './offlineStorage.js';
 import { findQuestionClarification } from '../features/waste-chat/presentation/questionPresentation.js';
 import { OPERATIONAL_INTENTS } from '../features/waste-chat/parsers/operationalIntents.js';
 import { buildSourceLink } from '../features/waste-chat/presentation/questionPresentation.js';
 import { fetchSharedCachedResource } from './databaseAggregations';
+import { normalizeConversationQuestion } from '../features/waste-chat/parsers/conversationMemory.js';
 
 export async function answerWasteQuestion(question, { context = null, contextPeriod = null, fetchRecap = fetchMedicalWasteRecap, fetchRooms = fetchDaftarRuangan } = {}) {
   const conversationContext = context || (contextPeriod ? { period: contextPeriod } : null);
   const preliminary = parseWasteQuestion(question, conversationContext, []);
+  if (preliminary.conversationClarification) return { text: preliminary.conversationClarification, clarification: true };
+  if (preliminary.intent === 'calculation_help') return {
+    text: conversationContext?.calculation || 'Tanyakan jumlah atau sisa limbah terlebih dahulu, kemudian minta penjelasan perhitungannya.',
+    context: conversationContext,
+    clarification: !conversationContext?.calculation,
+  };
   if (preliminary.intent === 'source_records') {
     if (!conversationContext?.period) return { text: 'Tanyakan data terlebih dahulu agar catatan sumbernya dapat ditentukan.', clarification: true };
     return { text: 'Buka catatan sumber dari jawaban sebelumnya. Periksa filter periode pada halaman data.', sourceLink: buildSourceLink(conversationContext), context: conversationContext };
@@ -48,13 +55,19 @@ export async function answerWasteQuestion(question, { context = null, contextPer
 
   let roomNames = typeof localStorage === 'undefined' ? [] : getCachedRuangan();
   if (!roomNames.length) roomNames = await fetchRooms();
-  const roomCandidates = findRoomCandidates(question, roomNames);
-  const resolvedRoom = resolveKnownRoom(question, roomNames);
+  const roomQuestion = normalizeConversationQuestion(question).text;
+  const roomCandidates = findRoomCandidates(roomQuestion, roomNames);
+  const resolvedRoom = resolveKnownRoom(roomQuestion, roomNames);
+  if (resolvedRoom && !(` ${normalizeRoomName(roomQuestion)} `).includes(` ${normalizeRoomName(resolvedRoom)} `)) {
+    const prefix = normalizeConversationQuestion(question).correction ? 'Maksud saya ' : '';
+    return { text: `Apakah maksud Anda ruangan ${resolvedRoom}? Konfirmasikan agar data yang dipilih tepat.`, clarification: true,
+      actions: [{ label: resolvedRoom, question: `${prefix}${roomQuestion} ruangan ${resolvedRoom}` }] };
+  }
   if (!resolvedRoom && roomCandidates.length > 1) {
     return {
       text: 'Nama ruangan belum spesifik. Pilih ruangan yang dimaksud agar data yang dihitung tepat.',
       clarification: true,
-      actions: roomCandidates.slice(0, 6).map(name => ({ label: name, question: `${question} ruangan ${name}` })),
+      actions: roomCandidates.slice(0, 6).map(name => ({ label: name, question: `${roomQuestion} ruangan ${name}` })),
     };
   }
   const parsed = parseWasteQuestion(question, conversationContext, roomNames);
@@ -101,10 +114,10 @@ export async function answerWasteQuestion(question, { context = null, contextPer
   const transportIntents = new Set(['transported', 'last_transport', 'transport_gap', 'transport_count', 'average_transport', 'transport_dates', 'transport_coverage']);
   const recapOptions = {
     knownRooms: roomNames,
-    includeBalance: balanceIntents.has(parsed.intent) || ['negative_balance_dates', 'transport_balance', 'transport_vs_available'].includes(parsed.intent),
-    includeTransport: balanceIntents.has(parsed.intent) || transportIntents.has(parsed.intent) || ['negative_balance_dates', 'since_transport', 'transport_balance', 'future_records', 'daily_details', 'transport_vs_available', 'transport_vs_generated'].includes(parsed.intent),
+    includeBalance: balanceIntents.has(parsed.intent) || ['negative_balance_dates', 'transport_balance', 'transport_vs_available', 'daily_review'].includes(parsed.intent),
+    includeTransport: balanceIntents.has(parsed.intent) || transportIntents.has(parsed.intent) || ['negative_balance_dates', 'since_transport', 'transport_balance', 'future_records', 'daily_details', 'transport_vs_available', 'transport_vs_generated', 'daily_review'].includes(parsed.intent),
     includePrevious: parsed.intent === 'analysis' || (parsed.intent === 'comparison' && !parsed.comparisonPeriod && !parsed.comparisonPeriods),
-    includeDiagnostics: diagnosticIntents.has(parsed.intent) || OPERATIONAL_INTENTS.has(parsed.intent) || parsed.intent === 'never_type_rooms',
+    includeDiagnostics: diagnosticIntents.has(parsed.intent) || OPERATIONAL_INTENTS.has(parsed.intent) || ['never_type_rooms', 'daily_review'].includes(parsed.intent),
   };
   const isComparisonIntent = ['comparison', 'room_input_comparison', 'generated_difference'].includes(parsed.intent);
   const comparisonPeriods = parsed.intent === 'comparison' && parsed.comparisonPeriods?.length >= 2
