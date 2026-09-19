@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import WasteDataChat from './WasteDataChat';
 
 const ANIMATION_MS = 450;
@@ -7,6 +7,7 @@ export default function WasteDataChatLauncher() {
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [chatBusy, setChatBusy] = useState(false);
+  const [panelOrigin, setPanelOrigin] = useState('100% 100%');
   const closeTimerRef = useRef(null);
   const launcherButtonRef = useRef(null);
   const closeButtonRef = useRef(null);
@@ -66,6 +67,15 @@ export default function WasteDataChatLauncher() {
     }
   }, [startClosing]);
 
+  useLayoutEffect(() => {
+    if (!mounted || !launcherButtonRef.current || !panelRef.current) return;
+    const launcherRect = launcherButtonRef.current.getBoundingClientRect();
+    const panel = panelRef.current;
+    const originX = launcherRect.left + launcherRect.width / 2 - panel.offsetLeft;
+    const originY = launcherRect.top + launcherRect.height / 2 - panel.offsetTop;
+    setPanelOrigin(`${originX}px ${originY}px`);
+  }, [mounted]);
+
   useEffect(() => {
     if (!open) return undefined;
     const handleKeyDown = event => {
@@ -123,7 +133,7 @@ export default function WasteDataChatLauncher() {
             onClick={hideChat}
             className={`absolute inset-0 bg-slate-950/45 backdrop-blur-[2px] transition-opacity duration-[400ms] ease-out motion-reduce:transition-none ${open ? 'opacity-100' : 'opacity-0'}`}
           />
-          <section ref={panelRef} aria-busy={chatBusy} className={`absolute inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] flex h-[calc(100dvh-1rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:h-[min(85dvh,46rem)] origin-bottom-right flex-col overflow-hidden rounded-[1.75rem] border border-white/80 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.35)] transition-[transform,opacity] duration-[450ms] ease-[cubic-bezier(0.16,1,0.3,1)] sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[min(36rem,calc(100vw-3rem))] motion-reduce:transition-none ${open ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-8 scale-[0.96] opacity-0'}`}>
+          <section ref={panelRef} aria-busy={chatBusy} style={{ transformOrigin: panelOrigin }} className={`absolute inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] flex h-[calc(100dvh-1rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:h-[min(85dvh,46rem)] flex-col overflow-hidden rounded-[1.75rem] border border-white/80 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.35)] transition-[transform,opacity] duration-[450ms] ease-[cubic-bezier(0.16,1,0.3,1)] sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[min(36rem,calc(100vw-3rem))] motion-reduce:transition-none ${open ? 'scale-100 opacity-100' : 'scale-[0.08] opacity-0'}`}>
             <div className="mb-3 flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
               <div className="flex min-w-0 items-center gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-blue-500 to-blue-700 text-white shadow-md"><i className="fas fa-comments" /></span>
