@@ -12,14 +12,17 @@ import { fetchRuanganRowsByMonth } from '../lib/limbah/rekapRuangan';
 import { calculateRuanganSummary } from '../lib/limbah/rekapRuanganCalculations';
 import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router-dom';
+import { readDataFilters } from '../lib/urlDataFilters';
 
 export default function RekapLimbah() {
   const navigate = useNavigate();
   const currentYearStr = String(new Date().getFullYear());
   const [allData, setAllData] = useState({ padatRows: [], ruanganRows: [], angkutRows: [] });
   const [loading, setLoading] = useState(true);
-  const [selectedYear, setSelectedYear] = useState(currentYearStr);
-  const [selectedMonth, setSelectedMonth] = useState('semua');
+  const initialFilters = typeof window === 'undefined' ? {} : readDataFilters(window.location.search);
+  const requestedMonth = initialFilters.month || (initialFilters.start && initialFilters.start.slice(0, 7) === initialFilters.end?.slice(0, 7) ? initialFilters.start.slice(0, 7) : '');
+  const [selectedYear, setSelectedYear] = useState(() => requestedMonth?.slice(0, 4) || initialFilters.start?.slice(0, 4) || currentYearStr);
+  const [selectedMonth, setSelectedMonth] = useState(() => requestedMonth ? String(Number(requestedMonth.slice(5, 7))) : 'semua');
   const [activeTab, setActiveTab] = useState('bulanan');
   const [roomMonth, setRoomMonth] = useState(String(new Date().getMonth() + 1));
   const [roomRows, setRoomRows] = useState([]);

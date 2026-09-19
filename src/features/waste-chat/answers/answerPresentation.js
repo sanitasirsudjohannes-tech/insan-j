@@ -106,21 +106,26 @@ export function buildAnswerPresentation(parsed, recap, comparisonRecap, periodRe
   };
   const relativePeriod = parsed.question.match(/\b(hari ini|bulan ini|tahun ini|kemarin)\b/i)?.[0];
   const favoriteQuestion = favoriteSubjects[parsed.intent] ? `${favoriteSubjects[parsed.intent]} ${relativePeriod || period}` : null;
+  const comparedPeriods = parsed.comparisonPeriods?.length >= 2
+    ? parsed.comparisonPeriods
+    : [parsed.comparisonPeriod, parsed.period].filter(Boolean);
+  const sourceLinks = parsed.comparisonPeriod || parsed.comparisonPeriods?.length >= 2
+    ? comparedPeriods.map(sourcePeriod => ({
+      ...buildSourceLink({ ...parsed, period: sourcePeriod, comparisonPeriod: null, comparisonPeriods: null }),
+      label: `Buka data ${sourcePeriod.label}`,
+    }))
+    : [];
 
   return {
     favoriteQuestion,
-    sourceLinks: ['generated_difference', 'room_input_comparison'].includes(parsed.intent)
-      ? [parsed.comparisonPeriod, parsed.period].filter(period => period?.scope === 'day').map(period => ({
-        label: `Catatan ruangan ${period.label}`,
-        to: `/limbah-ruangan?${new URLSearchParams({ date: period.start, ...(parsed.roomName ? { room: parsed.roomName } : {}) })}`,
-      })) : [],
+    sourceLinks,
     cards,
     visualization,
     warnings,
     followUps: followUps.slice(0, 4),
     source: `Sumber: data server INSAN-J, periode ${parsed.period.start} sampai ${parsed.period.end}.`,
     understanding: buildQuestionUnderstanding(parsed),
-    sourceLink: buildSourceLink(parsed),
+    sourceLink: sourceLinks.length ? null : buildSourceLink(parsed),
     reportPayload: { period: { start: parsed.period.start, end: parsed.period.end }, facts, analytics, chartData: { balanceFlow: charts.balanceFlow, timeline: charts.timeline, rooms: charts.rooms, composition: charts.composition } },
   };
 }

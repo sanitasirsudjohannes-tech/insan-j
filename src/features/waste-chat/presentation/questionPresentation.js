@@ -13,6 +13,7 @@ const INTENT_LABELS = {
   duplicate_data: 'Kemungkinan data ganda', data_anomalies: 'Pemeriksaan data',
   generated_difference: 'Rincian selisih timbulan',
   daily_review: 'Ringkasan pemeriksaan harian',
+  calculation_help: 'Cara perhitungan', source_records: 'Catatan sumber',
   day_extremes: 'Timbulan tertinggi dan terendah', transport_vs_generated: 'Pengangkutan dibanding timbulan', transport_vs_available: 'Pengangkutan dibanding limbah tersedia',
   input_officers: 'Petugas input ruangan', room_input_history: 'Riwayat jumlah ruangan',
   fewest_room_inputs: 'Input ruangan paling sedikit', room_record_days: 'Hari tercatat ruangan',
@@ -42,11 +43,16 @@ export function buildQuestionUnderstanding(parsed) {
 export function buildSourceLink(parsed) {
   if (!parsed?.period) return null;
   const query = new URLSearchParams({ start: parsed.period.start, end: parsed.period.end });
+  if (parsed.period.start.slice(0, 7) === parsed.period.end.slice(0, 7)) query.set('month', parsed.period.start.slice(0, 7));
   if (parsed.roomName) query.set('room', parsed.roomName);
   if (parsed.type?.key) query.set('type', parsed.type.key);
   if (TRANSPORT_INTENTS.has(parsed.intent)) return { label: 'Buka data pengangkutan', to: `/pengangkutan?${query}` };
-  if (ROOM_DATA_INTENTS.has(parsed.intent)) return { label: 'Buka data ruangan', to: `/limbah-ruangan?${query}` };
+  if (ROOM_DATA_INTENTS.has(parsed.intent)) {
+    query.set('tab', 'ruangan');
+    return { label: 'Buka data ruangan', to: `/limbah-dihasilkan?${query}` };
+  }
   if (RECAP_INTENTS.has(parsed.intent)) return { label: 'Buka rekap data', to: `/rekap-limbah?${query}` };
+  query.set('tab', parsed.roomName || parsed.type ? 'ruangan' : 'padat');
   return { label: 'Buka data limbah', to: `/limbah-dihasilkan?${query}` };
 }
 

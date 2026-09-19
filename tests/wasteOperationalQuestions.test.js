@@ -89,5 +89,5 @@ test('timbulan setelah pengangkutan tidak mengasumsikan urutan transaksi pada ha
 test('pencarian masa depan memiliki batas periode eksplisit dan melewati hari ini', () => {
   const parsed = parse('Apakah ada data bertanggal setelah hari ini?');
   assert.ok(parsed.period.end > parsed.period.start);
-  assert.equal((new Date(parsed.period.end) - new Date(parsed.period.start)) / 86400000, 90);
+  assert.equal(parsed.period.end, '2099-12-31');
 });

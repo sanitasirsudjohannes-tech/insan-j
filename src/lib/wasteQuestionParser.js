@@ -285,7 +285,7 @@ export function parseWasteQuestion(question, context = null, knownRooms = []) {
   if (intent === 'future_records' && !new RegExp(`\\b(?:${MONTH_PATTERN}|20\\d{2})\\b`, 'i').test(text)) {
     const now = currentWita();
     const today = iso(now.year, now.month, now.day);
-    period = makeRange(today, new Date(Date.UTC(now.year, now.month - 1, now.day + 90)).toISOString().slice(0, 10));
+    period = makeRange(today, '2099-12-31');
   }
   if (['since_transport', 'transport_balance'].includes(intent) && !contextPeriod?.start && !new RegExp(`\\b(?:${MONTH_PATTERN}|20\\d{2}|bulan|tahun)\\b|(?:tanggal|tgl)\\s*\\d`, 'i').test(text)) {
     const now = currentWita();

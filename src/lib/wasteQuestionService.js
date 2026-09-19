@@ -2,7 +2,7 @@ import { fetchMedicalWasteRecap } from './reportRecap.js';
 import { parseWasteQuestion } from './wasteQuestionParser.js';
 import { buildWasteAnswer } from './wasteQuestionAnswer.js';
 import { fetchDaftarRuangan, getCachedRuangan } from './api.js';
-import { findRoomCandidates, resolveKnownRoom, normalizeRoomName } from '../features/waste-chat/parsers/roomNameResolver.js';
+import { findRoomCandidates, findFuzzyRoomCandidates, resolveKnownRoom, normalizeRoomName } from '../features/waste-chat/parsers/roomNameResolver.js';
 import { getOfflineQueue } from './offlineStorage.js';
 import { findQuestionClarification } from '../features/waste-chat/presentation/questionPresentation.js';
 import { OPERATIONAL_INTENTS } from '../features/waste-chat/parsers/operationalIntents.js';
@@ -57,7 +57,15 @@ export async function answerWasteQuestion(question, { context = null, contextPer
   if (!roomNames.length) roomNames = await fetchRooms();
   const roomQuestion = normalizeConversationQuestion(question).text;
   const roomCandidates = findRoomCandidates(roomQuestion, roomNames);
+  const fuzzyCandidates = roomCandidates.length ? [] : findFuzzyRoomCandidates(roomQuestion, roomNames);
   const resolvedRoom = resolveKnownRoom(roomQuestion, roomNames);
+  if (!resolvedRoom && fuzzyCandidates.length > 1) {
+    return {
+      text: 'Nama ruangan mirip dengan beberapa ruangan resmi. Pilih ruangan yang dimaksud.',
+      clarification: true,
+      actions: fuzzyCandidates.slice(0, 6).map(name => ({ label: name, question: `${roomQuestion} ruangan ${name}` })),
+    };
+  }
   if (resolvedRoom && !(` ${normalizeRoomName(roomQuestion)} `).includes(` ${normalizeRoomName(resolvedRoom)} `)) {
     const prefix = normalizeConversationQuestion(question).correction ? 'Maksud saya ' : '';
     return { text: `Apakah maksud Anda ruangan ${resolvedRoom}? Konfirmasikan agar data yang dipilih tepat.`, clarification: true,
@@ -117,7 +125,10 @@ export async function answerWasteQuestion(question, { context = null, contextPer
     includeBalance: balanceIntents.has(parsed.intent) || ['negative_balance_dates', 'transport_balance', 'transport_vs_available', 'daily_review'].includes(parsed.intent),
     includeTransport: balanceIntents.has(parsed.intent) || transportIntents.has(parsed.intent) || ['negative_balance_dates', 'since_transport', 'transport_balance', 'future_records', 'daily_details', 'transport_vs_available', 'transport_vs_generated', 'daily_review'].includes(parsed.intent),
     includePrevious: parsed.intent === 'analysis' || (parsed.intent === 'comparison' && !parsed.comparisonPeriod && !parsed.comparisonPeriods),
-    includeDiagnostics: diagnosticIntents.has(parsed.intent) || OPERATIONAL_INTENTS.has(parsed.intent) || ['never_type_rooms', 'daily_review'].includes(parsed.intent),
+    includeDiagnostics: diagnosticIntents.has(parsed.intent) || OPERATIONAL_INTENTS.has(parsed.intent) || [
+      'never_type_rooms', 'daily_review', 'generated', 'comparison', 'waste_summary', 'remaining',
+      'type_total', 'room_total', 'room_type_total',
+    ].includes(parsed.intent),
   };
   const isComparisonIntent = ['comparison', 'room_input_comparison', 'generated_difference'].includes(parsed.intent);
   const comparisonPeriods = parsed.intent === 'comparison' && parsed.comparisonPeriods?.length >= 2

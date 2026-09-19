@@ -40,6 +40,31 @@ function editDistance(left, right) {
   return row[right.length];
 }
 
+export function findFuzzyRoomCandidates(question, roomNames = []) {
+  const tokens = normalizeRoomName(question).split(/\s+/).filter(Boolean);
+  const scored = roomNames.filter(Boolean).map(name => {
+    const normalizedName = normalizeRoomName(name);
+    if (normalizedName.length < 5) return { name, distance: Infinity };
+    const nameTokens = normalizedName.split(' ');
+    const variants = [normalizedName];
+    if (!tokens.some(token => /^\d+$/.test(token)) && /^\d+$/.test(nameTokens.at(-1))) variants.push(nameTokens.slice(0, -1).join(' '));
+    let distance = Infinity;
+    variants.forEach(variant => {
+      const count = variant.split(' ').length;
+      for (let index = 0; index < tokens.length; index += 1) {
+        const candidate = tokens.slice(index, index + count).join(' ');
+        if (candidate.length >= 4) distance = Math.min(distance, editDistance(candidate, variant));
+      }
+    });
+    return { name, distance };
+  });
+  const best = Math.min(...scored.map(item => item.distance));
+  if (!Number.isFinite(best)) return [];
+  return scored
+    .filter(item => item.distance === best && item.distance <= (normalizeRoomName(item.name).length >= 8 ? 2 : 1))
+    .map(item => item.name);
+}
+
 export function resolveKnownRoom(question, roomNames = []) {
   const normalizedQuestion = ` ${normalizeRoomName(question)} `;
   const sortedRooms = [...roomNames]
@@ -50,14 +75,6 @@ export function resolveKnownRoom(question, roomNames = []) {
   const namedCandidates = findRoomCandidates(question, sortedRooms);
   if (namedCandidates.length === 1) return namedCandidates[0];
   if (namedCandidates.length > 1) return null;
-  const questionTokens = normalizedQuestion.trim().split(/\s+/);
-  return sortedRooms.find(name => {
-    const normalizedName = normalizeRoomName(name);
-    if (normalizedName.length < 5) return false;
-    const tokenCount = normalizedName.split(' ').length;
-    return questionTokens.some((_, index) => {
-      const candidate = questionTokens.slice(index, index + tokenCount).join(' ');
-      return candidate.length >= 4 && editDistance(candidate, normalizedName) <= (normalizedName.length >= 8 ? 2 : 1);
-    });
-  }) || null;
+  const fuzzy = findFuzzyRoomCandidates(question, sortedRooms);
+  return fuzzy.length === 1 ? fuzzy[0] : null;
 }

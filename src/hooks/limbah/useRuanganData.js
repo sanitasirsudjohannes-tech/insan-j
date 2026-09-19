@@ -5,21 +5,14 @@ import { fetchDaftarRuangan } from '../../lib/api';
 import { getOfflineQueue, getUnsyncedItemsForTable, getOfflineDeletedIds, getCachedServerRows, cacheServerRows, reconcileCachedServerRows } from '../../lib/offlineStorage';
 import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
 import { compareWasteRows } from '../../lib/limbah/rowOrder';
+import { readDataFilters } from '../../lib/urlDataFilters';
 
 const getCurrentMonth = () => {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 };
 
-const getInitialDateFilter = () => {
-  if (typeof window === 'undefined') return '';
-  const query = new URLSearchParams(window.location.search);
-  const explicitDate = query.get('date');
-  const start = query.get('start');
-  const end = query.get('end');
-  const candidate = explicitDate || (start && start === end ? start : '');
-  return /^20\d{2}-\d{2}-\d{2}$/.test(candidate || '') ? candidate : '';
-};
+const getInitialFilters = () => typeof window === 'undefined' ? {} : readDataFilters(window.location.search);
 
 export default function useRuanganData() {
   const [data, setData] = useState([]);
@@ -27,11 +20,12 @@ export default function useRuanganData() {
   const [page, setPage] = useState(1);
   const [totalData, setTotalData] = useState(0);
   const [offlineQueueCount, setOfflineQueueCount] = useState(0);
-  const initialDateFilter = getInitialDateFilter();
-  const [filterMonth, setFilterMonthState] = useState(() => initialDateFilter ? '' : getCurrentMonth());
+  const initialFilters = getInitialFilters();
+  const initialDateFilter = initialFilters.date || '';
+  const [filterMonth, setFilterMonthState] = useState(() => initialDateFilter ? '' : initialFilters.month || getCurrentMonth());
   const fetchIdRef = useRef(0);
   const [ruanganList, setRuanganList] = useState([]);
-  const [filterRuangan, setFilterRuangan] = useState(() => typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('room') || '');
+  const [filterRuangan, setFilterRuangan] = useState(() => initialFilters.room || '');
   const [filterDate, setFilterDateState] = useState(initialDateFilter);
 
   const setFilterMonth = useCallback((value) => {

@@ -2,6 +2,7 @@ import { useEffect, useState, Suspense, lazy } from 'react';
 import AppLayout from '../components/AppLayout';
 import MissingDateToast from '../components/limbah/MissingDateToast';
 import { getCurrentUser } from '../lib/api';
+import { readDataFilters } from '../lib/urlDataFilters';
 
 const loadLimbahPadat = () => import('./LimbahPadat');
 const loadLimbahRuangan = () => import('./LimbahRuangan');
@@ -45,8 +46,10 @@ const COLOR = {
 export default function LimbahDihasilkan() {
   const user = getCurrentUser();
   const isMahasiswa = user?.role?.toLowerCase() === 'mahasiswa';
-  const [activeTab, setActiveTab] = useState('ruangan');
-  const [visitedTabs, setVisitedTabs] = useState(() => new Set(['ruangan']));
+  const initialTab = typeof window === 'undefined' ? 'ruangan' : readDataFilters(window.location.search).tab;
+  const allowedInitialTab = TABS.some(tab => tab.id === initialTab) && !(isMahasiswa && initialTab === 'padat') ? initialTab : 'ruangan';
+  const [activeTab, setActiveTab] = useState(allowedInitialTab);
+  const [visitedTabs, setVisitedTabs] = useState(() => new Set([allowedInitialTab]));
   const visibleTabs = isMahasiswa ? TABS.filter((tab) => tab.id !== 'padat') : TABS;
 
   useEffect(() => {

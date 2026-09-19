@@ -61,7 +61,8 @@ test('pertanyaan jumlah ruangan yang jelas tidak meminta konfirmasi', () => {
 
 test('tautan jumlah ruangan membuka data ruangan dengan filter tanggal', () => {
   const source = buildSourceLink(parseWasteQuestion('Berapa jumlah ruangan yang input tanggal 14 September 2026'));
-  assert.match(source.to, /^\/limbah-ruangan\?/);
+  assert.match(source.to, /^\/limbah-dihasilkan\?/);
+  assert.match(source.to, /tab=ruangan/);
   assert.match(source.to, /start=2026-09-14/);
   assert.match(source.to, /end=2026-09-14/);
 });
