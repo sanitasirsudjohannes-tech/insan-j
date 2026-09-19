@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import WasteDataChat from './WasteDataChat';
 
 const ANIMATION_MS = 650;
 
 export default function WasteDataChatLauncher() {
+  const navigate = useNavigate();
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [chatBusy, setChatBusy] = useState(false);
@@ -24,11 +26,14 @@ export default function WasteDataChatLauncher() {
   const mountedRef = useRef(false);
   const historyEntryRef = useRef(false);
   const historyBackPendingRef = useRef(false);
+  const pendingNavigationRef = useRef(null);
 
   const finishClose = useCallback(() => {
     setAnimating(false);
     // Keep the chat alive so an in-flight answer can render and persist.
-    if (!openRef.current) launcherButtonRef.current?.focus({ preventScroll: true });
+    const focused = document.activeElement;
+    const focusStillBelongsToChat = !focused || focused === document.body || panelRef.current?.contains(focused);
+    if (!openRef.current && focusStillBelongsToChat) launcherButtonRef.current?.focus({ preventScroll: true });
   }, []);
 
   const calculateAnchor = useCallback(() => {
@@ -101,6 +106,19 @@ export default function WasteDataChatLauncher() {
     }
   }, [startClosing]);
 
+  const navigateFromChat = useCallback(to => {
+    if (!to) return;
+    startClosing();
+    if (historyEntryRef.current) {
+      pendingNavigationRef.current = to;
+      historyEntryRef.current = false;
+      historyBackPendingRef.current = true;
+      window.history.back();
+      return;
+    }
+    navigate(to);
+  }, [navigate, startClosing]);
+
   useLayoutEffect(() => {
     if (!mounted) return;
     calculateAnchor();
@@ -115,9 +133,13 @@ export default function WasteDataChatLauncher() {
     const handleViewportChange = () => calculateAnchor();
     const handlePopState = () => {
       historyBackPendingRef.current = false;
-      if (!historyEntryRef.current) return;
-      historyEntryRef.current = false;
-      startClosing();
+      if (historyEntryRef.current) {
+        historyEntryRef.current = false;
+        startClosing();
+      }
+      const destination = pendingNavigationRef.current;
+      pendingNavigationRef.current = null;
+      if (destination) navigate(destination);
     };
     window.addEventListener('popstate', handlePopState);
     window.addEventListener('resize', handleViewportChange);
@@ -129,7 +151,7 @@ export default function WasteDataChatLauncher() {
       viewport?.removeEventListener('resize', handleViewportChange);
       viewport?.removeEventListener('scroll', handleViewportChange);
     };
-  }, [calculateAnchor, startClosing]);
+  }, [calculateAnchor, navigate, startClosing]);
 
   useEffect(() => {
     const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -207,7 +229,7 @@ export default function WasteDataChatLauncher() {
               transform: open ? 'scale(1, 1)' : 'scale(0.92, 0.68)',
               opacity: open ? 1 : 0,
               clipPath: open ? 'polygon(0 0, 100% 0, 100% 100%, 0 100%)' : collapsedClip,
-              borderRadius: open ? '1.75rem' : '999px',
+              borderRadius: open ? '1.75rem' : '2.5rem',
               transition: [
                 `transform ${duration}ms cubic-bezier(0.22, 0.8, 0.2, 1)`,
                 `clip-path ${duration}ms cubic-bezier(0.4, 0, 0.2, 1)`,
@@ -228,7 +250,7 @@ export default function WasteDataChatLauncher() {
               </div>
               <button ref={closeButtonRef} type="button" onClick={hideChat} aria-label="Tutup chat" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-500 transition hover:bg-slate-200 active:scale-95"><i className="fas fa-xmark" /></button>
             </div>
-            <WasteDataChat hideHeader onBusyChange={handleBusyChange} />
+            <WasteDataChat hideHeader onBusyChange={handleBusyChange} onNavigateRequest={navigateFromChat} />
           </section>
         </div>
       )}
