@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import WasteDataChat from './WasteDataChat';
 
-const ANIMATION_MS = 600;
+const ANIMATION_MS = 720;
 
 export default function WasteDataChatLauncher() {
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
   const [chatBusy, setChatBusy] = useState(false);
   const [panelOrigin, setPanelOrigin] = useState('100% 100%');
+  const [collapsedClip, setCollapsedClip] = useState('polygon(98% 98%, 100% 98%, 100% 100%, 98% 100%)');
   const closeTimerRef = useRef(null);
   const openTimerRef = useRef(null);
   const launcherButtonRef = useRef(null);
@@ -75,6 +76,7 @@ export default function WasteDataChatLauncher() {
     const originX = launcherRect.left + launcherRect.width / 2 - panel.offsetLeft;
     const originY = launcherRect.top + launcherRect.height / 2 - panel.offsetTop;
     setPanelOrigin(`${originX}px ${originY}px`);
+    setCollapsedClip(`polygon(${originX - 5}px ${originY - 3}px, ${originX + 5}px ${originY - 3}px, ${originX + 3}px ${originY + 3}px, ${originX - 3}px ${originY + 3}px)`);
   }, [mounted]);
 
   useEffect(() => {
@@ -148,10 +150,17 @@ export default function WasteDataChatLauncher() {
             aria-busy={chatBusy}
             style={{
               transformOrigin: panelOrigin,
-              transform: open ? 'scale(1)' : 'scale(0.06)',
+              transform: open ? 'scale(1, 1)' : 'scale(0.16, 0.05)',
               opacity: open ? 1 : 0,
-              transition: 'transform 600ms cubic-bezier(0.16, 1, 0.3, 1), opacity 350ms ease-out',
-              willChange: 'transform, opacity',
+              clipPath: open ? 'polygon(0 0, 100% 0, 100% 100%, 0 100%)' : collapsedClip,
+              borderRadius: open ? '1.75rem' : '999px',
+              transition: [
+                'transform 720ms cubic-bezier(0.22, 0.8, 0.2, 1)',
+                'clip-path 720ms cubic-bezier(0.4, 0, 0.2, 1)',
+                'border-radius 600ms ease-in-out',
+                'opacity 520ms ease-in-out',
+              ].join(', '),
+              willChange: 'transform, opacity, clip-path',
             }}
             className="absolute inset-x-2 bottom-[max(0.5rem,env(safe-area-inset-bottom))] flex h-[calc(100dvh-1rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] sm:h-[min(85dvh,46rem)] flex-col overflow-hidden rounded-[1.75rem] border border-white/80 bg-white p-4 shadow-[0_24px_70px_rgba(15,23,42,0.35)] sm:inset-x-auto sm:bottom-6 sm:right-6 sm:w-[min(36rem,calc(100vw-3rem))]"
           >
