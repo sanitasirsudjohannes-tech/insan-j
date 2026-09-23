@@ -55,11 +55,10 @@ export async function saveWaterExamination(form, userId) {
     report_number: form.report_number.trim() || null,
     notes: form.notes.trim() || null,
     parameters: normalizeParameters(form.parameters),
-    created_by: userId,
   };
   const query = form.id
-    ? supabase.from('water_examinations').update(payload).eq('id', form.id)
-    : supabase.from('water_examinations').insert(payload);
+    ? supabase.from('water_examinations').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', form.id)
+    : supabase.from('water_examinations').insert({ ...payload, created_by: userId });
   const { data, error } = await query.select().single();
   if (error) throw error;
   return data;
