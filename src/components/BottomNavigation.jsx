@@ -59,6 +59,7 @@ export default function BottomNavigation() {
         ],
         moreItems: [
           { to: '/kelola-admin', label: 'Kelola Pengguna', icon: 'fas fa-users-gear', description: 'Akun, peran, dan master ruangan' },
+          { to: '/pemeriksaan-air', label: 'Pemeriksaan Air', icon: 'fas fa-droplet', description: 'Hasil air bersih dan air limbah' },
           { to: '/akun', label: 'Pengaturan Akun', icon: 'fas fa-user-gear', description: 'Profil dan keamanan akun' },
         ],
       };
@@ -73,6 +74,7 @@ export default function BottomNavigation() {
       ],
       moreItems: [
         { to: '/inspeksi', label: 'Form Inspeksi', icon: 'fas fa-clipboard-check', description: 'Isi pemeriksaan sanitasi' },
+        { to: '/pemeriksaan-air', label: 'Pemeriksaan Air', icon: 'fas fa-droplet', description: 'Hasil air bersih dan air limbah' },
         { to: '/riwayat', label: 'Riwayat Inspeksi', icon: 'fas fa-clock-rotate-left', description: 'Lihat dan kelola hasil inspeksi' },
         { to: '/akun', label: 'Pengaturan Akun', icon: 'fas fa-user-gear', description: 'Profil dan keamanan akun' },
       ],

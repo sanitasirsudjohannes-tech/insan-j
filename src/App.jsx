@@ -14,6 +14,7 @@ const LimbahRuangan = lazy(() => import('./pages/LimbahRuangan'));
 const LimbahDihasilkan = lazy(() => import('./pages/LimbahDihasilkan'));
 const PengangkutanLimbah = lazy(() => import('./pages/PengangkutanLimbah'));
 const RekapLimbah = lazy(() => import('./pages/RekapLimbah'));
+const PemeriksaanAir = lazy(() => import('./pages/PemeriksaanAir'));
 const AsistenLaporan = lazy(() => import('./pages/AsistenLaporan'));
 
 // Loading component
@@ -87,6 +88,12 @@ function App() {
           <Route path="/asisten-laporan" element={
             <ProtectedRoute deniedRoles={['mahasiswa']}>
               <AsistenLaporan />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/pemeriksaan-air" element={
+            <ProtectedRoute deniedRoles={['mahasiswa']}>
+              <PemeriksaanAir />
             </ProtectedRoute>
           } />
 
