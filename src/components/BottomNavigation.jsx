@@ -58,8 +58,7 @@ export default function BottomNavigation() {
           { to: '/riwayat', label: 'Riwayat', icon: 'fas fa-clock-rotate-left' },
         ],
         moreItems: [
-          { to: '/kelola-admin', label: 'Kelola Pengguna', icon: 'fas fa-users-gear', description: 'Akun, peran, dan master ruangan' },
-          { to: '/pemeriksaan-air', label: 'Pemeriksaan Air', icon: 'fas fa-droplet', description: 'Hasil air bersih dan air limbah' },
+          { to: '/kelola-admin', label: 'Kelola Pengguna', icon: 'fas fa-users-gear', description: 'Akun, ruangan, dan lokasi air bersih' },
           { to: '/akun', label: 'Pengaturan Akun', icon: 'fas fa-user-gear', description: 'Profil dan keamanan akun' },
         ],
       };

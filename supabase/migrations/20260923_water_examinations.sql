@@ -67,19 +67,19 @@ drop policy if exists "water examinations insertable by staff" on public.water_e
 create policy "water examinations insertable by staff" on public.water_examinations
 for insert to authenticated with check (
   created_by = auth.uid()
-  and exists (select 1 from public.profiles p where p.id = auth.uid() and lower(p.role) in ('admin', 'petugas', 'user'))
+  and exists (select 1 from public.profiles p where p.id = auth.uid() and lower(p.role) in ('petugas', 'user'))
 );
 
 drop policy if exists "water examinations editable by staff" on public.water_examinations;
 create policy "water examinations editable by staff" on public.water_examinations
 for update to authenticated
-using (exists (select 1 from public.profiles p where p.id = auth.uid() and lower(p.role) in ('admin', 'petugas', 'user')))
-with check (exists (select 1 from public.profiles p where p.id = auth.uid() and lower(p.role) in ('admin', 'petugas', 'user')));
+using (exists (select 1 from public.profiles p where p.id = auth.uid() and lower(p.role) in ('petugas', 'user')))
+with check (exists (select 1 from public.profiles p where p.id = auth.uid() and lower(p.role) in ('petugas', 'user')));
 
 drop policy if exists "water examinations deletable by staff" on public.water_examinations;
 create policy "water examinations deletable by staff" on public.water_examinations
 for delete to authenticated using (
-  exists (select 1 from public.profiles p where p.id = auth.uid() and lower(p.role) in ('admin', 'petugas', 'user'))
+  exists (select 1 from public.profiles p where p.id = auth.uid() and lower(p.role) in ('petugas', 'user'))
 );
 
 grant select on public.water_clean_locations to authenticated;

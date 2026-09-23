@@ -92,7 +92,7 @@ function App() {
           } />
 
           <Route path="/pemeriksaan-air" element={
-            <ProtectedRoute deniedRoles={['mahasiswa']}>
+            <ProtectedRoute allowedRoles={['petugas', 'user']}>
               <PemeriksaanAir />
             </ProtectedRoute>
           } />
