@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { calculateParameterStatus, createCleanWaterParameters, monthRange, normalizeParameters, toCleanWaterParameters, validateExamination } from '../src/features/pemeriksaan-air/waterHelpers.js';
+import { calculateParameterStatus, createCleanWaterParameters, parameterFromStandard, monthRange, normalizeParameters, toCleanWaterParameters, validateExamination } from '../src/features/pemeriksaan-air/waterHelpers.js';
 
 test('monthRange handles December without timezone drift', () => {
   assert.deepEqual(monthRange('2026-12'), { start: '2026-12-01', end: '2027-01-01' });
@@ -10,7 +10,7 @@ test('normalizeParameters removes empty rows and trims values', () => {
   assert.deepEqual(normalizeParameters([
     { parameter: ' pH ', result: ' 7.1 ', unit: '', standard: '6-9', status: 'belum_dinilai' },
     { parameter: '', result: '', status: 'memenuhi' },
-  ]), [{ parameter: 'pH', result: '7.1', unit: '', standard: '6-9', status: 'memenuhi' }]);
+  ]), [{ parameter: 'pH', result: '7.1', unit: '', standard: '6-9', status: 'memenuhi', standard_id: null, regulation: '' }]);
 });
 
 test('clean water examination requires a managed location', () => {
@@ -33,6 +33,10 @@ test('air bersih requires both test results', () => {
     water_type: 'clean', sampled_at: '2026-09-23', clean_water_location_id: 'bak-a', parameters,
   }), /Total coliform dan E. coli/);
   parameters[1].result = '0';
+  assert.match(validateExamination({
+    water_type: 'clean', sampled_at: '2026-09-23', clean_water_location_id: 'bak-a', parameters,
+  }), /diatur admin/);
+  parameters.forEach((item, index) => { item.standard_id = `id-${index}`; item.standard = '50'; item.regulation = 'Peraturan X'; });
   assert.equal(validateExamination({
     water_type: 'clean', sampled_at: '2026-09-23', clean_water_location_id: 'bak-a', parameters,
   }), null);
@@ -60,4 +64,13 @@ test('unparseable values remain unassessed', () => {
   assert.equal(calculateParameterStatus('tidak terdeteksi', '0'), 'belum_dinilai');
   assert.equal(calculateParameterStatus('5', 'sesuai ketentuan'), 'belum_dinilai');
   assert.equal(calculateParameterStatus('5', '9-6'), 'belum_dinilai');
+});
+
+test('admin standard creates a fixed snapshot with regulation', () => {
+  const row = parameterFromStandard({
+    id: 'std-1', parameter: 'Total coliform', unit: '/100 mL', standard: '50',
+    water_regulations: { title: 'Peraturan X', number: '1', year: 2026 },
+  }, '51');
+  assert.deepEqual([row.standard_id, row.regulation, row.status],
+    ['std-1', 'Peraturan X · 1 · 2026', 'tidak_memenuhi']);
 });

@@ -7,12 +7,13 @@ export function buildWaterTableModels(reportType, analytics = {}) {
     parameter.parameter || '-',
     `${parameter.result ?? '-'}${parameter.unit ? ` ${parameter.unit}` : ''}`,
     parameter.standard || '-',
+    parameter.regulation || '-',
     parameter.status === 'tidak_memenuhi' ? 'Tidak memenuhi' : parameter.status === 'memenuhi' ? 'Memenuhi' : 'Belum dinilai',
   ]));
   if (!rows.length) return [];
   return [{
     title: reportType === 'wastewater' ? 'Hasil Pemeriksaan Air Limbah' : 'Hasil Pemeriksaan Air Bersih',
-    headers: ['Tanggal', 'Lokasi', 'Parameter', 'Hasil', 'Baku Mutu', 'Status'],
+    headers: ['Tanggal', 'Lokasi', 'Parameter', 'Hasil', 'Baku Mutu', 'Rujukan', 'Status'],
     rows,
   }];
 }

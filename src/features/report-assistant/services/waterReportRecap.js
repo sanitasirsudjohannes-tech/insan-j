@@ -9,7 +9,7 @@ const formatDate = value => {
 };
 
 const parameterText = parameters => (parameters || [])
-  .map(item => `${item.parameter}: ${item.result}${item.unit ? ` ${item.unit}` : ''}${item.standard ? ` (baku mutu ${item.standard})` : ''}`)
+  .map(item => `${item.parameter}: ${item.result}${item.unit ? ` ${item.unit}` : ''}${item.standard ? ` (baku mutu ${item.standard}${item.regulation ? `; rujukan ${item.regulation}` : ''})` : ''}`)
   .join('; ');
 
 const recordLine = record => {

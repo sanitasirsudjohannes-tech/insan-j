@@ -3,6 +3,7 @@ const TABS = [
   { id: 'tambah-pengguna', icon: 'fas fa-user-plus', label: 'Tambah Pengguna' },
   { id: 'ruangan', icon: 'fas fa-door-open', label: 'Ruangan' },
   { id: 'lokasi-air-bersih', icon: 'fas fa-droplet', label: 'Lokasi Air Bersih' },
+  { id: 'baku-mutu-air', icon: 'fas fa-flask', label: 'Baku Mutu Air' },
   { id: 'pengaturan', icon: 'fas fa-sliders-h', label: 'Pengaturan' },
   { id: 'pemeliharaan', icon: 'fas fa-database', label: 'Pemeliharaan' },
 ];
@@ -30,7 +31,7 @@ export default function AdminHeader({
             Kelola Admin & Master Data
           </h1>
           <p className="text-indigo-200 text-sm mt-1">
-            Kelola akun pengguna, master ruangan, dan lokasi pemeriksaan air bersih.
+            Kelola akun, lokasi pemeriksaan, baku mutu, dan rujukan peraturan.
           </p>
         </div>
 

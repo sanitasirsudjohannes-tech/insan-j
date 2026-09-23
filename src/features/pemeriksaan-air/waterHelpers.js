@@ -23,7 +23,7 @@ const cleanParameterKey = value => String(value || '').toLowerCase().replace(/[^
 
 const readNumber = value => {
   const text = String(value ?? '').trim().replace(',', '.');
-  return /^(?:\d+(?:\.\d+)?|\.\d+)$/.test(text) ? Number(text) : null;
+  return /^\d+(?:\.\d+)?$/.test(text) ? Number(text) : null;
 };
 
 // Baku mutu tanpa operator adalah batas maksimum. Teks yang tak dapat dihitung belum dinilai.
@@ -33,7 +33,7 @@ export function calculateParameterStatus(result, standard) {
   const limit = String(standard ?? '').trim()
     .replace(/\s*\/\s*100\s*m[lL]\s*$/i, '')
     .replaceAll(',', '.');
-  const number = '(?:\\d+(?:\\.\\d+)?|\\.\\d+)';
+  const number = '\\d+(?:\\.\\d+)?';
   const range = limit.match(new RegExp(`^(${number})\\s*[-–]\\s*(${number})$`));
   if (range) {
     const minimum = Number(range[1]);
@@ -66,6 +66,19 @@ export function toCleanWaterParameters(parameters = []) {
   });
 }
 
+export function parameterFromStandard(standard, result = '') {
+  const regulation = standard.water_regulations;
+  return {
+    parameter: standard.parameter,
+    result: String(result),
+    unit: standard.unit || '',
+    standard: standard.standard,
+    standard_id: standard.id,
+    regulation: regulation ? [regulation.title, regulation.number, regulation.year].filter(Boolean).join(' · ') : '',
+    status: calculateParameterStatus(result, standard.standard),
+  };
+}
+
 export function normalizeParameters(parameters = []) {
   return parameters
     .map((item) => ({
@@ -74,6 +87,8 @@ export function normalizeParameters(parameters = []) {
       unit: String(item.unit || '').trim(),
       standard: String(item.standard || '').trim(),
       status: calculateParameterStatus(item.result, item.standard),
+      standard_id: item.standard_id || null,
+      regulation: String(item.regulation || '').trim(),
     }))
     .filter((item) => item.parameter && item.result);
 }
@@ -93,8 +108,10 @@ export function validateExamination(form) {
       return 'Hasil Total coliform dan E. coli wajib diisi untuk setiap bak dengan satuan /100 mL.';
     }
   }
-  if (normalizeParameters(form.parameters).length === 0) {
-    return 'Isi minimal satu parameter beserta hasil pemeriksaannya.';
+  const filled = normalizeParameters(form.parameters);
+  if (filled.length === 0) return 'Isi minimal satu parameter beserta hasil pemeriksaannya.';
+  if (filled.some(item => !item.standard_id || !item.regulation || !item.standard)) {
+    return 'Baku mutu dan rujukan peraturan belum diatur admin untuk semua parameter.';
   }
   return null;
 }

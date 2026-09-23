@@ -9,6 +9,7 @@ import PenggunaTab from '../components/kelola-admin/PenggunaTab';
 import TambahPenggunaTab from '../components/kelola-admin/TambahPenggunaTab';
 import RuanganTab from '../components/kelola-admin/RuanganTab';
 import LokasiAirBersihTab from '../components/kelola-admin/LokasiAirBersihTab';
+import BakuMutuAirTab from '../components/kelola-admin/BakuMutuAirTab';
 import PengaturanTab from '../components/kelola-admin/PengaturanTab';
 import AdminHeader from '../components/kelola-admin/AdminHeader';
 import DataMaintenanceTab from '../components/kelola-admin/DataMaintenanceTab';
@@ -780,6 +781,7 @@ export default function KelolaAdmin() {
         )}
 
         {activeTab === 'lokasi-air-bersih' && <LokasiAirBersihTab />}
+        {activeTab === 'baku-mutu-air' && <BakuMutuAirTab />}
 
         {/* TAB 4: PENGATURAN */}
         {activeTab === 'pengaturan' && (

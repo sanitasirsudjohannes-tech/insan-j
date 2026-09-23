@@ -48,6 +48,68 @@ export async function deleteCleanWaterLocation(id) {
   if (error) throw error;
 }
 
+
+// Master baku mutu dan rujukan hanya dapat diubah admin (dijaga juga oleh RLS).
+export async function getWaterRegulations({ includeInactive = false } = {}) {
+  let query = supabase.from('water_regulations')
+    .select('id, title, number, year, is_active')
+    .order('title');
+  if (!includeInactive) query = query.eq('is_active', true);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+}
+
+export async function saveWaterRegulation(values) {
+  const payload = {
+    title: values.title.trim(),
+    number: values.number.trim() || null,
+    year: values.year ? Number(values.year) : null,
+  };
+  const query = values.id
+    ? supabase.from('water_regulations').update(payload).eq('id', values.id)
+    : supabase.from('water_regulations').insert(payload);
+  const { error } = await query;
+  if (error) throw error;
+}
+
+export async function setWaterRegulationActive(id, isActive) {
+  const { error } = await supabase.from('water_regulations')
+    .update({ is_active: isActive }).eq('id', id);
+  if (error) throw error;
+}
+
+export async function getWaterStandards({ includeInactive = false } = {}) {
+  let query = supabase.from('water_parameter_standards')
+    .select('id, water_type, parameter, unit, standard, regulation_id, is_active, water_regulations(title, number, year)')
+    .order('water_type').order('parameter');
+  if (!includeInactive) query = query.eq('is_active', true);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+}
+
+export async function saveWaterStandard(values) {
+  const payload = {
+    water_type: values.water_type,
+    parameter: values.parameter.trim(),
+    unit: values.unit.trim(),
+    standard: values.standard.trim(),
+    regulation_id: values.regulation_id || null,
+  };
+  const query = values.id
+    ? supabase.from('water_parameter_standards').update(payload).eq('id', values.id)
+    : supabase.from('water_parameter_standards').insert(payload);
+  const { error } = await query;
+  if (error) throw error;
+}
+
+export async function setWaterStandardActive(id, isActive) {
+  const { error } = await supabase.from('water_parameter_standards')
+    .update({ is_active: isActive }).eq('id', id);
+  if (error) throw error;
+}
+
 export async function getWaterExaminations({ month, waterType }) {
   const { start, end } = monthRange(month);
   let query = supabase
