@@ -37,17 +37,26 @@ export function useReportAssistant() {
     }
   }, [form, draft, chartData]);
 
-  const updateForm = (key, value) => setForm(current => ({ ...current, [key]: value }));
-  const updateFact = (key, value) =>
+  const updateForm = (key, value) => {
+    setForm(current => ({ ...current, [key]: value, analytics: ['period', 'reportType'].includes(key) ? null : current.analytics }));
+    setDraft('');
+    if (key === 'period') setChartData(null);
+  };
+  const updateFact = (key, value) => {
     setForm(current => ({
       ...current,
-      facts: { ...current.facts, [key]: value }
+      facts: { ...current.facts, [key]: value },
+      analytics: null,
     }));
+    setDraft('');
+  };
 
   const handleTypeChange = reportType => {
     setForm(current => ({ ...current, reportType, facts: {}, analytics: null }));
     setErrors({});
     setChartData(null);
+    setDraft('');
+    setStatus('');
   };
 
   const handleRecap = async () => {
@@ -56,15 +65,23 @@ export function useReportAssistant() {
       return;
     }
     setRecapLoading(true);
+    setDraft('');
+    setChartData(null);
     try {
       const recap = form.reportType === 'medical_waste'
         ? await fetchMedicalWasteRecap(form.period.start, form.period.end)
         : await fetchWaterReportRecap(form.period.start, form.period.end, form.reportType);
+      if (form.reportType !== 'medical_waste' && !recap.analytics.totalExaminations) {
+        setForm(current => ({ ...current, facts: {}, analytics: null }));
+        setStatus('Tidak ada hasil pemeriksaan pada periode ini. Pilih periode lain atau isi data pemeriksaan terlebih dahulu.');
+        return;
+      }
       const facts = form.reportType === 'medical_waste'
         ? Object.fromEntries(Object.entries(recap.facts).map(([key, value]) => [key, numberValue(value)]))
         : recap.facts;
       setForm(current => ({ ...current, facts: { ...current.facts, ...facts }, analytics: recap.analytics }));
       setChartData(form.reportType === 'medical_waste' ? recap.charts : null);
+      setStatus('Rekap berhasil diambil. Periksa hasil dan status parameter sebelum membuat laporan.');
       await Swal.fire({
         icon: 'success',
         title: 'Data Rekap Diambil',
@@ -72,11 +89,18 @@ export function useReportAssistant() {
         timer: 1800,
         showConfirmButton: false
       });
-    } catch {
+    } catch (error) {
+      const message = error?.code === '42P01' || error?.code === 'PGRST205'
+        ? 'Tabel pemeriksaan air belum tersedia. Jalankan migrasi SQL terlebih dahulu.'
+        : error?.code === '42501'
+          ? 'Akses data pemeriksaan ditolak. Periksa izin akun dan kebijakan RLS.'
+          : !navigator.onLine || /failed to fetch/i.test(error?.message || '')
+            ? 'Koneksi ke server terputus. Periksa internet lalu coba lagi.'
+            : error?.message || 'Tidak dapat mengambil data dari server.';
       Swal.fire({
         icon: 'error',
         title: 'Rekap Gagal Dimuat',
-        text: 'Periksa koneksi lalu coba kembali.',
+        text: message,
         confirmButtonColor: '#2563eb'
       });
     } finally {

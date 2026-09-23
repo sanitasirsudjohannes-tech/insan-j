@@ -10,7 +10,7 @@ export const createEmptyParameter = () => ({
   result: '',
   unit: '',
   standard: '',
-  status: 'memenuhi',
+  status: 'belum_dinilai',
 });
 
 export function normalizeParameters(parameters = []) {
@@ -20,7 +20,7 @@ export function normalizeParameters(parameters = []) {
       result: String(item.result ?? '').trim(),
       unit: String(item.unit || '').trim(),
       standard: String(item.standard || '').trim(),
-      status: item.status === 'tidak_memenuhi' ? 'tidak_memenuhi' : 'memenuhi',
+      status: ['memenuhi', 'tidak_memenuhi'].includes(item.status) ? item.status : 'belum_dinilai',
     }))
     .filter((item) => item.parameter && item.result);
 }

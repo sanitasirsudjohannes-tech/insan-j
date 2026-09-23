@@ -7,10 +7,16 @@ test('water analysis calculates compliance from recorded statuses', () => {
     totalExaminations: 2, totalParameters: 10, nonCompliantParameters: 2, locations: ['A', 'B'],
   });
   assert.match(result, /80%/);
-  assert.match(result, /2 parameter berstatus tidak memenuhi/);
+  assert.match(result, /2 berstatus tidak memenuhi/);
 });
 
 test('wastewater conclusion reports an all-compliant period', () => {
   const result = buildWaterConclusion('wastewater', { totalExaminations: 2, nonCompliantParameters: 0 });
-  assert.match(result, /seluruh parameter/);
+  assert.match(result, /Seluruh parameter/);
+  assert.match(result, /petugas/);
+});
+
+test('unassessed water parameters do not become compliant automatically', () => {
+  const result = buildWaterConclusion('clean_water', { totalExaminations: 1, nonCompliantParameters: 0, unassessedParameters: 2 });
+  assert.match(result, /belum dapat disimpulkan/);
 });

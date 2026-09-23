@@ -31,17 +31,24 @@ const nonCompliantItems = records => records.flatMap(record => {
 });
 
 export async function fetchWaterReportRecap(start, end, reportType) {
+  if (!['clean_water', 'wastewater'].includes(reportType)) throw new Error('Jenis laporan air tidak valid.');
   const waterType = reportType === 'clean_water' ? 'clean' : 'wastewater';
-  const { data, error } = await supabase
-    .from('water_examinations')
-    .select('id, water_type, sample_point, sampled_at, resulted_at, laboratory, report_number, parameters, notes, water_clean_locations(name)')
-    .eq('water_type', waterType)
-    .gte('sampled_at', start)
-    .lte('sampled_at', end)
-    .order('sampled_at', { ascending: true });
-  if (error) throw error;
-
-  const records = data || [];
+  const records = [];
+  const pageSize = 500;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from('water_examinations')
+      .select('id, water_type, sample_point, sampled_at, resulted_at, laboratory, report_number, parameters, notes, water_clean_locations(name)')
+      .eq('water_type', waterType)
+      .gte('sampled_at', start)
+      .lte('sampled_at', end)
+      .order('sampled_at', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, from + pageSize - 1);
+    if (error) throw error;
+    records.push(...(data || []));
+    if (!data || data.length < pageSize) break;
+  }
   const nonCompliant = nonCompliantItems(records);
   const locations = [...new Set(records.map(record => waterType === 'clean' ? record.water_clean_locations?.name : record.sample_point).filter(Boolean))];
   const common = {
@@ -49,6 +56,7 @@ export async function fetchWaterReportRecap(start, end, reportType) {
     totalParameters: records.reduce((total, record) => total + (record.parameters?.length || 0), 0),
     compliantParameters: records.reduce((total, record) => total + (record.parameters || []).filter(item => item.status !== 'tidak_memenuhi').length, 0),
     nonCompliantParameters: nonCompliant.length,
+    unassessedParameters: records.reduce((total, record) => total + (record.parameters || []).filter(item => !['memenuhi', 'tidak_memenuhi'].includes(item.status)).length, 0),
     locations,
     records,
     nonCompliant,
@@ -64,7 +72,7 @@ export async function fetchWaterReportRecap(start, end, reportType) {
         outletResult: outlet.map(recordLine).join('\n') || 'Tidak ada data outlet pada periode ini.',
         compliance: nonCompliant.length
           ? `${nonCompliant.length} parameter tidak memenuhi baku mutu: ${nonCompliant.map(item => `${item.parameter} di ${item.location} (${item.result}${item.unit ? ` ${item.unit}` : ''})`).join('; ')}.`
-          : records.length ? 'Seluruh parameter yang dicatat berstatus memenuhi baku mutu.' : 'Belum dapat dinilai karena tidak ada data.',
+          : common.unassessedParameters ? `${common.unassessedParameters} parameter belum dinilai.` : 'Seluruh parameter yang dicatat berstatus memenuhi menurut penilaian petugas; verifikasi terhadap laporan lab tetap diperlukan.',
       },
       analytics: { ...common, inletCount: inlet.length, outletCount: outlet.length },
     };
@@ -76,7 +84,7 @@ export async function fetchWaterReportRecap(start, end, reportType) {
       parameterResults: records.map(recordLine).join('\n') || 'Tidak ada data air bersih pada periode ini.',
       problemParameters: nonCompliant.length
         ? nonCompliant.map(item => `${formatDate(item.date)} — ${item.location}: ${item.parameter} ${item.result}${item.unit ? ` ${item.unit}` : ''}${item.standard ? `; baku mutu ${item.standard}` : ''}`).join('\n')
-        : records.length ? 'Tidak terdapat parameter yang ditandai tidak memenuhi baku mutu.' : 'Belum dapat dinilai karena tidak ada data.',
+        : common.unassessedParameters ? `${common.unassessedParameters} parameter belum dinilai.` : 'Tidak terdapat parameter yang ditandai tidak memenuhi baku mutu; verifikasi hasil lab tetap diperlukan.',
       evaluation: records.length
         ? `Terdapat ${records.length} pemeriksaan pada ${locations.length} lokasi dengan ${common.totalParameters} hasil parameter. ${nonCompliant.length} parameter memerlukan tindak lanjut.`
         : 'Belum ada data yang dapat dievaluasi pada periode ini.',

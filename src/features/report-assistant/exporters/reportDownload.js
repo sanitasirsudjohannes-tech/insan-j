@@ -55,8 +55,8 @@ export async function handleWordDownload(draft, reportType, facts, reportChartDa
       await downloadWord(draft, reportType, [], facts, reportChartData, analytics);
       Swal.fire({
         icon: 'warning',
-        title: 'Grafik Tidak Dapat Diproses',
-        text: 'DOCX tanpa grafik tetap berhasil diunduh. Silakan coba kembali setelah membuka ulang halaman.',
+        title: includeCharts ? 'Grafik Tidak Dapat Diproses' : 'Unduhan Dicoba Ulang',
+        text: includeCharts ? 'DOCX tanpa grafik tetap berhasil diunduh. Silakan coba kembali setelah membuka ulang halaman.' : 'DOCX berhasil disiapkan setelah percobaan ulang.',
         confirmButtonColor: '#2563eb'
       });
       return;
