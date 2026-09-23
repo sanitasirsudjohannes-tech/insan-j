@@ -10,6 +10,9 @@ import {
 } from '../features/pemeriksaan-air/waterService';
 import {
   createEmptyParameter,
+  createCleanWaterParameters,
+  toCleanWaterParameters,
+  CLEAN_WATER_UNIT,
   validateExamination,
   WATER_TYPES,
   WASTEWATER_POINTS,
@@ -27,7 +30,7 @@ const emptyForm = (waterType = 'clean') => ({
   laboratory: '',
   report_number: '',
   notes: '',
-  parameters: [createEmptyParameter()],
+  parameters: waterType === 'clean' ? createCleanWaterParameters() : [createEmptyParameter()],
 });
 
 const errorMessage = (error) => {
@@ -75,7 +78,10 @@ export default function PemeriksaanAir() {
     failed: records.filter((item) => item.parameters?.some((parameter) => parameter.status === 'tidak_memenuhi')).length,
   }), [records]);
 
-  const changeField = (field, value) => setForm((current) => ({ ...current, [field]: value }));
+  const changeField = (field, value) => setForm((current) => field === 'water_type'
+    ? { ...current, water_type: value, clean_water_location_id: '', sample_point: 'Inlet',
+        parameters: value === 'clean' ? createCleanWaterParameters() : [createEmptyParameter()] }
+    : { ...current, [field]: value });
   const changeParameter = (index, field, value) => setForm((current) => ({
     ...current,
     parameters: current.parameters.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item),
@@ -86,7 +92,13 @@ export default function PemeriksaanAir() {
     setShowForm(true);
   };
 
-  const editRecord = (record) => {
+  const editRecord = async (record) => {
+    if (record.water_type === 'clean' && record.parameters?.some(item => !['coliform', 'ecoli'].includes(String(item.parameter || '').toLowerCase().replace(/[^a-z0-9]/g, '')))) {
+      const { isConfirmed } = await Swal.fire({ icon: 'warning', title: 'Data air bersih lama',
+        text: 'Data ini memuat parameter lain. Jika dilanjutkan, parameter lain tersebut tidak ikut tersimpan saat Anda mengedit. Hasil lama tetap terlihat bila dibatalkan.',
+        showCancelButton: true, confirmButtonText: 'Lanjutkan Edit', cancelButtonText: 'Batal' });
+      if (!isConfirmed) return;
+    }
     setForm({
       ...emptyForm(record.water_type),
       ...record,
@@ -95,7 +107,9 @@ export default function PemeriksaanAir() {
       laboratory: record.laboratory || '',
       report_number: record.report_number || '',
       notes: record.notes || '',
-      parameters: record.parameters?.length ? record.parameters : [createEmptyParameter()],
+      parameters: record.water_type === 'clean'
+        ? toCleanWaterParameters(record.parameters)
+        : record.parameters?.length ? record.parameters : [createEmptyParameter()],
     });
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -196,16 +210,24 @@ export default function PemeriksaanAir() {
             </div>
 
             <div>
-              <div className="mb-2 flex items-center justify-between"><h4 className="text-sm font-black text-slate-700">Parameter Laboratorium</h4><button type="button" onClick={() => changeField('parameters', [...form.parameters, createEmptyParameter()])} className="text-xs font-bold text-blue-600">+ Tambah Parameter</button></div>
+              <div className="mb-2 flex items-center justify-between">
+                <h4 className="text-sm font-black text-slate-700">{form.water_type === 'clean' ? 'Mikrobiologi per Bak' : 'Parameter Laboratorium'}</h4>
+                {form.water_type === 'wastewater' && <button type="button" onClick={() => changeField('parameters', [...form.parameters, createEmptyParameter()])} className="text-xs font-bold text-blue-600">+ Tambah Parameter</button>}
+              </div>
+              {form.water_type === 'clean' && <p className="mb-3 text-xs text-slate-500">Isi hasil Coliform dan E. coli dalam satuan {CLEAN_WATER_UNIT} sesuai laporan lab.</p>}
               <div className="space-y-3">
                 {form.parameters.map((parameter, index) => (
                   <div key={index} className="grid gap-2 rounded-2xl bg-slate-50 p-3 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_0.8fr_1fr_1fr_auto]">
-                    <input value={parameter.parameter} onChange={(event) => changeParameter(index, 'parameter', event.target.value)} placeholder="Parameter (pH, BOD...)" className="rounded-lg border border-slate-200 p-2 text-xs" />
+                    {form.water_type === 'clean'
+                      ? <span className="rounded-lg bg-cyan-50 p-2 text-xs font-bold text-cyan-800">{parameter.parameter}</span>
+                      : <input value={parameter.parameter} onChange={(event) => changeParameter(index, 'parameter', event.target.value)} placeholder="Parameter (pH, BOD...)" className="rounded-lg border border-slate-200 p-2 text-xs" />}
                     <input value={parameter.result} onChange={(event) => changeParameter(index, 'result', event.target.value)} placeholder="Hasil" className="rounded-lg border border-slate-200 p-2 text-xs" />
-                    <input value={parameter.unit} onChange={(event) => changeParameter(index, 'unit', event.target.value)} placeholder="Satuan" className="rounded-lg border border-slate-200 p-2 text-xs" />
+                    {form.water_type === 'clean'
+                      ? <span className="rounded-lg bg-cyan-50 p-2 text-xs font-bold text-cyan-800">{CLEAN_WATER_UNIT}</span>
+                      : <input value={parameter.unit} onChange={(event) => changeParameter(index, 'unit', event.target.value)} placeholder="Satuan" className="rounded-lg border border-slate-200 p-2 text-xs" />}
                     <input value={parameter.standard} onChange={(event) => changeParameter(index, 'standard', event.target.value)} placeholder="Baku mutu" className="rounded-lg border border-slate-200 p-2 text-xs" />
                     <select value={parameter.status} onChange={(event) => changeParameter(index, 'status', event.target.value)} className="rounded-lg border border-slate-200 p-2 text-xs"><option value="belum_dinilai">Belum dinilai</option><option value="memenuhi">Memenuhi</option><option value="tidak_memenuhi">Tidak memenuhi</option></select>
-                    <button type="button" disabled={form.parameters.length === 1} onClick={() => changeField('parameters', form.parameters.filter((_, itemIndex) => itemIndex !== index))} className="rounded-lg px-2 text-red-500 disabled:opacity-30"><i className="fas fa-trash" /></button>
+                    {form.water_type === 'wastewater' && <button type="button" disabled={form.parameters.length === 1} onClick={() => changeField('parameters', form.parameters.filter((_, itemIndex) => itemIndex !== index))} className="rounded-lg px-2 text-red-500 disabled:opacity-30"><i className="fas fa-trash" /></button>}
                   </div>
                 ))}
               </div>
