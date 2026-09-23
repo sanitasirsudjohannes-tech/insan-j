@@ -3,8 +3,6 @@ import Swal from 'sweetalert2';
 import AppLayout from '../components/AppLayout';
 import { getCurrentUser } from '../lib/api';
 import {
-  addCleanWaterLocation,
-  deleteCleanWaterLocation,
   deleteWaterExamination,
   getCleanWaterLocations,
   getWaterExaminations,
@@ -40,7 +38,6 @@ const errorMessage = (error) => {
 
 export default function PemeriksaanAir() {
   const user = getCurrentUser();
-  const isAdmin = user?.role?.trim().toLowerCase() === 'admin';
   const [form, setForm] = useState(emptyForm());
   const [locations, setLocations] = useState([]);
   const [records, setRecords] = useState([]);
@@ -49,7 +46,6 @@ export default function PemeriksaanAir() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [newLocation, setNewLocation] = useState('');
 
   const loadLocations = useCallback(async () => {
     setLocations(await getCleanWaterLocations());
@@ -139,33 +135,6 @@ export default function PemeriksaanAir() {
     }
   };
 
-  const submitLocation = async (event) => {
-    event.preventDefault();
-    if (!newLocation.trim()) return;
-    try {
-      await addCleanWaterLocation(newLocation);
-      setNewLocation('');
-      await loadLocations();
-    } catch (error) {
-      Swal.fire('Lokasi Gagal Ditambahkan', errorMessage(error), 'error');
-    }
-  };
-
-  const removeLocation = async (location) => {
-    const confirmation = await Swal.fire({
-      icon: 'warning', title: `Nonaktifkan ${location.name}?`,
-      text: 'Data pemeriksaan lama tetap tersimpan.', showCancelButton: true,
-      confirmButtonText: 'Nonaktifkan', cancelButtonText: 'Batal', confirmButtonColor: '#dc2626',
-    });
-    if (!confirmation.isConfirmed) return;
-    try {
-      await deleteCleanWaterLocation(location.id);
-      await loadLocations();
-    } catch (error) {
-      Swal.fire('Gagal Menonaktifkan', errorMessage(error), 'error');
-    }
-  };
-
   return (
     <AppLayout title="Pemeriksaan Air">
       <div className="mx-auto max-w-7xl space-y-5 p-4 sm:p-6">
@@ -182,25 +151,6 @@ export default function PemeriksaanAir() {
             </div>
           </div>
         </section>
-
-        {isAdmin && (
-          <details className="rounded-2xl border border-cyan-100 bg-white p-4 shadow-sm">
-            <summary className="cursor-pointer text-sm font-black text-slate-800">Kelola Lokasi Air Bersih <span className="ml-2 text-xs font-medium text-slate-400">khusus admin</span></summary>
-            <form onSubmit={submitLocation} className="mt-4 flex gap-2">
-              <input value={newLocation} onChange={(event) => setNewLocation(event.target.value)} placeholder="Nama ruangan / lokasi bak" className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-cyan-500" />
-              <button className="rounded-xl bg-cyan-600 px-4 py-2 text-sm font-bold text-white">Tambah</button>
-            </form>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {locations.map((location) => (
-                <span key={location.id} className="inline-flex items-center gap-2 rounded-full bg-cyan-50 px-3 py-1.5 text-xs font-bold text-cyan-800">
-                  {location.name}
-                  <button type="button" onClick={() => removeLocation(location)} aria-label={`Nonaktifkan ${location.name}`} className="text-red-500"><i className="fas fa-xmark" /></button>
-                </span>
-              ))}
-              {!locations.length && <p className="text-xs text-slate-400">Belum ada lokasi. Tambahkan lokasi sebelum mengisi hasil air bersih.</p>}
-            </div>
-          </details>
-        )}
 
         {showForm && (
           <form onSubmit={submit} className="space-y-5 rounded-3xl border border-blue-100 bg-white p-4 shadow-lg sm:p-6">

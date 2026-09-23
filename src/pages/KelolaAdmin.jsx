@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import PenggunaTab from '../components/kelola-admin/PenggunaTab';
 import TambahPenggunaTab from '../components/kelola-admin/TambahPenggunaTab';
 import RuanganTab from '../components/kelola-admin/RuanganTab';
+import LokasiAirBersihTab from '../components/kelola-admin/LokasiAirBersihTab';
 import PengaturanTab from '../components/kelola-admin/PengaturanTab';
 import AdminHeader from '../components/kelola-admin/AdminHeader';
 import DataMaintenanceTab from '../components/kelola-admin/DataMaintenanceTab';
@@ -38,7 +39,7 @@ export default function KelolaAdmin() {
   const [adminVerified, setAdminVerified] = useState(null);
   const isAdmin = claimsAdmin && adminVerified === true;
 
-  const [activeTab, setActiveTab] = useState('pengguna'); // 'pengguna' | 'tambah-pengguna' | 'ruangan' | 'pengaturan'
+  const [activeTab, setActiveTab] = useState('pengguna');
 
   // User Management State
   const [users, setUsers] = useState([]);
@@ -717,7 +718,7 @@ export default function KelolaAdmin() {
   if (!isAdmin) return null;
 
   return (
-    <AppLayout title="Kelola Admin & Master Ruangan" showBackButton={false}>
+    <AppLayout title="Kelola Pengguna & Master Data" showBackButton={false}>
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <AdminHeader
           activeTab={activeTab}
@@ -777,6 +778,8 @@ export default function KelolaAdmin() {
             fetchRuangan={fetchRuangan}
           />
         )}
+
+        {activeTab === 'lokasi-air-bersih' && <LokasiAirBersihTab />}
 
         {/* TAB 4: PENGATURAN */}
         {activeTab === 'pengaturan' && (
