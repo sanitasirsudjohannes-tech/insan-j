@@ -9,8 +9,6 @@ const Akun = lazy(() => import('./pages/Akun'));
 const Riwayat = lazy(() => import('./pages/Riwayat'));
 const KelolaAdmin = lazy(() => import('./pages/KelolaAdmin'));
 const Inspeksi = lazy(() => import('./pages/Inspeksi'));
-const LimbahPadat = lazy(() => import('./pages/LimbahPadat'));
-const LimbahRuangan = lazy(() => import('./pages/LimbahRuangan'));
 const LimbahDihasilkan = lazy(() => import('./pages/LimbahDihasilkan'));
 const PengangkutanLimbah = lazy(() => import('./pages/PengangkutanLimbah'));
 const RekapLimbah = lazy(() => import('./pages/RekapLimbah'));

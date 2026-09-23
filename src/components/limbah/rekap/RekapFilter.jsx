@@ -1,4 +1,3 @@
-import React from 'react';
 import { MONTH_NAMES } from '../../../lib/rekapQueries';
 
 export default function RekapFilter({
