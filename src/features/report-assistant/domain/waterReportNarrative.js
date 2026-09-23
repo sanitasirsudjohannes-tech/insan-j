@@ -26,6 +26,6 @@ export function buildWaterConclusion(reportType, analytics = {}) {
     ? `Pemeriksaan ${subject} telah dilaksanakan sebanyak ${numberId(total)} kali. Ditemukan ${numberId(failed)} parameter berstatus tidak memenuhi baku mutu yang memerlukan tindak lanjut dan pemantauan ulang.`
     : unassessed
       ? `Pemeriksaan ${subject} telah dilaksanakan sebanyak ${numberId(total)} kali, tetapi ${numberId(unassessed)} parameter belum dinilai. Pemenuhan baku mutu belum dapat disimpulkan untuk seluruh parameter.`
-      : `Pemeriksaan ${subject} telah dilaksanakan sebanyak ${numberId(total)} kali. Seluruh parameter yang dapat dibandingkan secara numerik berstatus memenuhi; cocokkan kembali dengan laporan laboratorium sebelum menetapkan kesimpulan akhir.`;
+      : `Pemeriksaan ${subject} telah dilaksanakan sebanyak ${numberId(total)} kali. Seluruh parameter yang dapat dibandingkan secara numerik berstatus memenuhi; petugas perlu mencocokkan kembali hasil tersebut dengan laporan laboratorium sebelum menetapkan kesimpulan akhir.`;
 }
 
