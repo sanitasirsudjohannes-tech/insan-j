@@ -92,10 +92,11 @@ export default function PemeriksaanAir() {
     const standard = standardsFor('clean').find(item => item.parameter === name);
     return standard ? parameterFromStandard(standard) : createCleanWaterParameters().find(item => item.parameter === name);
   });
+  const wastewaterParameters = () => standardsFor('wastewater').map(standard => parameterFromStandard(standard));
 
   const changeField = (field, value) => setForm(current => field === 'water_type'
     ? { ...current, water_type: value, clean_water_location_id: '', sample_point: 'Inlet',
-        parameters: value === 'clean' ? cleanParameters() : [] }
+        parameters: value === 'clean' ? cleanParameters() : wastewaterParameters() }
     : { ...current, [field]: value });
 
   const changeResult = (index, value) => setForm(current => ({
@@ -106,9 +107,20 @@ export default function PemeriksaanAir() {
   }));
 
   const addWastewaterParameter = () => {
-    const standard = standardsFor('wastewater').find(item => item.id === selectedStandardId);
-    if (!standard || form.parameters.some(item => item.parameter === standard.parameter)) return;
+    const standard = standardsFor('wastewater').find(item => String(item.id) === String(selectedStandardId));
+    if (!standard || form.parameters.some(item => item.standard_id === standard.id || item.parameter === standard.parameter)) return;
     changeField('parameters', [...form.parameters, parameterFromStandard(standard)]);
+    setSelectedStandardId('');
+  };
+
+  const addAllWastewaterParameters = () => {
+    const existingIds = new Set(form.parameters.map(item => item.standard_id).filter(Boolean));
+    const existingNames = new Set(form.parameters.map(item => item.parameter));
+    const missing = standardsFor('wastewater')
+      .filter(item => !existingIds.has(item.id) && !existingNames.has(item.parameter))
+      .map(item => parameterFromStandard(item));
+    if (!missing.length) return;
+    changeField('parameters', [...form.parameters, ...missing]);
     setSelectedStandardId('');
   };
 
@@ -122,7 +134,7 @@ export default function PemeriksaanAir() {
       Swal.fire('Baku Mutu Belum Tersedia', 'Admin perlu menambah parameter dan rujukan air limbah terlebih dahulu.', 'warning');
       return;
     }
-    setForm({ ...emptyForm(waterType), parameters: waterType === 'clean' ? cleanParameters() : [] });
+    setForm({ ...emptyForm(waterType), parameters: waterType === 'clean' ? cleanParameters() : wastewaterParameters() });
     setSelectedStandardId('');
     setShowForm(true);
   };
@@ -256,15 +268,27 @@ export default function PemeriksaanAir() {
               <h4 className="text-sm font-black text-slate-700">{form.water_type === 'clean' ? 'Mikrobiologi per Bak' : 'Parameter Laboratorium'}</h4>
               <p className="mt-1 text-xs text-slate-500">Baku mutu, satuan, dan rujukan peraturan diatur admin. Isi hasil sesuai laporan laboratorium; status dihitung otomatis.</p>
               {form.water_type === 'wastewater' && (
-                <div className="mt-3 flex gap-2">
-                  <select value={selectedStandardId} onChange={event => setSelectedStandardId(event.target.value)}
-                    className="min-w-0 flex-1 rounded-xl border border-slate-200 p-2.5 text-sm" aria-label="Pilih parameter air limbah">
-                    <option value="">Pilih parameter</option>
-                    {standardsFor('wastewater').filter(item => !form.parameters.some(row => row.parameter === item.parameter))
-                      .map(item => <option key={item.id} value={item.id}>{item.parameter}</option>)}
-                  </select>
-                  <button type="button" onClick={addWastewaterParameter} disabled={!selectedStandardId}
-                    className="rounded-xl bg-blue-50 px-3 text-xs font-bold text-blue-700 disabled:opacity-50">+ Parameter</button>
+                <div className="mt-3 rounded-2xl border border-blue-100 bg-blue-50/60 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-bold text-blue-800">
+                      {form.parameters.length} parameter ditambahkan untuk {form.sample_point}
+                    </p>
+                    <button type="button" onClick={addAllWastewaterParameters}
+                      disabled={standardsFor('wastewater').every(item => form.parameters.some(row => row.standard_id === item.id || row.parameter === item.parameter))}
+                      className="rounded-lg bg-white px-3 py-2 text-xs font-bold text-blue-700 shadow-sm disabled:opacity-50">
+                      Tambahkan Semua
+                    </button>
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <select value={selectedStandardId} onChange={event => setSelectedStandardId(event.target.value)}
+                      className="min-w-0 flex-1 rounded-xl border border-blue-200 bg-white p-2.5 text-sm" aria-label="Pilih parameter air limbah">
+                      <option value="">Pilih parameter tambahan</option>
+                      {standardsFor('wastewater').filter(item => !form.parameters.some(row => row.standard_id === item.id || row.parameter === item.parameter))
+                        .map(item => <option key={item.id} value={item.id}>{item.parameter} ({item.unit})</option>)}
+                    </select>
+                    <button type="button" onClick={addWastewaterParameter} disabled={!selectedStandardId}
+                      className="rounded-xl bg-blue-600 px-3 text-xs font-bold text-white disabled:opacity-50">+ Tambah</button>
+                  </div>
                 </div>
               )}
               <div className="mt-3 space-y-3">
