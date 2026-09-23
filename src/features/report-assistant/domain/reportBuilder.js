@@ -1,5 +1,6 @@
 import { REPORT_TYPES } from '../constants/reportTypes.js';
 import { buildMedicalWasteAnalysis, buildMedicalWasteConclusion, buildMedicalWasteRecommendations } from '../../../lib/medicalWasteNarrative.js';
+import { buildWaterAnalysis, buildWaterConclusion } from './waterReportNarrative.js';
 
 const LABELS = Object.fromEntries(
   Object.values(REPORT_TYPES).flatMap(type => type.fields.map(field => [field.key, field.label]))
@@ -77,6 +78,9 @@ export function buildLocalReport(payload = {}) {
 
 export function buildAutomaticAnalysis(payload = {}) {
   const facts = payload.facts || {};
+  if (['wastewater', 'clean_water'].includes(payload.reportType) && payload.analytics) {
+    return buildWaterAnalysis(payload.reportType, payload.analytics);
+  }
   if (payload.reportType === 'medical_waste') {
     if (payload.analytics) return buildMedicalWasteAnalysis(facts, payload.analytics);
     const generated = Number(facts.totalGeneratedKg) || 0;
@@ -111,6 +115,9 @@ export function buildAutomaticAnalysis(payload = {}) {
 
 export function buildReportConclusion(payload = {}) {
   const facts = payload.facts || {};
+  if (['wastewater', 'clean_water'].includes(payload.reportType) && payload.analytics) {
+    return buildWaterConclusion(payload.reportType, payload.analytics);
+  }
   if (payload.reportType === 'medical_waste') {
     if (payload.analytics) return buildMedicalWasteConclusion(facts, payload.analytics);
     const difference = Number(facts.remainingKg) || 0;

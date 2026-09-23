@@ -37,7 +37,7 @@ function reportTable(model) {
 export async function buildDocxBlob(draft, chartImages = [], tableModels = []) {
   const paragraphs = String(draft || '').split('\n').map(reportParagraph);
   if (tableModels.length) {
-    paragraphs.push(new Paragraph({ children: [new PageBreak()] }), new Paragraph({ alignment: AlignmentType.CENTER, heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: 'LAMPIRAN TABEL DATA LIMBAH', bold: true, size: 28, font: 'Arial' })] }));
+    paragraphs.push(new Paragraph({ children: [new PageBreak()] }), new Paragraph({ alignment: AlignmentType.CENTER, heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: 'LAMPIRAN TABEL DATA PEMERIKSAAN', bold: true, size: 28, font: 'Arial' })] }));
     tableModels.forEach(model => paragraphs.push(...reportTable(model)));
   }
   if (chartImages.length) {

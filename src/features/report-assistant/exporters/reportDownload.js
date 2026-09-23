@@ -4,18 +4,23 @@ import { REPORT_TYPES } from '../constants/reportTypes.js';
 import { buildDocxBlob } from './docxBuilder.js';
 import { createReportChartPngs } from './reportChartRenderer.js';
 import { buildMedicalWasteTableModels } from '../../../lib/reportTableData';
+import { buildWaterTableModels } from './waterTableData.js';
 
-async function createWordFile(draft, reportType, chartImages = [], facts = {}, chartData = null) {
+async function createWordFile(draft, reportType, chartImages = [], facts = {}, chartData = null, analytics = null) {
   const filename = `Draft_${REPORT_TYPES[reportType]?.shortLabel || 'Laporan'}_${getLocalDateString()}.docx`.replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_.-]/g, '');
-  const tables = reportType === 'medical_waste' ? buildMedicalWasteTableModels(facts, chartData || {}) : [];
+  const tables = reportType === 'medical_waste'
+    ? buildMedicalWasteTableModels(facts, chartData || {})
+    : ['wastewater', 'clean_water'].includes(reportType)
+      ? buildWaterTableModels(reportType, analytics || {})
+      : [];
   const blob = await buildDocxBlob(draft, chartImages, tables);
   return new File([blob], filename, {
     type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   });
 }
 
-async function downloadWord(draft, reportType, chartImages = [], facts = {}, chartData = null) {
-  const file = await createWordFile(draft, reportType, chartImages, facts, chartData);
+async function downloadWord(draft, reportType, chartImages = [], facts = {}, chartData = null, analytics = null) {
+  const file = await createWordFile(draft, reportType, chartImages, facts, chartData, analytics);
   const blobUrl = URL.createObjectURL(file);
   const link = document.createElement('a');
   link.href = blobUrl;
@@ -34,10 +39,10 @@ async function downloadWord(draft, reportType, chartImages = [], facts = {}, cha
   }
 }
 
-export async function handleWordDownload(draft, reportType, facts, reportChartData = null, includeCharts = false) {
+export async function handleWordDownload(draft, reportType, facts, reportChartData = null, includeCharts = false, analytics = null) {
   try {
     const chartImages = includeCharts && reportChartData ? await createReportChartPngs(reportChartData) : [];
-    await downloadWord(draft, reportType, chartImages, facts, reportChartData);
+    await downloadWord(draft, reportType, chartImages, facts, reportChartData, analytics);
     Swal.fire({
       icon: 'success',
       title: 'File DOCX Disiapkan',
@@ -47,7 +52,7 @@ export async function handleWordDownload(draft, reportType, facts, reportChartDa
     });
   } catch {
     try {
-      await downloadWord(draft, reportType, [], facts, reportChartData);
+      await downloadWord(draft, reportType, [], facts, reportChartData, analytics);
       Swal.fire({
         icon: 'warning',
         title: 'Grafik Tidak Dapat Diproses',
@@ -58,7 +63,7 @@ export async function handleWordDownload(draft, reportType, facts, reportChartDa
     } catch {
       // Gunakan menu berbagi bawaan perangkat sebagai pilihan terakhir.
     }
-    const file = await createWordFile(draft, reportType, [], facts, reportChartData);
+    const file = await createWordFile(draft, reportType, [], facts, reportChartData, analytics);
     if (navigator.canShare?.({ files: [file] })) {
       try {
         await navigator.share({ files: [file], title: file.name });

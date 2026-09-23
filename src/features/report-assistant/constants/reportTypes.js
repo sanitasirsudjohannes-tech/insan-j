@@ -17,6 +17,7 @@ export const REPORT_TYPES = {
   },
   wastewater: {
     label: 'Pemeriksaan IPAL',
+    supportsRecap: true,
     shortLabel: 'IPAL',
     icon: 'fas fa-water',
     fields: [
@@ -29,6 +30,7 @@ export const REPORT_TYPES = {
   },
   clean_water: {
     label: 'Kualitas Air Bersih',
+    supportsRecap: true,
     shortLabel: 'Air Bersih',
     icon: 'fas fa-droplet',
     fields: [

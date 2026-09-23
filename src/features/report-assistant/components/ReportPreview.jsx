@@ -25,12 +25,12 @@ export default function ReportPreview({ form, draft, setDraft, chartData, handle
                     <i className="fas fa-copy mr-2" />
                     Salin
                   </button>
-                  <button type="button" onClick={() => handleWordDownload(draft, form.reportType, form.facts, chartData)} className="rounded-xl border border-emerald-200 px-4 py-2.5 text-sm font-bold text-emerald-700">
+                  <button type="button" onClick={() => handleWordDownload(draft, form.reportType, form.facts, chartData, false, form.analytics)} className="rounded-xl border border-emerald-200 px-4 py-2.5 text-sm font-bold text-emerald-700">
                     <i className="fas fa-file-word mr-2" />
                     Unduh DOCX
                   </button>
                   {chartData && (
-                    <button type="button" onClick={() => handleWordDownload(draft, form.reportType, form.facts, chartData, true)} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-md">
+                    <button type="button" onClick={() => handleWordDownload(draft, form.reportType, form.facts, chartData, true, form.analytics)} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-md">
                       <i className="fas fa-chart-column mr-2" />
                       DOCX + Grafik
                     </button>

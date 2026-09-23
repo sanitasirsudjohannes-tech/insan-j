@@ -4,6 +4,7 @@ import { buildLocalReport } from '../domain/reportBuilder.js';
 import { REPORT_TYPES } from '../constants/reportTypes.js';
 import { validateReportPayload } from '../domain/reportValidation.js';
 import { fetchMedicalWasteRecap } from '../../../lib/reportRecap';
+import { fetchWaterReportRecap } from '../services/waterReportRecap.js';
 import { STORAGE_KEY, emptyState, initialPeriod, loadSavedState } from '../services/reportDraftStorage';
 const numberValue = value => Math.round((Number(value) || 0) * 100) / 100;
 
@@ -56,10 +57,14 @@ export function useReportAssistant() {
     }
     setRecapLoading(true);
     try {
-      const recap = await fetchMedicalWasteRecap(form.period.start, form.period.end);
-      const facts = Object.fromEntries(Object.entries(recap.facts).map(([key, value]) => [key, numberValue(value)]));
-      setForm(current => ({ ...current, facts, analytics: recap.analytics }));
-      setChartData(recap.charts);
+      const recap = form.reportType === 'medical_waste'
+        ? await fetchMedicalWasteRecap(form.period.start, form.period.end)
+        : await fetchWaterReportRecap(form.period.start, form.period.end, form.reportType);
+      const facts = form.reportType === 'medical_waste'
+        ? Object.fromEntries(Object.entries(recap.facts).map(([key, value]) => [key, numberValue(value)]))
+        : recap.facts;
+      setForm(current => ({ ...current, facts: { ...current.facts, ...facts }, analytics: recap.analytics }));
+      setChartData(form.reportType === 'medical_waste' ? recap.charts : null);
       await Swal.fire({
         icon: 'success',
         title: 'Data Rekap Diambil',
