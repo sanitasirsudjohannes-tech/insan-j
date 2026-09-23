@@ -1,4 +1,5 @@
 import { supabase } from '../../../lib/supabase';
+import { calculateParameterStatus } from '../../pemeriksaan-air/waterHelpers.js';
 
 const formatDate = value => {
   if (!value) return '-';
@@ -46,7 +47,14 @@ export async function fetchWaterReportRecap(start, end, reportType) {
       .order('id', { ascending: true })
       .range(from, from + pageSize - 1);
     if (error) throw error;
-    records.push(...(data || []));
+    records.push(...(data || []).map(record => ({
+      ...record,
+      parameters: (record.parameters || []).map(item => ({
+        ...item,
+        parameter: record.water_type === 'clean' && /^coliform$/i.test(String(item.parameter).trim()) ? 'Total coliform' : item.parameter,
+        status: calculateParameterStatus(item.result, item.standard),
+      })),
+    })));
     if (!data || data.length < pageSize) break;
   }
   const nonCompliant = nonCompliantItems(records);
@@ -72,7 +80,7 @@ export async function fetchWaterReportRecap(start, end, reportType) {
         outletResult: outlet.map(recordLine).join('\n') || 'Tidak ada data outlet pada periode ini.',
         compliance: nonCompliant.length
           ? `${nonCompliant.length} parameter tidak memenuhi baku mutu: ${nonCompliant.map(item => `${item.parameter} di ${item.location} (${item.result}${item.unit ? ` ${item.unit}` : ''})`).join('; ')}.`
-          : common.unassessedParameters ? `${common.unassessedParameters} parameter belum dinilai.` : 'Seluruh parameter yang dicatat berstatus memenuhi menurut penilaian petugas; verifikasi terhadap laporan lab tetap diperlukan.',
+          : common.unassessedParameters ? `${common.unassessedParameters} parameter belum dinilai.` : 'Seluruh parameter dengan hasil dan baku mutu numerik berstatus memenuhi; verifikasi terhadap laporan lab tetap diperlukan.',
       },
       analytics: { ...common, inletCount: inlet.length, outletCount: outlet.length },
     };

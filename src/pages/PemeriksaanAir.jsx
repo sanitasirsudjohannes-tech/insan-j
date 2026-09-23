@@ -10,6 +10,7 @@ import {
 } from '../features/pemeriksaan-air/waterService';
 import {
   createEmptyParameter,
+  calculateParameterStatus,
   createCleanWaterParameters,
   toCleanWaterParameters,
   CLEAN_WATER_UNIT,
@@ -84,7 +85,11 @@ export default function PemeriksaanAir() {
     : { ...current, [field]: value });
   const changeParameter = (index, field, value) => setForm((current) => ({
     ...current,
-    parameters: current.parameters.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item),
+    parameters: current.parameters.map((item, itemIndex) => {
+      if (itemIndex !== index) return item;
+      const next = { ...item, [field]: value };
+      return { ...next, status: calculateParameterStatus(next.result, next.standard) };
+    }),
   }));
 
   const openNew = (waterType) => {
@@ -93,7 +98,7 @@ export default function PemeriksaanAir() {
   };
 
   const editRecord = async (record) => {
-    if (record.water_type === 'clean' && record.parameters?.some(item => !['coliform', 'ecoli'].includes(String(item.parameter || '').toLowerCase().replace(/[^a-z0-9]/g, '')))) {
+    if (record.water_type === 'clean' && record.parameters?.some(item => !['coliform', 'totalcoliform', 'ecoli'].includes(String(item.parameter || '').toLowerCase().replace(/[^a-z0-9]/g, '')))) {
       const { isConfirmed } = await Swal.fire({ icon: 'warning', title: 'Data air bersih lama',
         text: 'Data ini memuat parameter lain. Jika dilanjutkan, parameter lain tersebut tidak ikut tersimpan saat Anda mengedit. Hasil lama tetap terlihat bila dibatalkan.',
         showCancelButton: true, confirmButtonText: 'Lanjutkan Edit', cancelButtonText: 'Batal' });
@@ -109,7 +114,9 @@ export default function PemeriksaanAir() {
       notes: record.notes || '',
       parameters: record.water_type === 'clean'
         ? toCleanWaterParameters(record.parameters)
-        : record.parameters?.length ? record.parameters : [createEmptyParameter()],
+        : record.parameters?.length
+          ? record.parameters.map(item => ({ ...item, status: calculateParameterStatus(item.result, item.standard) }))
+          : [createEmptyParameter()],
     });
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -214,7 +221,8 @@ export default function PemeriksaanAir() {
                 <h4 className="text-sm font-black text-slate-700">{form.water_type === 'clean' ? 'Mikrobiologi per Bak' : 'Parameter Laboratorium'}</h4>
                 {form.water_type === 'wastewater' && <button type="button" onClick={() => changeField('parameters', [...form.parameters, createEmptyParameter()])} className="text-xs font-bold text-blue-600">+ Tambah Parameter</button>}
               </div>
-              {form.water_type === 'clean' && <p className="mb-3 text-xs text-slate-500">Isi hasil Coliform dan E. coli dalam satuan {CLEAN_WATER_UNIT} sesuai laporan lab.</p>}
+              <p className="mb-3 text-xs text-slate-500">Isi hasil dan baku mutu numerik. Angka tanpa tanda berarti batas maksimum; gunakan ≤, ≥, atau rentang 6-9 bila sesuai laporan lab. Status dihitung otomatis.</p>
+              {form.water_type === 'clean' && <p className="mb-3 text-xs text-slate-500">Isi hasil Total coliform dan E. coli dalam satuan {CLEAN_WATER_UNIT} sesuai laporan lab.</p>}
               <div className="space-y-3">
                 {form.parameters.map((parameter, index) => (
                   <div key={index} className="grid gap-2 rounded-2xl bg-slate-50 p-3 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_0.8fr_1fr_1fr_auto]">
@@ -225,8 +233,10 @@ export default function PemeriksaanAir() {
                     {form.water_type === 'clean'
                       ? <span className="rounded-lg bg-cyan-50 p-2 text-xs font-bold text-cyan-800">{CLEAN_WATER_UNIT}</span>
                       : <input value={parameter.unit} onChange={(event) => changeParameter(index, 'unit', event.target.value)} placeholder="Satuan" className="rounded-lg border border-slate-200 p-2 text-xs" />}
-                    <input value={parameter.standard} onChange={(event) => changeParameter(index, 'standard', event.target.value)} placeholder="Baku mutu" className="rounded-lg border border-slate-200 p-2 text-xs" />
-                    <select value={parameter.status} onChange={(event) => changeParameter(index, 'status', event.target.value)} className="rounded-lg border border-slate-200 p-2 text-xs"><option value="belum_dinilai">Belum dinilai</option><option value="memenuhi">Memenuhi</option><option value="tidak_memenuhi">Tidak memenuhi</option></select>
+                    <input value={parameter.standard} onChange={(event) => changeParameter(index, 'standard', event.target.value)} placeholder="Baku mutu: 50, ≤50, 6-9, ≥6" aria-label={`Baku mutu ${parameter.parameter || index + 1}`} className="rounded-lg border border-slate-200 p-2 text-xs" />
+                    <span role="status" className={`rounded-lg p-2 text-xs font-bold ${parameter.status === 'memenuhi' ? 'bg-emerald-100 text-emerald-800' : parameter.status === 'tidak_memenuhi' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800'}`}>
+                      {parameter.status === 'memenuhi' ? 'Memenuhi' : parameter.status === 'tidak_memenuhi' ? 'Tidak memenuhi' : 'Belum dinilai'}
+                    </span>
                     {form.water_type === 'wastewater' && <button type="button" disabled={form.parameters.length === 1} onClick={() => changeField('parameters', form.parameters.filter((_, itemIndex) => itemIndex !== index))} className="rounded-lg px-2 text-red-500 disabled:opacity-30"><i className="fas fa-trash" /></button>}
                   </div>
                 ))}
@@ -254,7 +264,7 @@ export default function PemeriksaanAir() {
                 const failed = record.parameters?.some((item) => item.status === 'tidak_memenuhi');
                 const unassessed = record.parameters?.some((item) => !['memenuhi', 'tidak_memenuhi'].includes(item.status));
                 return <article key={record.id} className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
-                  <div className="flex items-start justify-between gap-3"><div><span className={`rounded-full px-2 py-1 text-[10px] font-black ${record.water_type === 'clean' ? 'bg-cyan-100 text-cyan-700' : 'bg-indigo-100 text-indigo-700'}`}>{WATER_TYPES[record.water_type]}</span><h3 className="mt-2 font-black text-slate-800">{record.water_type === 'clean' ? record.water_clean_locations?.name : record.sample_point}</h3><p className="text-xs text-slate-400">Sampling {record.sampled_at}{record.laboratory ? ` • ${record.laboratory}` : ''}</p></div><span className={`rounded-lg px-2 py-1 text-[10px] font-bold ${failed ? 'bg-red-100 text-red-700' : unassessed ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>{failed ? 'Perlu tindak lanjut' : unassessed ? 'Belum dinilai' : 'Memenuhi (input petugas)'}</span></div>
+                  <div className="flex items-start justify-between gap-3"><div><span className={`rounded-full px-2 py-1 text-[10px] font-black ${record.water_type === 'clean' ? 'bg-cyan-100 text-cyan-700' : 'bg-indigo-100 text-indigo-700'}`}>{WATER_TYPES[record.water_type]}</span><h3 className="mt-2 font-black text-slate-800">{record.water_type === 'clean' ? record.water_clean_locations?.name : record.sample_point}</h3><p className="text-xs text-slate-400">Sampling {record.sampled_at}{record.laboratory ? ` • ${record.laboratory}` : ''}</p></div><span className={`rounded-lg px-2 py-1 text-[10px] font-bold ${failed ? 'bg-red-100 text-red-700' : unassessed ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>{failed ? 'Perlu tindak lanjut' : unassessed ? 'Belum dinilai' : 'Memenuhi'}</span></div>
                   <div className="mt-3 overflow-x-auto"><table className="w-full text-left text-xs"><thead className="text-slate-400"><tr><th className="py-1">Parameter</th><th>Hasil</th><th>Baku Mutu</th></tr></thead><tbody>{record.parameters?.map((item, index) => <tr key={`${item.parameter}-${index}`} className="border-t border-slate-100"><td className="py-1.5 font-bold text-slate-700">{item.parameter}</td><td className={item.status === 'tidak_memenuhi' ? 'font-bold text-red-600' : 'text-slate-600'}>{item.result} {item.unit}</td><td className="text-slate-500">{item.standard || '-'}</td></tr>)}</tbody></table></div>
                   <div className="mt-3 flex justify-end gap-2"><button onClick={() => editRecord(record)} className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-600">Edit</button><button onClick={() => removeRecord(record)} className="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600">Hapus</button></div>
                 </article>;

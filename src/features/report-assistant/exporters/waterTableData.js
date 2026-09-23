@@ -7,7 +7,7 @@ export function buildWaterTableModels(reportType, analytics = {}) {
     parameter.parameter || '-',
     `${parameter.result ?? '-'}${parameter.unit ? ` ${parameter.unit}` : ''}`,
     parameter.standard || '-',
-    parameter.status === 'tidak_memenuhi' ? 'Tidak memenuhi' : parameter.status === 'memenuhi' ? 'Memenuhi (input petugas)' : 'Belum dinilai',
+    parameter.status === 'tidak_memenuhi' ? 'Tidak memenuhi' : parameter.status === 'memenuhi' ? 'Memenuhi' : 'Belum dinilai',
   ]));
   if (!rows.length) return [];
   return [{

@@ -4,7 +4,7 @@ export const WATER_TYPES = {
 };
 
 export const WASTEWATER_POINTS = ['Inlet', 'Outlet'];
-export const CLEAN_WATER_PARAMETERS = ['Coliform', 'E. coli'];
+export const CLEAN_WATER_PARAMETERS = ['Total coliform', 'E. coli'];
 export const CLEAN_WATER_UNIT = '/100 mL';
 
 export const createEmptyParameter = () => ({
@@ -21,11 +21,47 @@ export const createCleanWaterParameters = () => CLEAN_WATER_PARAMETERS.map(param
 
 const cleanParameterKey = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
+const readNumber = value => {
+  const text = String(value ?? '').trim().replace(',', '.');
+  return /^(?:\d+(?:\.\d+)?|\.\d+)$/.test(text) ? Number(text) : null;
+};
+
+// Baku mutu tanpa operator adalah batas maksimum. Teks yang tak dapat dihitung belum dinilai.
+export function calculateParameterStatus(result, standard) {
+  const value = readNumber(result);
+  if (value === null) return 'belum_dinilai';
+  const limit = String(standard ?? '').trim()
+    .replace(/\s*\/\s*100\s*m[lL]\s*$/i, '')
+    .replaceAll(',', '.');
+  const number = '(?:\\d+(?:\\.\\d+)?|\\.\\d+)';
+  const range = limit.match(new RegExp(`^(${number})\\s*[-–]\\s*(${number})$`));
+  if (range) {
+    const minimum = Number(range[1]);
+    const maximum = Number(range[2]);
+    if (minimum > maximum) return 'belum_dinilai';
+    return value >= minimum && value <= maximum ? 'memenuhi' : 'tidak_memenuhi';
+  }
+  const comparison = limit.match(new RegExp(`^(<=|>=|<|>|≤|≥)?\\s*(${number})$`));
+  if (!comparison) return 'belum_dinilai';
+  const [, operator = '', raw] = comparison;
+  const boundary = Number(raw);
+  const meets = operator === '>=' || operator === '≥' ? value >= boundary
+    : operator === '>' ? value > boundary
+      : operator === '<' ? value < boundary
+        : value <= boundary;
+  return meets ? 'memenuhi' : 'tidak_memenuhi';
+}
+
 export function toCleanWaterParameters(parameters = []) {
   return createCleanWaterParameters().map(defaultParameter => {
-    const existing = parameters.find(item => cleanParameterKey(item.parameter) === cleanParameterKey(defaultParameter.parameter));
+    const existing = parameters.find(item => {
+      const key = cleanParameterKey(item.parameter);
+      return key === cleanParameterKey(defaultParameter.parameter)
+        || (defaultParameter.parameter === 'Total coliform' && key === 'coliform');
+    });
     return existing
-      ? { ...defaultParameter, ...existing, parameter: defaultParameter.parameter, unit: CLEAN_WATER_UNIT }
+      ? { ...defaultParameter, ...existing, parameter: defaultParameter.parameter, unit: CLEAN_WATER_UNIT,
+          status: calculateParameterStatus(existing.result, existing.standard) }
       : defaultParameter;
   });
 }
@@ -37,7 +73,7 @@ export function normalizeParameters(parameters = []) {
       result: String(item.result ?? '').trim(),
       unit: String(item.unit || '').trim(),
       standard: String(item.standard || '').trim(),
-      status: ['memenuhi', 'tidak_memenuhi'].includes(item.status) ? item.status : 'belum_dinilai',
+      status: calculateParameterStatus(item.result, item.standard),
     }))
     .filter((item) => item.parameter && item.result);
 }
@@ -54,7 +90,7 @@ export function validateExamination(form) {
     const normalized = normalizeParameters(form.parameters);
     if (normalized.length !== CLEAN_WATER_PARAMETERS.length
       || CLEAN_WATER_PARAMETERS.some(name => normalized.filter(item => item.parameter === name && item.unit === CLEAN_WATER_UNIT).length !== 1)) {
-      return 'Hasil Coliform dan E. coli wajib diisi untuk setiap bak dengan satuan /100 mL.';
+      return 'Hasil Total coliform dan E. coli wajib diisi untuk setiap bak dengan satuan /100 mL.';
     }
   }
   if (normalizeParameters(form.parameters).length === 0) {

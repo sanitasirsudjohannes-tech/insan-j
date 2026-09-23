@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabase';
-import { monthRange, normalizeParameters } from './waterHelpers';
+import { calculateParameterStatus, monthRange, normalizeParameters } from './waterHelpers';
 
 export async function getCleanWaterLocations({ includeInactive = false } = {}) {
   let query = supabase
@@ -60,7 +60,14 @@ export async function getWaterExaminations({ month, waterType }) {
   if (waterType !== 'all') query = query.eq('water_type', waterType);
   const { data, error } = await query;
   if (error) throw error;
-  return data || [];
+  return (data || []).map(record => ({
+    ...record,
+    parameters: (record.parameters || []).map(item => ({
+      ...item,
+      parameter: record.water_type === 'clean' && /^coliform$/i.test(String(item.parameter).trim()) ? 'Total coliform' : item.parameter,
+      status: calculateParameterStatus(item.result, item.standard),
+    })),
+  }));
 }
 
 export async function saveWaterExamination(form, userId) {
