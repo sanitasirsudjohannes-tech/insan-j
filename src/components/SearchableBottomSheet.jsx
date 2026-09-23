@@ -396,7 +396,9 @@ export default function SearchableBottomSheet({
               <i className="fas fa-search text-3xl mb-2 block opacity-40" />
 
               <p className="text-sm">
-                Tidak ada {optionNoun} yang cocok
+                {options.length === 0 && !navigator.onLine
+                  ? 'Daftar ruangan belum tersimpan di HP. Hubungkan internet sekali untuk mengunduhnya.'
+                  : `Tidak ada ${optionNoun} yang cocok`}
               </p>
             </div>
           ) : (

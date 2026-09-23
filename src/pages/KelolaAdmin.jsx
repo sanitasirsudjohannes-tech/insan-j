@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import AppLayout from '../components/AppLayout';
-import { getCurrentUser, getSetting, setSetting } from '../lib/api';
+import { cacheRuangan, getCurrentUser, getSetting, setSetting } from '../lib/api';
 import { supabase } from '../lib/supabase';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
@@ -214,6 +214,7 @@ export default function KelolaAdmin() {
 
       if (err) throw err;
       setRuanganList(data || []);
+      cacheRuangan((data || []).map(item => item.nama_ruangan));
     } catch (err) {
       console.warn('Gagal mengambil daftar ruangan:', err);
       setRuanganList([]);

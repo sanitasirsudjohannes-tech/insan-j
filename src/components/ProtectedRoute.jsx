@@ -6,6 +6,7 @@ import {
   restoreUserSession,
 } from '../lib/session';
 import Swal from 'sweetalert2';
+import { fetchDaftarRuangan } from '../lib/api';
 import { useEffect, useRef, useState } from 'react';
 
 function SessionLoading() {
@@ -54,6 +55,8 @@ export default function ProtectedRoute({ children, requiredRole, allowedRoles, d
       setUser(result.user);
       setStatus(result.status);
       if (result.status === 'authenticated' && result.user?.id) {
+        // Siapkan master ruangan meski pengguna hanya membuka dashboard.
+        fetchDaftarRuangan().catch(() => {});
         window.dispatchEvent(new CustomEvent('insan-j-session-ready', {
           detail: { userId: result.user.id },
         }));

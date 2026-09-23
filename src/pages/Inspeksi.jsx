@@ -5,7 +5,7 @@ import withReactContent from 'sweetalert2-react-content';
 import { supabase } from '../lib/supabase';
 import { saveToOfflineQueue } from '../lib/offlineStorage';
 import { AVAILABLE_FORMS, CHECKLIST_ITEMS } from '../lib/constants';
-import { getCurrentUser, fetchDaftarRuangan } from '../lib/api';
+import { getCurrentUser, fetchDaftarRuangan, getCachedRuangan } from '../lib/api';
 import SearchableBottomSheet from '../components/SearchableBottomSheet';
 import { isNetworkError } from '../lib/networkErrors';
 import { submitInspectionEntries } from '../lib/inspectionSubmission';
@@ -20,7 +20,7 @@ export default function Inspeksi({ user: propUser }) {
   const [showForm, setShowForm] = useState(false);
   const [tanggal, setTanggal] = useState(new Date().toISOString().split('T')[0]);
   const [lokasi, setLokasi] = useState('');
-  const [ruanganList, setRuanganList] = useState([]);
+  const [ruanganList, setRuanganList] = useState(getCachedRuangan);
   const [formDataState, setFormDataState] = useState({});
   const [activities, setActivities] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,7 +30,10 @@ export default function Inspeksi({ user: propUser }) {
   const formRef = useRef(null);
 
   useEffect(() => {
+    const update = event => setRuanganList(event.detail);
+    window.addEventListener('insan-j-ruangan-updated', update);
     fetchDaftarRuangan().then(list => setRuanganList(list));
+    return () => window.removeEventListener('insan-j-ruangan-updated', update);
   }, []);
 
   useEffect(() => {
