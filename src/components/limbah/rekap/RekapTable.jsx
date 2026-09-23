@@ -1,4 +1,3 @@
-import React from 'react';
 import { formatKg } from '../../../lib/rekapQueries';
 
 function EmptyState() {

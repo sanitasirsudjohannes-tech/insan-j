@@ -22,7 +22,8 @@ export const logoutUser = async () => {
 export const getCachedRuangan = () => {
   try {
     const raw = localStorage.getItem(RUANGAN_CACHE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const list = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list : [];
   } catch {
     return [];
   }
@@ -32,14 +33,17 @@ export const getCachedRuangan = () => {
  * Menyimpan daftar ruangan ke localStorage
  */
 export const cacheRuangan = list => {
+  if (!Array.isArray(list) || list.length === 0) return;
   try {
     localStorage.setItem(RUANGAN_CACHE_KEY, JSON.stringify(list));
+    window.dispatchEvent(new CustomEvent('insan-j-ruangan-updated', { detail: list }));
   } catch (error) {
     console.warn('Gagal menyimpan cache ruangan:', error);
   }
 };
 
 export const fetchDaftarRuangan = async () => {
+  if (!navigator.onLine) return getCachedRuangan();
   try {
     const { data, error } = await supabase
       .from('ruangan')
@@ -53,7 +57,7 @@ export const fetchDaftarRuangan = async () => {
     }
 
     const list = data.map(row => row.nama_ruangan);
-    cacheRuangan(list);
+    if (list.length > 0) cacheRuangan(list);
     return list;
   } catch (error) {
     const cached = getCachedRuangan();

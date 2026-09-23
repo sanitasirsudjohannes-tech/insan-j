@@ -1,7 +1,7 @@
 import { ITEMS_PER_PAGE, FETCH_BATCH_SIZE } from '../../lib/limbah/constants';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
-import { fetchDaftarRuangan } from '../../lib/api';
+import { fetchDaftarRuangan, getCachedRuangan } from '../../lib/api';
 import { getOfflineQueue, getUnsyncedItemsForTable, getOfflineDeletedIds, getCachedServerRows, cacheServerRows, reconcileCachedServerRows } from '../../lib/offlineStorage';
 import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
 import { compareWasteRows } from '../../lib/limbah/rowOrder';
@@ -24,7 +24,7 @@ export default function useRuanganData() {
   const initialDateFilter = initialFilters.date || '';
   const [filterMonth, setFilterMonthState] = useState(() => initialDateFilter ? '' : initialFilters.month || getCurrentMonth());
   const fetchIdRef = useRef(0);
-  const [ruanganList, setRuanganList] = useState([]);
+  const [ruanganList, setRuanganList] = useState(getCachedRuangan);
   const [filterRuangan, setFilterRuangan] = useState(() => initialFilters.room || '');
   const [filterDate, setFilterDateState] = useState(initialDateFilter);
 
@@ -37,7 +37,12 @@ export default function useRuanganData() {
     else setFilterMonthState(current => current || getCurrentMonth());
   }, []);
 
-  useEffect(() => { fetchDaftarRuangan().then(setRuanganList); }, []);
+  useEffect(() => {
+    const update = event => setRuanganList(event.detail);
+    window.addEventListener('insan-j-ruangan-updated', update);
+    fetchDaftarRuangan().then(setRuanganList);
+    return () => window.removeEventListener('insan-j-ruangan-updated', update);
+  }, []);
   const fetchData = useCallback(async () => {
     const currentFetchId = ++fetchIdRef.current;
     setLoading(true);
