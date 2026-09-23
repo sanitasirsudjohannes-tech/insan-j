@@ -1,12 +1,13 @@
 import { supabase } from '../../lib/supabase';
 import { monthRange, normalizeParameters } from './waterHelpers';
 
-export async function getCleanWaterLocations() {
-  const { data, error } = await supabase
+export async function getCleanWaterLocations({ includeInactive = false } = {}) {
+  let query = supabase
     .from('water_clean_locations')
     .select('id, name, description, is_active')
-    .eq('is_active', true)
     .order('name');
+  if (!includeInactive) query = query.eq('is_active', true);
+  const { data, error } = await query;
   if (error) throw error;
   return data || [];
 }
@@ -21,11 +22,29 @@ export async function addCleanWaterLocation(name, description = '') {
   return data;
 }
 
-export async function deleteCleanWaterLocation(id) {
-  const { error } = await supabase
+export async function updateCleanWaterLocation(id, changes) {
+  const payload = { updated_at: new Date().toISOString() };
+  if (changes.name !== undefined) payload.name = changes.name.trim();
+  if (changes.is_active !== undefined) payload.is_active = changes.is_active;
+  const { data, error } = await supabase
     .from('water_clean_locations')
-    .update({ is_active: false })
-    .eq('id', id);
+    .update(payload)
+    .eq('id', id)
+    .select('id, name, description, is_active')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteCleanWaterLocation(id) {
+  const { count, error: countError } = await supabase
+    .from('water_examinations')
+    .select('id', { count: 'exact', head: true })
+    .eq('clean_water_location_id', id);
+  if (countError) throw countError;
+  if (count) throw new Error('Lokasi sudah dipakai dalam hasil pemeriksaan. Nonaktifkan agar riwayat tetap utuh.');
+  const { error } = await supabase.from('water_clean_locations').delete().eq('id', id);
+  if (error?.code === '23503') throw new Error('Lokasi sudah dipakai dalam hasil pemeriksaan. Nonaktifkan agar riwayat tetap utuh.');
   if (error) throw error;
 }
 

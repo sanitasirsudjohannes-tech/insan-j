@@ -167,7 +167,11 @@ export default function PemeriksaanAir() {
               {form.water_type === 'clean' ? (
                 <label className="text-xs font-bold text-slate-600">Ruangan / Lokasi Bak
                   <select value={form.clean_water_location_id} onChange={(event) => changeField('clean_water_location_id', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm">
-                    <option value="">Pilih lokasi</option>{locations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                    <option value="">Pilih lokasi</option>
+                    {form.id && form.clean_water_location_id && !locations.some(item => item.id === form.clean_water_location_id) && (
+                      <option value={form.clean_water_location_id}>{form.water_clean_locations?.name || 'Lokasi nonaktif'} (nonaktif, untuk riwayat)</option>
+                    )}
+                    {locations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                   </select>
                 </label>
               ) : (
