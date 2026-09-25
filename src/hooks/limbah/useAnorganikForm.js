@@ -7,7 +7,7 @@ import { getLocalDateString } from '../../lib/localDate';
 import { isNetworkError } from '../../lib/networkErrors';
 import { notifyDatabaseTablesChanged } from '../../lib/databaseAggregations';
 import { deleteRecordWithVersion, getRecordBaseVersion, isRecordConflictError, resolveOfflineRecordConflict, updateRecordWithVersion } from '../../lib/recordVersion';
-import { createDeleteDetailsHtml, formatDeleteDate } from '../../lib/deleteConfirmation';
+import { createDeleteDetailsHtml, formatDeleteDate, formatDeleteWasteTypes } from '../../lib/deleteConfirmation';
 
 const MySwal = withReactContent(Swal);
 
@@ -206,7 +206,18 @@ export default function useAnorganikForm({
       title: 'Hapus Data Limbah Anorganik?',
       html: createDeleteDetailsHtml([
         { label: 'Tanggal', value: formatDeleteDate(item.tanggal) },
-        { label: 'Ruangan', value: item.ruangan || '-' }
+        { label: 'Ruangan', value: item.ruangan || '-' },
+        {
+          label: 'Jenis limbah',
+          value: formatDeleteWasteTypes(item, [
+            { key: 'infus', label: 'Botol/selang infus' },
+            { key: 'jerigen', label: 'Jerigen' },
+            { key: 'kertas', label: 'Kertas' },
+            { key: 'kardus', label: 'Kardus' },
+            { key: 'botol_mineral', label: 'Botol mineral' },
+            { key: 'bayclin_dll', label: 'Botol Bayclin dan sejenisnya' }
+          ])
+        }
       ]),
       icon: 'warning',
       showCancelButton: true,

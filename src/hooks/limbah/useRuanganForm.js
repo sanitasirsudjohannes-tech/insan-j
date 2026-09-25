@@ -10,7 +10,7 @@ import { notifyDatabaseTablesChanged } from '../../lib/databaseAggregations';
 import { deleteRecordWithVersion, getRecordBaseVersion, isRecordConflictError, resolveOfflineRecordConflict, updateRecordWithVersion } from '../../lib/recordVersion';
 import { distributeValue } from '../../lib/limbah/ruanganDistribution';
 import { compareWasteRows } from '../../lib/limbah/rowOrder';
-import { createDeleteDetailsHtml, formatDeleteDate } from '../../lib/deleteConfirmation';
+import { createDeleteDetailsHtml, formatDeleteDate, formatDeleteWasteTypes } from '../../lib/deleteConfirmation';
 
 const MySwal = withReactContent(Swal);
 
@@ -294,7 +294,16 @@ export default function useRuanganForm({
       title: 'Hapus Data Limbah Ruangan?',
       html: createDeleteDetailsHtml([
         { label: 'Tanggal', value: formatDeleteDate(item.tanggal) },
-        { label: 'Ruangan', value: item.ruangan || '-' }
+        { label: 'Ruangan', value: item.ruangan || '-' },
+        {
+          label: 'Jenis limbah',
+          value: formatDeleteWasteTypes(item, [
+            { key: 'infeksius', label: 'Infeksius' },
+            { key: 'jarum_suntik', label: 'Jarum suntik' },
+            { key: 'botol_obat', label: 'Botol obat' },
+            { key: 'sitotoksik', label: 'Sitotoksik' }
+          ])
+        }
       ]),
       icon: 'warning',
       showCancelButton: true,

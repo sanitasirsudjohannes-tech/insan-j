@@ -21,6 +21,17 @@ export const formatDeleteKg = value => `${new Intl.NumberFormat('id-ID', {
   maximumFractionDigits: 2
 }).format(Number(value) || 0)} kg`;
 
+export const formatDeleteWasteTypes = (record, fields) => {
+  const types = fields
+    .map(({ key, label }) => ({ label, amount: Number(record?.[key]) || 0 }))
+    .filter(({ amount }) => amount > 0)
+    .map(({ label, amount }) => `${label} (${new Intl.NumberFormat('id-ID', {
+      maximumFractionDigits: 2
+    }).format(amount)} kg)`);
+
+  return types.length > 0 ? types.join(', ') : 'Tidak ada nilai limbah di atas 0 kg';
+};
+
 export const createDeleteDetailsHtml = (details, warning = 'Data yang dihapus tidak dapat dikembalikan.') => `
   <div class="mt-2 overflow-hidden rounded-xl border border-gray-200 bg-gray-50 text-left">
     ${details.map(({ label, value }) => `
