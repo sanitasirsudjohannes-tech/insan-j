@@ -6,15 +6,41 @@ import {
   updateRecordWithVersion,
 } from './recordVersion';
 
-const QUEUE_KEY = 'insan_j_offline_queue';
-const SYNCED_IDS_KEY = 'insan_j_offline_synced_ids';
-const RECORD_CACHE_KEY = 'insan_j_offline_record_cache';
-const SYNC_LOCK_KEY = 'insan_j_offline_sync_lock';
-const MAX_SYNCED_IDS_PER_USER = 200;
-const MAX_CACHED_ROWS_PER_TABLE = 500;
-const SYNC_LOCK_TTL_MS = 45000;
-const SYNC_RETRY_DELAYS_MS = [60_000, 5 * 60_000, 15 * 60_000];
-const LOCAL_STORAGE_WARNING_BYTES = 4 * 1024 * 1024;
+import {
+  QUEUE_KEY,
+  SYNC_LOCK_KEY,
+  SYNC_LOCK_TTL_MS,
+  SYNC_RETRY_DELAYS_MS,
+} from './offline/constants';
+import {
+  classifySyncError,
+  getSyncErrorMessage,
+  resetRetryState,
+} from './offline/syncErrors';
+import {
+  cacheServerRows,
+  clearCachedServerRows,
+  getCachedServerRows,
+  getCurrentQueueOwnerId,
+  getSyncedServerId,
+  reconcileCachedServerRows,
+  rememberSyncedServerId,
+  removeCachedServerRow,
+} from './offline/recordCache';
+import {
+  getOfflineStorageHealth,
+  notifyStorageHealth,
+} from './offline/storageHealth';
+
+export {
+  clearCachedServerRows,
+  getCachedServerRows,
+  getOfflineStorageHealth,
+  getSyncedServerId,
+  reconcileCachedServerRows,
+  removeCachedServerRow,
+};
+
 const SYNC_TAB_ID = `sync_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 
 // Per-tab mutex complemented by Web Locks/localStorage across browser tabs.
@@ -25,34 +51,6 @@ let syncChangedTables = new Set();
 
 export const isOfflineSyncInProgress = () => syncInProgress;
 
-const resetRetryState = (item) => ({
-  ...item,
-  syncAttempts: 0,
-  lastSyncError: null,
-  syncErrorType: null,
-  lastSyncAttemptAt: null,
-  nextRetryAt: null,
-  requiresManualRetry: false,
-  syncConflict: false,
-});
-
-const getSyncErrorMessage = (error) => {
-  if (typeof error?.message === 'string' && error.message.trim()) return error.message.trim();
-  if (typeof error === 'string' && error.trim()) return error.trim();
-  return 'Sinkronisasi gagal karena kesalahan yang tidak diketahui.';
-};
-
-const classifySyncError = (error) => {
-  const status = Number(error?.status || error?.statusCode || 0);
-  const code = String(error?.code || '').toLowerCase();
-  const message = getSyncErrorMessage(error).toLowerCase();
-  if (!navigator.onLine || /failed to fetch|network|load failed|fetch/.test(message)) return 'network';
-  if ([401].includes(status) || /jwt|session|refresh.token|authsession/.test(`${code} ${message}`)) return 'session';
-  if ([403].includes(status) || code === '42501' || /permission|row.level security|rls|not allowed/.test(message)) return 'permission';
-  if (isRecordConflictError(error)) return 'conflict';
-  if ([400, 409, 422].includes(status) || /^22|^23/.test(code) || /invalid|validation|required|constraint|duplicate/.test(message)) return 'validation';
-  return 'server';
-};
 
 const getVerifiedSyncSession = async (ownerId) => {
   try {
@@ -72,195 +70,7 @@ const getVerifiedSyncSession = async (ownerId) => {
   }
 };
 
-const getTrackedLocalStorageBytes = () => {
-  const keys = [QUEUE_KEY, SYNCED_IDS_KEY, RECORD_CACHE_KEY, 'insan_j_dashboard_cache_v1'];
-  return keys.reduce((total, key) => {
-    const value = localStorage.getItem(key) || '';
-    return total + new Blob([key, value]).size;
-  }, 0);
-};
 
-export const getOfflineStorageHealth = async () => {
-  const trackedBytes = getTrackedLocalStorageBytes();
-  let usage = null;
-  let quota = null;
-  try {
-    const estimate = await navigator.storage?.estimate?.();
-    usage = Number.isFinite(estimate?.usage) ? estimate.usage : null;
-    quota = Number.isFinite(estimate?.quota) ? estimate.quota : null;
-  } catch {
-    // Estimasi storage tidak tersedia pada semua browser.
-  }
-  const nearLocalLimit = trackedBytes >= LOCAL_STORAGE_WARNING_BYTES;
-  const nearOriginQuota = usage !== null && quota > 0 && usage / quota >= 0.8;
-  return { trackedBytes, usage, quota, warning: nearLocalLimit || nearOriginQuota };
-};
-
-const notifyStorageHealth = () => {
-  getOfflineStorageHealth().then(health => {
-    window.dispatchEvent(new CustomEvent('offline-storage-health', { detail: health }));
-  }).catch(() => {});
-};
-
-const getCurrentQueueOwnerId = () => {
-  try {
-    const raw = localStorage.getItem('currentUser') || sessionStorage.getItem('currentUser');
-    return raw ? JSON.parse(raw)?.id || null : null;
-  } catch {
-    return null;
-  }
-};
-
-const readRecordCache = () => {
-  try {
-    const raw = localStorage.getItem(RECORD_CACHE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch (error) {
-    console.warn('Gagal membaca cadangan data offline:', error);
-    return {};
-  }
-};
-
-export const getCachedServerRows = (tableName) => {
-  const ownerId = getCurrentQueueOwnerId();
-  if (!ownerId || !tableName) return [];
-
-  const rows = readRecordCache()[ownerId]?.[tableName];
-  return Array.isArray(rows) ? rows : [];
-};
-
-export const cacheServerRows = (tableName, rows) => {
-  const ownerId = getCurrentQueueOwnerId();
-  if (!ownerId || !tableName || !Array.isArray(rows) || rows.length === 0) return;
-
-  try {
-    const cache = readRecordCache();
-    const ownerCache = cache[ownerId] || {};
-    const existingRows = Array.isArray(ownerCache[tableName]) ? ownerCache[tableName] : [];
-    const mergedRows = new Map(existingRows.map(row => [String(row.id), row]));
-
-    rows.forEach(row => {
-      if (!row?.id || String(row.id).startsWith('off_')) return;
-      const { isOffline: _isOffline, offlineId: _offlineId, offlineAction: _offlineAction, ...serverRow } = row;
-      mergedRows.set(String(row.id), { ...mergedRows.get(String(row.id)), ...serverRow });
-    });
-
-    const sortedRows = Array.from(mergedRows.values()).sort((a, b) => {
-      const dateComparison = String(b.tanggal || b.tanggal_pemeriksaan || '')
-        .localeCompare(String(a.tanggal || a.tanggal_pemeriksaan || ''));
-      return dateComparison || String(b.waktu_input || '').localeCompare(String(a.waktu_input || ''));
-    });
-
-    cache[ownerId] = {
-      ...ownerCache,
-      [tableName]: sortedRows.slice(0, MAX_CACHED_ROWS_PER_TABLE),
-    };
-    localStorage.setItem(RECORD_CACHE_KEY, JSON.stringify(cache));
-    notifyStorageHealth();
-  } catch (error) {
-    console.warn('Gagal menyimpan cadangan data offline:', error);
-  }
-};
-
-export const reconcileCachedServerRows = (tableName, validServerIds, scope = {}) => {
-  const ownerId = getCurrentQueueOwnerId();
-  if (!ownerId || !tableName || !Array.isArray(validServerIds)) return;
-  const validIds = new Set(validServerIds.map(String));
-  try {
-    const cache = readRecordCache();
-    const ownerCache = cache[ownerId];
-    if (!ownerCache || !Array.isArray(ownerCache[tableName])) return;
-    const { dateField = 'tanggal', date, month, room } = scope;
-    const isInScope = row => {
-      if (date && row?.[dateField] !== date) return false;
-      if (month && !row?.[dateField]?.startsWith(month)) return false;
-      if (room && row?.ruangan !== room) return false;
-      return true;
-    };
-    cache[ownerId] = {
-      ...ownerCache,
-      [tableName]: ownerCache[tableName].filter(row => !isInScope(row) || validIds.has(String(row.id))),
-    };
-    localStorage.setItem(RECORD_CACHE_KEY, JSON.stringify(cache));
-  } catch (error) {
-    console.warn('Gagal merekonsiliasi cache data server:', error);
-  }
-};
-
-export const removeCachedServerRow = (tableName, id) => {
-  const ownerId = getCurrentQueueOwnerId();
-  if (!ownerId || !tableName || id == null) return;
-
-  try {
-    const cache = readRecordCache();
-    const ownerCache = cache[ownerId];
-    if (!ownerCache || !Array.isArray(ownerCache[tableName])) return;
-
-    cache[ownerId] = {
-      ...ownerCache,
-      [tableName]: ownerCache[tableName].filter(row => String(row.id) !== String(id)),
-    };
-    localStorage.setItem(RECORD_CACHE_KEY, JSON.stringify(cache));
-  } catch (error) {
-    console.warn('Gagal memperbarui cadangan data offline:', error);
-  }
-};
-
-export const clearCachedServerRows = (tableNames = []) => {
-  const ownerId = getCurrentQueueOwnerId();
-  if (!ownerId) return;
-
-  try {
-    const cache = readRecordCache();
-    const ownerCache = cache[ownerId];
-    if (!ownerCache) return;
-
-    const names = Array.isArray(tableNames) ? tableNames : [tableNames];
-    const updatedOwnerCache = { ...ownerCache };
-    names.filter(Boolean).forEach(tableName => {
-      delete updatedOwnerCache[tableName];
-    });
-    cache[ownerId] = updatedOwnerCache;
-    localStorage.setItem(RECORD_CACHE_KEY, JSON.stringify(cache));
-  } catch (error) {
-    console.warn('Gagal membersihkan cache data arsip:', error);
-  }
-};
-
-export const getSyncedServerId = (localId) => {
-  const ownerId = getCurrentQueueOwnerId();
-  if (!ownerId || !localId || !String(localId).startsWith('off_')) return null;
-
-  try {
-    const raw = localStorage.getItem(SYNCED_IDS_KEY);
-    const savedIds = raw ? JSON.parse(raw) : {};
-    return savedIds[ownerId]?.[String(localId)] || null;
-  } catch (error) {
-    console.warn('Gagal membaca pemetaan ID draft tersinkron:', error);
-    return null;
-  }
-};
-
-const rememberSyncedServerId = (localId, serverId) => {
-  const ownerId = getCurrentQueueOwnerId();
-  if (!ownerId || !localId || !serverId) return;
-
-  try {
-    const raw = localStorage.getItem(SYNCED_IDS_KEY);
-    const savedIds = raw ? JSON.parse(raw) : {};
-    const ownerEntries = Object.entries(savedIds[ownerId] || {})
-      .filter(([existingLocalId]) => existingLocalId !== String(localId))
-      .slice(-(MAX_SYNCED_IDS_PER_USER - 1));
-
-    savedIds[ownerId] = Object.fromEntries([
-      ...ownerEntries,
-      [String(localId), serverId],
-    ]);
-    localStorage.setItem(SYNCED_IDS_KEY, JSON.stringify(savedIds));
-  } catch (error) {
-    console.warn('Gagal menyimpan pemetaan ID draft tersinkron:', error);
-  }
-};
 
 const readStoredQueue = () => {
   try {
