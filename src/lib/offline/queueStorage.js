@@ -85,7 +85,7 @@ export const writeCurrentOwnerQueue = (ownerQueue) => {
   notifyStorageHealth();
   const queueEvent = new CustomEvent('offline-queue-changed', { detail: ownerQueue });
   queueEvent.changedTables = [...changedTables];
-  queueEvent.syncState.inProgress = syncState.inProgress;
+  queueEvent.syncInProgress = syncState.inProgress;
   if (syncState.inProgress) changedTables.forEach(table => syncState.changedTables.add(table));
   window.dispatchEvent(queueEvent);
   return true;
