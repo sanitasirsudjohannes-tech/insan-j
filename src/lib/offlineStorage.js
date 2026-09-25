@@ -33,6 +33,7 @@ import {
 } from './offline/storageHealth';
 
 export {
+  cacheServerRows,
   clearCachedServerRows,
   getCachedServerRows,
   getOfflineStorageHealth,
