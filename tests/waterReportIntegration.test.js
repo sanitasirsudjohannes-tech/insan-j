@@ -109,6 +109,7 @@ test('narasi hasil air bersih tidak mengulang daftar parameter panjang ketika re
 test('lampiran Word membuat satu baris untuk setiap parameter IPAL', () => {
   const recap = summarizeWaterRecords(wastewaterRecords, 'wastewater');
   const [table] = buildWaterTableModels('wastewater', recap.analytics);
+  assert.equal(table.placement, 'results');
   assert.equal(table.rows.length, 4);
   assert.deepEqual(table.headers, ['Tanggal', 'Lokasi', 'Parameter', 'Hasil', 'Baku Mutu', 'Rujukan', 'Status']);
   assert.ok(table.rows.some(row => row[1] === 'Inlet' && row[2] === 'COD'));
