@@ -1,10 +1,47 @@
-import { NavLink } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { getCurrentUser } from '../lib/api';
 
+const isPathActive = (pathname, to) => pathname === to || pathname.startsWith(`${to}/`);
+
+function MenuLink({ item, onClose, nested = false }) {
+  return <NavLink
+    to={item.to}
+    onClick={onClose}
+    className={({ isActive }) => `group flex items-center rounded-lg font-medium transition-all duration-200 ${nested ? 'gap-2 py-2 pl-10 pr-3 text-xs' : 'gap-3 px-3 py-2 text-sm'} ${isActive
+      ? item.adminOnly ? 'bg-purple-600/20 text-purple-300' : 'bg-blue-600/20 text-blue-300'
+      : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}
+  >
+    {({ isActive }) => <>
+      <span className={`${nested ? 'w-5 text-center' : 'flex h-7 w-7 items-center justify-center rounded-md bg-white/5'} ${isActive ? item.adminOnly ? 'text-purple-400' : 'text-blue-400' : 'text-slate-400 group-hover:text-white'}`}>
+        <i className={`${item.icon} text-[11px]`} />
+      </span>
+      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+      {item.adminOnly && !isActive && <span className="text-[8px] font-bold text-purple-400">ADMIN</span>}
+      {isActive && <span className={`h-1.5 w-1.5 rounded-full ${item.adminOnly ? 'bg-purple-400' : 'bg-blue-400'}`} />}
+    </>}
+  </NavLink>;
+}
+
+function MenuGroup({ group, pathname, isOpen, onToggle, onClose }) {
+  const active = group.items.some(item => isPathActive(pathname, item.to));
+  return <div className={`rounded-xl ${active ? 'bg-blue-950/35' : ''}`}>
+    <button type="button" onClick={onToggle} aria-expanded={isOpen}
+      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${active ? 'text-blue-300' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}>
+      <span className={`flex h-7 w-7 items-center justify-center rounded-md ${active ? 'bg-blue-500/20 text-blue-400' : 'bg-white/5 text-slate-400'}`}><i className={`${group.icon} text-[11px]`} /></span>
+      <span className="min-w-0 flex-1 truncate">{group.label}</span>
+      <i className={`fas fa-chevron-down text-[9px] text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+    </button>
+    {isOpen && <div className="mb-1 space-y-0.5 border-l border-white/10">{group.items.map(item => <MenuLink key={item.to} item={item} onClose={onClose} nested />)}</div>}
+  </div>;
+}
+
 export default function Sidebar({ isOpen, onClose }) {
+  const location = useLocation();
   const user = getCurrentUser();
-  const isAdmin = user?.role?.toLowerCase() === 'admin';
-  const isMahasiswa = user?.role?.toLowerCase() === 'mahasiswa';
+  const role = user?.role?.toLowerCase();
+  const isAdmin = role === 'admin';
+  const isMahasiswa = role === 'mahasiswa';
 
   const mahasiswaItems = [
     { to: '/dashboard', label: 'Dashboard', icon: 'fas fa-th-large' },
@@ -12,113 +49,49 @@ export default function Sidebar({ isOpen, onClose }) {
     { to: '/akun', label: 'Setting Akun', icon: 'fas fa-cog' },
   ];
 
-  const defaultItems = [
+  const menu = isAdmin ? [
     { to: '/dashboard', label: 'Dashboard', icon: 'fas fa-th-large' },
-    ...(!isAdmin ? [
-      { to: '/limbah-dihasilkan', label: 'Limbah Dihasilkan', icon: 'fas fa-biohazard' },
-      { to: '/pengangkutan', label: 'Pengangkutan Limbah', icon: 'fas fa-truck' },
-      { to: '/rekap-limbah', label: 'Rekap Limbah', icon: 'fas fa-file-invoice' },
-      { to: '/asisten-laporan', label: 'Asisten Laporan', icon: 'fas fa-wand-magic-sparkles' },
-      { to: '/inspeksi', label: 'Form Inspeksi', icon: 'fas fa-clipboard-list' },
-      { to: '/pemeriksaan-air', label: 'Pemeriksaan Air', icon: 'fas fa-droplet' }
-    ] : [
-      { to: '/rekap-limbah', label: 'Rekap Limbah', icon: 'fas fa-file-invoice' },
-      { to: '/asisten-laporan', label: 'Asisten Laporan', icon: 'fas fa-wand-magic-sparkles' },
-    ]),
+    { to: '/rekap-limbah', label: 'Rekap Limbah', icon: 'fas fa-file-invoice' },
+    { to: '/asisten-laporan', label: 'Asisten Laporan', icon: 'fas fa-wand-magic-sparkles' },
     { to: '/riwayat', label: 'Riwayat Inspeksi', icon: 'fas fa-history' },
-    ...(isAdmin ? [{ to: '/kelola-admin', label: 'Kelola Pengguna', icon: 'fas fa-users-cog', adminOnly: true }] : []),
+    { to: '/kelola-admin', label: 'Kelola Pengguna', icon: 'fas fa-users-cog', adminOnly: true },
+    { to: '/akun', label: 'Setting Akun', icon: 'fas fa-cog' },
+  ] : [
+    { to: '/dashboard', label: 'Dashboard', icon: 'fas fa-th-large' },
+    { id: 'waste', label: 'Pengelolaan Limbah', icon: 'fas fa-recycle', items: [
+      { to: '/limbah-dihasilkan', label: 'Limbah Dihasilkan', icon: 'fas fa-biohazard' },
+      { to: '/pengangkutan', label: 'Pengangkutan', icon: 'fas fa-truck' },
+      { to: '/rekap-limbah', label: 'Rekap Limbah', icon: 'fas fa-file-invoice' },
+    ] },
+    { to: '/asisten-laporan', label: 'Asisten Laporan', icon: 'fas fa-wand-magic-sparkles' },
+    { id: 'inspection', label: 'Inspeksi Sanitasi', icon: 'fas fa-clipboard-check', items: [
+      { to: '/inspeksi', label: 'Form Inspeksi', icon: 'fas fa-pen-to-square' },
+      { to: '/riwayat', label: 'Riwayat Inspeksi', icon: 'fas fa-history' },
+    ] },
+    { to: '/pemeriksaan-air', label: 'Pemeriksaan Air', icon: 'fas fa-droplet' },
     { to: '/akun', label: 'Setting Akun', icon: 'fas fa-cog' },
   ];
 
-  const navItems = isMahasiswa ? mahasiswaItems : defaultItems;
+  const initialGroups = Object.fromEntries(menu.filter(item => item.items).map(group => [group.id, group.items.some(item => isPathActive(location.pathname, item.to))]));
+  const [openGroups, setOpenGroups] = useState(initialGroups);
+  const toggleGroup = id => setOpenGroups(current => ({ ...current, [id]: !current[id] }));
 
-  return (
-    <>
-      {isOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 transition-opacity duration-300" onClick={onClose} />
-      )}
-      <aside className={`fixed top-0 left-0 z-50 h-full w-64 bg-linear-to-b from-slate-900 via-slate-800 to-slate-900 shadow-2xl flex flex-col transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+  return <>
+    {isOpen && <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-300" onClick={onClose} />}
+    <aside className={`fixed left-0 top-0 z-50 flex h-full w-64 flex-col bg-linear-to-b from-slate-900 via-slate-800 to-slate-900 shadow-2xl transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+        <div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-linear-to-br from-blue-500 to-cyan-400 shadow-lg shadow-blue-500/25"><i className="fas fa-clipboard-check text-sm text-white" /></div><div><h2 className="text-base font-bold leading-none tracking-tight text-white">INSAN-J</h2><p className="mt-0.5 text-[10px] uppercase tracking-wider text-slate-400">Sanitasi RS</p></div></div>
+        <button onClick={onClose} className="rounded-md p-1 text-slate-400 transition-colors hover:bg-white/10 hover:text-white" aria-label="Tutup menu"><i className="fas fa-times text-lg" /></button>
+      </div>
 
-        {/* Logo */}
-        <div className="flex items-center justify-between px-5 py-5 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-linear-to-br from-blue-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/25">
-              <i className="fas fa-clipboard-check text-white text-sm"></i>
-            </div>
-            <div>
-              <h2 className="text-white font-bold text-base tracking-tight leading-none">INSAN-J</h2>
-              <p className="text-slate-400 text-[10px] mt-0.5 tracking-wider uppercase">Sanitasi RS</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors p-1 rounded-md hover:bg-white/10">
-            <i className="fas fa-times text-lg"></i>
-          </button>
-        </div>
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3">
+        <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Menu</p>
+        {(isMahasiswa ? mahasiswaItems : menu).map(item => item.items
+          ? <MenuGroup key={item.id} group={item} pathname={location.pathname} isOpen={Boolean(openGroups[item.id])} onToggle={() => toggleGroup(item.id)} onClose={onClose} />
+          : <MenuLink key={item.to} item={item} onClose={onClose} />)}
+      </nav>
 
-        {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-widest px-3 mb-3">Menu</p>
-          {navItems.map(item => (
-            <NavLink key={item.to} to={item.to} onClick={onClose}
-              className={({ isActive }) =>
-                `group flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${isActive
-                  ? item.adminOnly ? 'bg-purple-600/20 text-purple-400 shadow-inner' : 'bg-blue-600/20 text-blue-400 shadow-inner'
-                  : 'text-slate-300 hover:bg-white/5 hover:text-white'}`
-              }>
-              {({ isActive }) => (
-                <>
-                  <span className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 ${isActive
-                    ? item.adminOnly ? 'bg-purple-500/30 text-purple-400' : 'bg-blue-500/30 text-blue-400'
-                    : 'bg-white/5 text-slate-400 group-hover:bg-white/10 group-hover:text-white'}`}>
-                    <i className={`${item.icon} text-xs`}></i>
-                  </span>
-                  <span>{item.label}</span>
-                  {item.adminOnly && !isActive && (
-                    <span className="ml-auto text-[9px] bg-purple-500/20 text-purple-400 px-1.5 py-0.5 rounded font-bold border border-purple-500/30">ADMIN</span>
-                  )}
-                  {isActive && (
-                    <span className={`ml-auto w-1.5 h-1.5 rounded-full shadow-lg ${item.adminOnly ? 'bg-purple-400 shadow-purple-400/50' : 'bg-blue-400 shadow-blue-400/50'}`}></span>
-                  )}
-                </>
-              )}
-            </NavLink>
-          ))}
-        </nav>
-
-        {/* User info */}
-        <div className="px-4 py-4 border-t border-white/10">
-          <div className="flex items-center gap-3 px-2">
-            <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md ${user?.role?.toLowerCase() === 'admin'
-                  ? 'bg-linear-to-br from-red-500 to-purple-600'
-                  : 'bg-linear-to-br from-blue-500 to-cyan-500'
-                }`}
-            >
-              {(user?.nama || 'U').charAt(0).toUpperCase()}
-            </div>
-
-            <div className="flex-1 min-w-0">
-              <p
-                className={`text-sm font-medium truncate ${user?.role?.toLowerCase() === 'admin'
-                    ? 'text-purple-300'
-                    : 'text-cyan-300'
-                  }`}
-              >
-                {user?.nama || 'User'}
-              </p>
-
-              <p
-                className={`text-[10px] capitalize font-medium ${user?.role?.toLowerCase() === 'admin'
-                    ? 'text-purple-400'
-                    : 'text-cyan-400'
-                  }`}
-              >
-                {isMahasiswa ? 'Mahasiswa Praktik' : (user?.role || 'Petugas')}
-              </p>
-            </div>
-          </div>
-        </div>
-      </aside>
-    </>
-  );
+      <div className="border-t border-white/10 px-4 py-3"><div className="flex items-center gap-3 px-2"><div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold text-white shadow-md ${isAdmin ? 'bg-linear-to-br from-red-500 to-purple-600' : 'bg-linear-to-br from-blue-500 to-cyan-500'}`}>{(user?.nama || 'U').charAt(0).toUpperCase()}</div><div className="min-w-0 flex-1"><p className={`truncate text-sm font-medium ${isAdmin ? 'text-purple-300' : 'text-cyan-300'}`}>{user?.nama || 'User'}</p><p className={`text-[10px] font-medium capitalize ${isAdmin ? 'text-purple-400' : 'text-cyan-400'}`}>{isMahasiswa ? 'Mahasiswa Praktik' : (user?.role || 'Petugas')}</p></div></div></div>
+    </aside>
+  </>;
 }
