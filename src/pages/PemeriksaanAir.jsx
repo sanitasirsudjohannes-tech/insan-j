@@ -16,8 +16,8 @@ export default function PemeriksaanAir() {
             <p className="mt-1 text-sm text-blue-100">Simpan hasil laboratorium per lokasi, inlet, dan outlet.</p>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => water.openNew('clean')} className="rounded-xl bg-white px-3 py-2 text-xs font-bold text-blue-700 shadow">+ Air Bersih</button>
-            <button onClick={() => water.openNew('wastewater')} className="rounded-xl border border-white/40 bg-white/15 px-3 py-2 text-xs font-bold text-white backdrop-blur">+ Air Limbah</button>
+            <button disabled={water.masterLoading} onClick={() => water.openNew('clean')} className="rounded-xl bg-white px-3 py-2 text-xs font-bold text-blue-700 shadow disabled:cursor-wait disabled:opacity-60">{water.masterLoading ? 'Memuat...' : '+ Air Bersih'}</button>
+            <button disabled={water.masterLoading} onClick={() => water.openNew('wastewater')} className="rounded-xl border border-white/40 bg-white/15 px-3 py-2 text-xs font-bold text-white backdrop-blur disabled:cursor-wait disabled:opacity-60">{water.masterLoading ? 'Memuat...' : '+ Air Limbah'}</button>
           </div>
         </div>
       </section>

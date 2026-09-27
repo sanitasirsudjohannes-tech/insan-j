@@ -7,6 +7,7 @@ import {
   getWaterExaminations,
   getWaterStandards,
   saveWaterExamination,
+  saveWaterExaminationBatch,
 } from '../waterService';
 import {
   CLEAN_WATER_PARAMETERS,
@@ -39,6 +40,7 @@ export function useWaterExaminations() {
   const [month, setMonth] = useState(currentWaterMonth());
   const [typeFilter, setTypeFilter] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [masterLoading, setMasterLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [tableGenerated, setTableGenerated] = useState(false);
@@ -67,7 +69,8 @@ export function useWaterExaminations() {
         setLocations(nextLocations);
         setStandards(nextStandards);
       })
-      .catch(error => Swal.fire('Data Tidak Dapat Dimuat', waterErrorMessage(error), 'error'));
+      .catch(error => Swal.fire('Data Tidak Dapat Dimuat', waterErrorMessage(error), 'error'))
+      .finally(() => setMasterLoading(false));
   }, []);
 
   useEffect(() => { loadRecords(); }, [loadRecords]);
@@ -88,6 +91,10 @@ export function useWaterExaminations() {
   };
 
   const openNew = waterType => {
+    if (masterLoading) {
+      Swal.fire('Mohon Tunggu', 'Lokasi dan baku mutu sedang dimuat.', 'info');
+      return;
+    }
     const available = standardsForType(standards, waterType);
     if (waterType === 'clean' && CLEAN_WATER_PARAMETERS.some(name => !available.some(item => item.parameter === name))) {
       Swal.fire('Baku Mutu Belum Lengkap', 'Admin perlu mengatur Total coliform dan E. coli beserta rujukannya.', 'warning');
@@ -189,13 +196,15 @@ export function useWaterExaminations() {
     }
     setSaving(true);
     try {
-      await Promise.all(rows.map(row => saveWaterExamination({
+      const forms = rows.map(row => ({
         ...form,
         id: form.id && rows.length === 1 ? form.id : null,
         clean_water_location_id: row.locationId,
         sample_point: row.samplePoint,
         parameters: row.parameters,
-      }, user?.id)));
+      }));
+      if (form.id && forms.length === 1) await saveWaterExamination(forms[0], user?.id);
+      else await saveWaterExaminationBatch(forms, user?.id);
       await loadRecords();
       setShowForm(false);
       resetGeneratedTable();
@@ -224,7 +233,7 @@ export function useWaterExaminations() {
   };
 
   return {
-    form, records, totals, month, typeFilter, loading, saving, showForm, tableGenerated,
+    form, records, totals, month, typeFilter, loading, masterLoading, saving, showForm, tableGenerated,
     cleanRows, wastewaterRows, setMonth, setTypeFilter, setShowForm, changeField,
     openNew, generateTable, updateResult, editRecord, removeRecord, submit, loadRecords,
   };

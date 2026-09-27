@@ -95,6 +95,9 @@ export function normalizeParameters(parameters = []) {
 
 export function validateExamination(form) {
   if (!form.sampled_at) return 'Tanggal pengambilan sampel wajib diisi.';
+  if (form.resulted_at && form.resulted_at < form.sampled_at) {
+    return 'Tanggal hasil tidak boleh lebih awal dari tanggal pengambilan sampel.';
+  }
   if (form.water_type === 'clean' && !form.clean_water_location_id) {
     return 'Pilih lokasi pemeriksaan air bersih.';
   }

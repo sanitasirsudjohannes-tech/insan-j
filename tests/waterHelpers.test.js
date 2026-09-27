@@ -20,6 +20,14 @@ test('clean water examination requires a managed location', () => {
   assert.equal(message, 'Pilih lokasi pemeriksaan air bersih.');
 });
 
+test('tanggal hasil tidak boleh lebih awal dari tanggal sampling', () => {
+  const message = validateExamination({
+    water_type: 'wastewater', sample_point: 'Inlet', sampled_at: '2026-09-23',
+    resulted_at: '2026-09-22', parameters: [],
+  });
+  assert.equal(message, 'Tanggal hasil tidak boleh lebih awal dari tanggal pengambilan sampel.');
+});
+
 test('air bersih starts with Total coliform and E. coli per 100 mL', () => {
   assert.deepEqual(createCleanWaterParameters().map(item => [item.parameter, item.unit]), [
     ['Total coliform', '/100 mL'], ['E. coli', '/100 mL'],

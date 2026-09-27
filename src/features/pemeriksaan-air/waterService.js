@@ -132,8 +132,7 @@ export async function getWaterExaminations({ month, waterType }) {
   }));
 }
 
-export async function saveWaterExamination(form, userId) {
-  const payload = {
+const examinationPayload = (form) => ({
     water_type: form.water_type,
     clean_water_location_id: form.water_type === 'clean' ? form.clean_water_location_id : null,
     sample_point: form.water_type === 'wastewater' ? form.sample_point : null,
@@ -143,13 +142,25 @@ export async function saveWaterExamination(form, userId) {
     report_number: form.report_number.trim() || null,
     notes: form.notes.trim() || null,
     parameters: normalizeParameters(form.parameters),
-  };
+  });
+
+export async function saveWaterExamination(form, userId) {
+  const payload = examinationPayload(form);
   const query = form.id
     ? supabase.from('water_examinations').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', form.id)
     : supabase.from('water_examinations').insert({ ...payload, created_by: userId });
   const { data, error } = await query.select().single();
   if (error) throw error;
   return data;
+}
+
+// Satu insert dengan banyak baris diproses atomik oleh PostgreSQL: jika satu
+// baris ditolak constraint/trigger, tidak ada baris lain yang tersimpan.
+export async function saveWaterExaminationBatch(forms, userId) {
+  const payloads = forms.map(form => ({ ...examinationPayload(form), created_by: userId }));
+  const { data, error } = await supabase.from('water_examinations').insert(payloads).select();
+  if (error) throw error;
+  return data || [];
 }
 
 export async function deleteWaterExamination(id) {

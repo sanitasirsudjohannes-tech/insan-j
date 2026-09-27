@@ -13,7 +13,7 @@ export default function WaterExaminationForm({
     </div>
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <label className="text-xs font-bold text-slate-600">Jenis Pemeriksaan
-        <select value={form.water_type} onChange={event => onChange('water_type', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm"><option value="clean">Air Bersih</option><option value="wastewater">Air Limbah</option></select>
+        <select value={form.water_type} disabled={Boolean(form.id)} onChange={event => onChange('water_type', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"><option value="clean">Air Bersih</option><option value="wastewater">Air Limbah</option></select>
       </label>
       <label className="text-xs font-bold text-slate-600">Tanggal Sampling
         <input type="date" value={form.sampled_at} onChange={event => onChange('sampled_at', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm" />
