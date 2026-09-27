@@ -1,6 +1,12 @@
 import { REPORT_TYPES } from '../constants/reportTypes.js';
 
-const formatDate = value => {\n  if (!value) return '';\n  return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`));\n};\n\nexport default function ReportForm({ form, errors, handleTypeChange, updateForm, navigate, availableWaterDates, waterDatesLoading }) {\n  const isWaterReport = ['clean_water', 'wastewater'].includes(form.reportType);
+const formatDate = value => {
+  if (!value) return '';
+  return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`));
+};
+
+export default function ReportForm({ form, errors, handleTypeChange, updateForm, navigate, availableWaterDates, waterDatesLoading }) {
+  const isWaterReport = ['clean_water', 'wastewater'].includes(form.reportType);
   return (
         <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           <div className="mb-5 flex items-center justify-between gap-3">
