@@ -7,7 +7,7 @@ import ReportPreview from '../features/report-assistant/components/ReportPreview
 
 export default function AsistenLaporan() {
   const navigate = useNavigate();
-  const { form, draft, setDraft, chartData, errors, recapLoading, status, config, updateForm, updateFact, handleTypeChange, handleRecap, handleBuildLocal, handleCopy, handleReset } = useReportAssistant();
+  const { form, draft, setDraft, chartData, errors, recapLoading, status, config, availableWaterDates, waterDatesLoading, updateForm, updateFact, handleTypeChange, handleRecap, handleBuildLocal, handleCopy, handleReset } = useReportAssistant();
   return (
     <AppLayout title="Asisten Laporan" showBackButton>
       <div className="mx-auto max-w-5xl space-y-5 px-3 py-5 sm:px-6 sm:py-7">
@@ -25,7 +25,7 @@ export default function AsistenLaporan() {
           </div>
         </section>
 
-        <ReportForm form={form} errors={errors} handleTypeChange={handleTypeChange} updateForm={updateForm} navigate={navigate} />
+        <ReportForm form={form} errors={errors} handleTypeChange={handleTypeChange} updateForm={updateForm} navigate={navigate} availableWaterDates={availableWaterDates} waterDatesLoading={waterDatesLoading} />
         <ReportFacts form={form} config={config} errors={errors} recapLoading={recapLoading} status={status} handleRecap={handleRecap} updateFact={updateFact} updateForm={updateForm} handleBuildLocal={handleBuildLocal} handleReset={handleReset} />
         {draft && (<ReportPreview form={form} draft={draft} setDraft={setDraft} chartData={chartData} handleCopy={handleCopy} />)}
       </div>
