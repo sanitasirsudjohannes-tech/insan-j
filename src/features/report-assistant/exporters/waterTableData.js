@@ -63,7 +63,7 @@ export function buildWaterTableModels(reportType, analytics = {}) {
     statusLabel(parameter.status),
   ]));
   return [{
-    placement: 'appendix',
+    placement: 'results',
     title: reportType === 'wastewater' ? 'Hasil Pemeriksaan Air Limbah' : 'Hasil Pemeriksaan Air Bersih',
     headers: ['Tanggal', 'Lokasi', 'Parameter', 'Hasil', 'Baku Mutu', 'Rujukan', 'Status'],
     rows,
