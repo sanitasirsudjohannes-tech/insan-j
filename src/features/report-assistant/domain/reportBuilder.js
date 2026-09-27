@@ -28,7 +28,7 @@ const REPORT_NARRATIVES = {
     benefit: 'Laporan ini menjadi bahan evaluasi kinerja IPAL dan membantu Unit Sanitasi menetapkan prioritas pemeliharaan maupun tindak lanjut pemeriksaan.',
   },
   clean_water: {
-    background: 'Ketersediaan air bersih dengan kualitas yang baik merupakan unsur penting dalam menunjang pelayanan rumah sakit. Pemeriksaan kualitas air dilakukan untuk mengetahui kondisi parameter pada titik sampling dan mengenali sedini mungkin hasil yang memerlukan perhatian atau tindakan koreksi.',
+    background: 'Kualitas air bersih merupakan bagian penting dalam penyelenggaraan pelayanan rumah sakit karena air digunakan untuk mendukung kegiatan pelayanan, kebersihan, dan kebutuhan operasional di berbagai unit. Kondisi kualitas air yang tidak memenuhi persyaratan, khususnya pada parameter mikrobiologi, dapat meningkatkan risiko gangguan kesehatan serta memengaruhi keamanan lingkungan rumah sakit. Oleh karena itu, pemantauan dilakukan secara berkala melalui pengambilan sampel pada titik yang telah ditentukan dan pemeriksaan sampel di laboratorium. Hasil pemeriksaan digunakan untuk menilai kesesuaian terhadap baku mutu, mengidentifikasi lokasi yang memerlukan perhatian, serta menjadi dasar penetapan tindakan koreksi dan pemantauan ulang.',
     scope: 'Laporan ini mencakup lokasi sampling, hasil parameter yang diperiksa, parameter yang bermasalah, hasil evaluasi, tindakan koreksi, dan rencana pemantauan ulang.',
     benefit: 'Informasi yang tersaji dapat digunakan untuk menelusuri penyebab masalah, menetapkan tindakan koreksi, dan memastikan hasil tindak lanjut dipantau kembali.',
   },
@@ -51,7 +51,7 @@ export function formatReportPeriod(period = {}) {
     return new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Asia/Makassar' })
       .format(new Date(Date.UTC(year, month - 1, day)));
   };
-  if (period.start === period.end) return format(period.start);
+  if (!period.end || period.start === period.end) return format(period.start);
   return `${format(period.start)} sampai ${format(period.end)}`;
 }
 
@@ -59,9 +59,13 @@ export function buildLocalReport(payload = {}) {
   const config = REPORT_TYPES[payload.reportType] || REPORT_TYPES.medical_waste;
   const period = formatReportPeriod(payload.period);
   const facts = payload.facts || {};
-  const detailLines = config.fields
+  const fieldDetailLines = config.fields
     .map(field => `- ${field.label}: ${field.type === 'number' && String(facts[field.key] ?? '').trim() !== '' ? formatNumberId(facts[field.key]) : valueOrPlaceholder(facts[field.key])}${field.type === 'number' && String(field.label).includes('(kg)') ? ' kg' : ''}`)
     .join('\n');
+  const hasWaterRecap = ['wastewater', 'clean_water'].includes(payload.reportType) && payload.analytics?.records?.length;
+  const detailLines = payload.reportType === 'clean_water' && hasWaterRecap
+    ? 'Rincian hasil pemeriksaan setiap lokasi disajikan pada tabel berikut. Laporan hasil laboratorium asli dilampirkan sebagai dokumen pendukung terpisah.'
+    : fieldDetailLines;
   const constraints = valueOrPlaceholder(payload.constraints);
   const actions = valueOrPlaceholder(payload.actions);
   const notes = valueOrPlaceholder(payload.additionalNotes);
@@ -70,13 +74,21 @@ export function buildLocalReport(payload = {}) {
   const conclusion = buildReportConclusion(payload);
   const automaticRecommendations = payload.reportType === 'medical_waste' ? buildMedicalWasteRecommendations(facts, payload.analytics) : '';
   const presentationText = ['wastewater', 'clean_water'].includes(payload.reportType)
-    ? 'Data pemeriksaan disajikan dalam tabel lampiran Word apabila hasil rekap telah diambil. Cocokkan kembali angka, status, dan baku mutu dengan laporan laboratorium.'
+    ? payload.reportType === 'clean_water'
+      ? 'Ringkasan hasil pemeriksaan disajikan sebagai tabel pada bagian Hasil Kegiatan. Laporan hasil laboratorium asli dilampirkan sebagai dokumen pendukung sehingga tabel pemeriksaan tidak diulang pada bagian lampiran Word.'
+      : 'Data pemeriksaan disajikan dalam tabel lampiran Word apabila hasil rekap telah diambil. Cocokkan kembali angka, status, dan baku mutu dengan laporan laboratorium.'
     : 'Data pada laporan ini juga disajikan dalam bentuk tabel dan grafik untuk memudahkan pembacaan pola, perbandingan, dan komposisi hasil. Angka pada tabel dan grafik tetap perlu dicocokkan kembali dengan sumber data sebelum laporan ditetapkan.';
   const recommendationSection = payload.reportType === 'medical_waste'
     ? `Rekomendasi otomatis berdasarkan hasil perhitungan:\n${automaticRecommendations}\n\nTindakan atau rekomendasi tambahan yang dicatat petugas:\n${actions}`
     : `Berdasarkan hasil evaluasi dan kondisi yang ditemukan, tindakan maupun rekomendasi yang perlu diperhatikan adalah sebagai berikut:\n${actions}`;
+  const reportBasis = payload.reportType === 'clean_water'
+    ? `Laporan ${config.label.toLowerCase()} ini disusun berdasarkan pelaksanaan pengambilan sampel air bersih dan hasil pemeriksaan sampel di laboratorium pada periode ${period}. Laporan ini memberikan gambaran kondisi kualitas air pada setiap lokasi pemeriksaan dan menjadi bahan evaluasi bagi Unit Sanitasi.`
+    : `Laporan ${config.label.toLowerCase()} ini disusun berdasarkan kegiatan dan data yang tersedia pada periode ${period}. Penyusunan laporan dimaksudkan untuk memberikan gambaran mengenai hasil pelaksanaan kegiatan sekaligus menjadi bahan evaluasi bagi Unit Sanitasi.`;
+  const sourceDescription = payload.reportType === 'clean_water'
+    ? 'Informasi dalam laporan berasal dari catatan lokasi dan waktu pengambilan sampel serta hasil pemeriksaan sampel di laboratorium sesuai dengan periode yang dipilih.'
+    : 'Data bersumber dari catatan petugas dan rekap INSAN-J sesuai dengan periode yang dipilih.';
 
-  return `LAPORAN ${config.label.toUpperCase()}\nRSUD PROF. DR. W.Z. JOHANNES KUPANG\nPeriode: ${period}\n\nBAB I\nPENDAHULUAN\n\n1.1 Latar Belakang\n${narrative.background}\n\nLaporan ${config.label.toLowerCase()} ini disusun berdasarkan kegiatan dan data yang tersedia pada periode ${period}. Penyusunan laporan dimaksudkan untuk memberikan gambaran mengenai hasil pelaksanaan kegiatan sekaligus menjadi bahan evaluasi bagi Unit Sanitasi.\n\n1.2 Tujuan\n1. Mendokumentasikan pelaksanaan dan hasil ${config.label.toLowerCase()} selama periode pelaporan.\n2. Mengetahui capaian serta mengidentifikasi kondisi yang masih memerlukan perhatian.\n3. Menjadi dasar dalam menentukan tindakan perbaikan dan pemantauan selanjutnya.\n\n1.3 Manfaat\n${narrative.benefit}\n\nBAB II\nHASIL DAN PEMBAHASAN\n\n2.1 Waktu dan Ruang Lingkup\nKegiatan yang dilaporkan berlangsung pada periode ${period}. ${narrative.scope} Data bersumber dari catatan petugas dan rekap INSAN-J sesuai dengan periode yang dipilih.\n\n2.2 Hasil Kegiatan\nBerdasarkan pencatatan yang telah dilakukan, diperoleh hasil sebagai berikut:\n\n${detailLines}\n\n2.3 Analisis dan Evaluasi\n${analysis}\n\n2.4 Kendala dan Temuan\nDalam pelaksanaan kegiatan, kendala atau temuan yang dicatat adalah sebagai berikut:\n${constraints}\n\n2.5 Tindak Lanjut dan Rekomendasi\n${recommendationSection}\n\n2.6 Catatan Tambahan\n${notes}\n\n2.7 Penyajian Tabel dan Grafik\n${presentationText}\n\nBAB III\nPENUTUP\n\n3.1 Kesimpulan\n${conclusion}\n\n3.2 Saran\n1. Data dan uraian dalam laporan perlu diperiksa kembali sebelum disahkan atau digunakan sebagai dokumen resmi.\n2. Informasi yang masih bertanda [PERLU DILENGKAPI] agar dilengkapi berdasarkan catatan atau bukti pelaksanaan yang tersedia.\n3. Tindak lanjut yang telah ditetapkan perlu didokumentasikan dan dievaluasi kembali pada periode berikutnya.\n\nCatatan: Dokumen ini masih berupa draf dan harus diperiksa oleh petugas Unit Sanitasi sebelum digunakan.`;
+  return `LAPORAN ${config.label.toUpperCase()}\nRSUD PROF. DR. W.Z. JOHANNES KUPANG\nPeriode: ${period}\n\nBAB I\nPENDAHULUAN\n\n1.1 Latar Belakang\n${narrative.background}\n\n${reportBasis}\n\n1.2 Tujuan\n1. Mendokumentasikan pelaksanaan dan hasil ${config.label.toLowerCase()} selama periode pelaporan.\n2. Mengetahui capaian serta mengidentifikasi kondisi yang masih memerlukan perhatian.\n3. Menjadi dasar dalam menentukan tindakan perbaikan dan pemantauan selanjutnya.\n\n1.3 Manfaat\n${narrative.benefit}\n\nBAB II\nHASIL DAN PEMBAHASAN\n\n2.1 Waktu dan Ruang Lingkup\nKegiatan yang dilaporkan berlangsung pada periode ${period}. ${narrative.scope} ${sourceDescription}\n\n2.2 Hasil Kegiatan\nBerdasarkan hasil pemeriksaan yang telah dilakukan, diperoleh hasil sebagai berikut:\n\n${detailLines}\n\n2.3 Analisis dan Evaluasi\n${analysis}\n\n2.4 Kendala dan Temuan\nDalam pelaksanaan kegiatan, kendala atau temuan yang dicatat adalah sebagai berikut:\n${constraints}\n\n2.5 Tindak Lanjut dan Rekomendasi\n${recommendationSection}\n\n2.6 Catatan Tambahan\n${notes}\n\n2.7 Penyajian Tabel dan Grafik\n${presentationText}\n\nBAB III\nPENUTUP\n\n3.1 Kesimpulan\n${conclusion}\n\n3.2 Saran\n1. Data dan uraian dalam laporan perlu diperiksa kembali sebelum disahkan atau digunakan sebagai dokumen resmi.\n2. Informasi yang masih bertanda [PERLU DILENGKAPI] agar dilengkapi berdasarkan catatan atau bukti pelaksanaan yang tersedia.\n3. Tindak lanjut yang telah ditetapkan perlu didokumentasikan dan dievaluasi kembali pada periode berikutnya.\n\nCatatan: Dokumen ini masih berupa draf dan harus diperiksa oleh petugas Unit Sanitasi sebelum digunakan.`;
 }
 
 export function buildAutomaticAnalysis(payload = {}) {

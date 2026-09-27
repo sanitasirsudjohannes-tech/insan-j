@@ -31,14 +31,26 @@ function reportTable(model) {
       new TableRow({ tableHeader: true, children: model.headers.map(value => tableCell(value, true)) }),
       ...model.rows.map(row => new TableRow({ children: row.map(value => tableCell(value)) })),
     ] }),
+    ...(model.notes || []).map(note => new Paragraph({
+      spacing: { before: 80, after: 40 },
+      children: [new TextRun({ text: note, italics: true, size: 17, font: 'Arial', color: '475569' })],
+    })),
   ];
 }
 
 export async function buildDocxBlob(draft, chartImages = [], tableModels = []) {
-  const paragraphs = String(draft || '').split('\n').map(reportParagraph);
-  if (tableModels.length) {
+  const resultTables = tableModels.filter(model => model.placement === 'results');
+  const appendixTables = tableModels.filter(model => model.placement !== 'results');
+  const paragraphs = [];
+  String(draft || '').split('\n').forEach((line, index) => {
+    if (/^2\.3\s/.test(line.trim()) && resultTables.length) {
+      resultTables.forEach(model => paragraphs.push(...reportTable(model)));
+    }
+    paragraphs.push(reportParagraph(line, index));
+  });
+  if (appendixTables.length) {
     paragraphs.push(new Paragraph({ children: [new PageBreak()] }), new Paragraph({ alignment: AlignmentType.CENTER, heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: 'LAMPIRAN TABEL DATA PEMERIKSAAN', bold: true, size: 28, font: 'Arial' })] }));
-    tableModels.forEach(model => paragraphs.push(...reportTable(model)));
+    appendixTables.forEach(model => paragraphs.push(...reportTable(model)));
   }
   if (chartImages.length) {
     paragraphs.push(new Paragraph({ children: [new PageBreak()] }), new Paragraph({ alignment: AlignmentType.CENTER, heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: 'LAMPIRAN GRAFIK', bold: true, size: 28, font: 'Arial' })] }));
@@ -56,4 +68,3 @@ export async function buildDocxBlob(draft, chartImages = [], tableModels = []) {
   });
   return Packer.toBlob(document);
 }
-

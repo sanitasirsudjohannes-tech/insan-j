@@ -42,6 +42,18 @@ test('validasi menolak angka negatif dan periode terbalik', () => {
   assert.ok(errors.infectiousKg);
 });
 
+test('laporan air bersih hanya mewajibkan tanggal pengambilan sampel', () => {
+  const errors = validateReportPayload({
+    reportType: 'clean_water',
+    period: { start: '2026-02-25', end: '' },
+    facts: {
+      samplingLocation: 'Bak Utama', parameterResults: 'Memenuhi',
+      problemParameters: '-', evaluation: 'Baik', remonitoring: '-',
+    },
+  });
+  assert.deepEqual(errors, {});
+});
+
 test('template lokal mempertahankan angka dan struktur BAB', () => {
   const report = buildLocalReport(validPayload);
   assert.match(report, /100,25 kg/);
@@ -65,6 +77,10 @@ test('analisis lokal menghitung persentase dan jenis dominan', () => {
 test('periode satu hari tidak memakai kata sampai', () => {
   const period = formatReportPeriod({ start: '2026-09-09', end: '2026-09-09' });
   assert.equal(period, '9 September 2026');
+});
+
+test('tanggal sampling tunggal tetap diformat tanpa tanggal akhir', () => {
+  assert.equal(formatReportPeriod({ start: '2026-02-25', end: '' }), '25 Februari 2026');
 });
 
 test('deteksi data sensitif memblokir NIK dan nomor rekam medis', () => {

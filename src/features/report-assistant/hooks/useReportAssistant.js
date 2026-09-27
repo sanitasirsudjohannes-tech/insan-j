@@ -52,7 +52,15 @@ export function useReportAssistant() {
   };
 
   const handleTypeChange = reportType => {
-    setForm(current => ({ ...current, reportType, facts: {}, analytics: null }));
+    setForm(current => ({
+      ...current,
+      reportType,
+      period: reportType === 'clean_water'
+        ? { start: current.period.start, end: current.period.start }
+        : current.period,
+      facts: {},
+      analytics: null,
+    }));
     setErrors({});
     setChartData(null);
     setDraft('');
@@ -60,7 +68,10 @@ export function useReportAssistant() {
   };
 
   const handleRecap = async () => {
-    if (!form.period.start || !form.period.end || form.period.start > form.period.end) {
+    const recapPeriod = form.reportType === 'clean_water'
+      ? { start: form.period.start, end: form.period.start }
+      : form.period;
+    if (!recapPeriod.start || !recapPeriod.end || recapPeriod.start > recapPeriod.end) {
       setErrors(validateReportPayload(form));
       return;
     }
@@ -69,8 +80,8 @@ export function useReportAssistant() {
     setChartData(null);
     try {
       const recap = form.reportType === 'medical_waste'
-        ? await fetchMedicalWasteRecap(form.period.start, form.period.end)
-        : await fetchWaterReportRecap(form.period.start, form.period.end, form.reportType);
+        ? await fetchMedicalWasteRecap(recapPeriod.start, recapPeriod.end)
+        : await fetchWaterReportRecap(recapPeriod.start, recapPeriod.end, form.reportType);
       if (form.reportType !== 'medical_waste' && !recap.analytics.totalExaminations) {
         setForm(current => ({ ...current, facts: {}, analytics: null }));
         setStatus('Tidak ada hasil pemeriksaan pada periode ini. Pilih periode lain atau isi data pemeriksaan terlebih dahulu.');

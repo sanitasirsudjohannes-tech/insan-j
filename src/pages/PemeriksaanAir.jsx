@@ -31,10 +31,12 @@ export default function PemeriksaanAir() {
       />}
 
       <WaterRecordsSection
-        records={water.records} totals={water.totals} month={water.month}
-        typeFilter={water.typeFilter} loading={water.loading}
-        onMonthChange={water.setMonth} onTypeFilterChange={water.setTypeFilter}
-        onRefresh={water.loadRecords} onEdit={water.editRecord} onRemove={water.removeRecord}
+        monthGroups={water.monthGroups} dateGroupsByType={water.dateGroupsByType} records={water.detailRecords}
+        month={water.month} waterType={water.typeFilter} selectedDate={water.selectedDate}
+        loading={water.loading} indexLoading={water.masterLoading}
+        onSelectMonth={water.selectMonth} onSelectDate={water.selectDate}
+        onBackToDates={() => water.setSelectedDate('')} onRefresh={water.refreshArchive}
+        onEdit={water.editRecord} onRemove={water.removeRecord}
       />
     </div>
   </AppLayout>;

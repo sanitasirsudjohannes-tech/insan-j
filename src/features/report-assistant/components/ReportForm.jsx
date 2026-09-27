@@ -5,7 +5,7 @@ export default function ReportForm({ form, errors, handleTypeChange, updateForm,
         <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
-              <h2 className="font-black text-slate-800">1. Pilih laporan dan periode</h2>
+              <h2 className="font-black text-slate-800">1. Pilih laporan dan {form.reportType === 'clean_water' ? 'tanggal sampling' : 'periode'}</h2>
               <p className="mt-1 text-xs text-slate-500">Data tidak disimpan ke database.</p>
             </div>
             <button type="button" onClick={() => navigate('/rekap-limbah')} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200">
@@ -20,21 +20,22 @@ export default function ReportForm({ form, errors, handleTypeChange, updateForm,
               </button>
             ))}
           </div>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            {[
+          <div className={`mt-5 grid gap-4 ${form.reportType === 'clean_water' ? '' : 'sm:grid-cols-2'}`}>
+            {(form.reportType === 'clean_water' ? [
+              ['start', 'Tanggal pengambilan sampel']
+            ] : [
               ['start', 'Tanggal awal'],
               ['end', 'Tanggal akhir']
-            ].map(([key, label]) => (
+            ]).map(([key, label]) => (
               <label key={key} className="block text-sm font-bold text-slate-700">
                 {label}
                 <input
                   type="date"
                   value={form.period[key]}
                   onChange={event =>
-                    updateForm('period', {
-                      ...form.period,
-                      [key]: event.target.value
-                    })
+                    updateForm('period', form.reportType === 'clean_water'
+                      ? { start: event.target.value, end: event.target.value }
+                      : { ...form.period, [key]: event.target.value })
                   }
                   className={`mt-2 w-full rounded-xl border px-3 py-3 font-normal outline-none focus:ring-2 focus:ring-blue-500 ${errors[`period${key === 'start' ? 'Start' : 'End'}`] ? 'border-red-400' : 'border-slate-300'}`}
                 />

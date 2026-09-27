@@ -4,9 +4,10 @@ export function validateReportPayload(payload = {}) {
   const errors = {};
   const config = REPORT_TYPES[payload.reportType];
   if (!config) errors.reportType = 'Pilih jenis laporan yang valid.';
-  if (!payload.period?.start) errors.periodStart = 'Tanggal awal wajib diisi.';
-  if (!payload.period?.end) errors.periodEnd = 'Tanggal akhir wajib diisi.';
-  if (payload.period?.start && payload.period?.end && payload.period.start > payload.period.end) {
+  const singleSamplingDate = payload.reportType === 'clean_water';
+  if (!payload.period?.start) errors.periodStart = singleSamplingDate ? 'Tanggal pengambilan sampel wajib diisi.' : 'Tanggal awal wajib diisi.';
+  if (!singleSamplingDate && !payload.period?.end) errors.periodEnd = 'Tanggal akhir wajib diisi.';
+  if (!singleSamplingDate && payload.period?.start && payload.period?.end && payload.period.start > payload.period.end) {
     errors.periodEnd = 'Tanggal akhir tidak boleh sebelum tanggal awal.';
   }
   config?.fields.forEach(field => {
@@ -18,4 +19,3 @@ export function validateReportPayload(payload = {}) {
   });
   return errors;
 }
-

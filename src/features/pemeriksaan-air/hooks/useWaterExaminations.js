@@ -4,6 +4,7 @@ import { getCurrentUser } from '../../../lib/api';
 import {
   deleteWaterExamination,
   getCleanWaterLocations,
+  getWaterExaminationIndex,
   getWaterExaminations,
   getWaterStandards,
   saveWaterExamination,
@@ -19,10 +20,9 @@ import {
 import {
   createParametersFromStandards,
   createWaterForm,
-  currentWaterMonth,
   standardsForType,
-  summarizeWaterRecords,
 } from '../domain/waterFormModel';
+import { groupExaminationsByDate, groupExaminationsByMonth } from '../domain/waterRecordIndex';
 import { waterErrorMessage } from '../presentation/waterMessages';
 
 const withCurrentStandards = (parameters, standards, waterType) => parameters.map(item => {
@@ -36,9 +36,11 @@ export function useWaterExaminations() {
   const [form, setForm] = useState(createWaterForm());
   const [locations, setLocations] = useState([]);
   const [standards, setStandards] = useState([]);
+  const [recordIndex, setRecordIndex] = useState([]);
   const [records, setRecords] = useState([]);
-  const [month, setMonth] = useState(currentWaterMonth());
-  const [typeFilter, setTypeFilter] = useState('all');
+  const [month, setMonth] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [selectedDate, setSelectedDate] = useState('');
   const [loading, setLoading] = useState(true);
   const [masterLoading, setMasterLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -53,21 +55,35 @@ export function useWaterExaminations() {
   );
 
   const loadRecords = useCallback(async () => {
+    if (!selectedDate || !typeFilter) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      setRecords(await getWaterExaminations({ month, waterType: typeFilter }));
+      setRecords(await getWaterExaminations({ sampledAt: selectedDate, waterType: typeFilter }));
     } catch (error) {
       Swal.fire('Data Tidak Dapat Dimuat', waterErrorMessage(error), 'error');
     } finally {
       setLoading(false);
     }
-  }, [month, typeFilter]);
+  }, [selectedDate, typeFilter]);
+
+  const loadRecordIndex = useCallback(async () => {
+    try {
+      setRecordIndex(await getWaterExaminationIndex());
+    } catch (error) {
+      Swal.fire('Daftar Pemeriksaan Tidak Dapat Dimuat', waterErrorMessage(error), 'error');
+    }
+  }, []);
 
   useEffect(() => {
-    Promise.all([getCleanWaterLocations(), getWaterStandards()])
-      .then(([nextLocations, nextStandards]) => {
+    Promise.all([getCleanWaterLocations(), getWaterStandards(), getWaterExaminationIndex()])
+      .then(([nextLocations, nextStandards, nextIndex]) => {
         setLocations(nextLocations);
         setStandards(nextStandards);
+        setRecordIndex(nextIndex);
       })
       .catch(error => Swal.fire('Data Tidak Dapat Dimuat', waterErrorMessage(error), 'error'))
       .finally(() => setMasterLoading(false));
@@ -75,7 +91,27 @@ export function useWaterExaminations() {
 
   useEffect(() => { loadRecords(); }, [loadRecords]);
 
-  const totals = useMemo(() => summarizeWaterRecords(records), [records]);
+  const monthGroups = useMemo(() => groupExaminationsByMonth(recordIndex), [recordIndex]);
+  const dateGroupsByType = useMemo(() => ({
+    clean: groupExaminationsByDate(recordIndex, month, 'clean'),
+    wastewater: groupExaminationsByDate(recordIndex, month, 'wastewater'),
+  }), [recordIndex, month]);
+  const detailRecords = useMemo(() => records.filter(record => (
+    record.water_type === typeFilter && record.sampled_at === selectedDate
+  )), [records, selectedDate, typeFilter]);
+
+  const selectMonth = value => {
+    setMonth(value);
+    setTypeFilter('');
+    setSelectedDate('');
+  };
+  const selectDate = (waterType, date) => {
+    setTypeFilter(waterType);
+    setSelectedDate(date);
+  };
+  const refreshArchive = async () => {
+    await Promise.all([loadRecordIndex(), loadRecords()]);
+  };
 
   const resetGeneratedTable = () => {
     setTableGenerated(false);
@@ -205,7 +241,18 @@ export function useWaterExaminations() {
       }));
       if (form.id && forms.length === 1) await saveWaterExamination(forms[0], user?.id);
       else await saveWaterExaminationBatch(forms, user?.id);
-      await loadRecords();
+      const savedMonth = form.sampled_at.slice(0, 7);
+      const savedType = form.water_type;
+      const savedDate = form.sampled_at;
+      await loadRecordIndex();
+      setMonth(savedMonth);
+      setTypeFilter(savedType);
+      setSelectedDate(savedDate);
+      if (selectedDate === savedDate && typeFilter === savedType) {
+        setRecords(await getWaterExaminations({ sampledAt: savedDate, waterType: savedType }));
+      } else {
+        setRecords([]);
+      }
       setShowForm(false);
       resetGeneratedTable();
       setForm(createWaterForm(form.water_type));
@@ -226,15 +273,26 @@ export function useWaterExaminations() {
     if (!confirmation.isConfirmed) return;
     try {
       await deleteWaterExamination(record.id);
-      await loadRecords();
+      setRecords(current => current.filter(item => item.id !== record.id));
+      setRecordIndex(current => {
+        const matchIndex = current.findIndex(item => (
+          item.water_type === record.water_type && item.sampled_at === record.sampled_at
+        ));
+        if (matchIndex < 0) return current;
+        const matched = current[matchIndex];
+        const total = Number(matched.total || 1);
+        if (total <= 1) return current.filter((_, index) => index !== matchIndex);
+        return current.map((item, index) => index === matchIndex ? { ...item, total: total - 1 } : item);
+      });
     } catch (error) {
       Swal.fire('Gagal Menghapus', waterErrorMessage(error), 'error');
     }
   };
 
   return {
-    form, records, totals, month, typeFilter, loading, masterLoading, saving, showForm, tableGenerated,
-    cleanRows, wastewaterRows, setMonth, setTypeFilter, setShowForm, changeField,
-    openNew, generateTable, updateResult, editRecord, removeRecord, submit, loadRecords,
+    form, records, monthGroups, dateGroupsByType, detailRecords, month, typeFilter, selectedDate,
+    loading, masterLoading, saving, showForm, tableGenerated,
+    cleanRows, wastewaterRows, selectMonth, selectDate, setSelectedDate, setShowForm, changeField,
+    openNew, generateTable, updateResult, editRecord, removeRecord, submit, refreshArchive,
   };
 }

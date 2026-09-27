@@ -1,4 +1,5 @@
 import { supabase } from '../../lib/supabase';
+import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
 import { calculateParameterStatus, monthRange, normalizeParameters } from './waterHelpers';
 
 export async function getCleanWaterLocations({ includeInactive = false } = {}) {
@@ -110,15 +111,17 @@ export async function setWaterStandardActive(id, isActive) {
   if (error) throw error;
 }
 
-export async function getWaterExaminations({ month, waterType }) {
-  const { start, end } = monthRange(month);
+export async function getWaterExaminations({ month, waterType, sampledAt }) {
   let query = supabase
     .from('water_examinations')
-    .select('*, water_clean_locations(name)')
-    .gte('sampled_at', start)
-    .lt('sampled_at', end)
+    .select('id, water_type, clean_water_location_id, sample_point, sampled_at, resulted_at, laboratory, report_number, parameters, notes, water_clean_locations(name)')
     .order('sampled_at', { ascending: false })
     .order('created_at', { ascending: false });
+  if (sampledAt) query = query.eq('sampled_at', sampledAt);
+  else {
+    const { start, end } = monthRange(month);
+    query = query.gte('sampled_at', start).lt('sampled_at', end);
+  }
   if (waterType !== 'all') query = query.eq('water_type', waterType);
   const { data, error } = await query;
   if (error) throw error;
@@ -130,6 +133,17 @@ export async function getWaterExaminations({ month, waterType }) {
       status: calculateParameterStatus(item.result, item.standard),
     })),
   }));
+}
+
+export async function getWaterExaminationIndex() {
+  const { data: summary, error: summaryError } = await supabase.rpc('get_water_examination_archive_summary');
+  if (!summaryError) return summary || [];
+  // Kompatibilitas sementara untuk database yang belum menjalankan migrasi agregasi.
+  if (summaryError.code !== 'PGRST202' && summaryError.code !== '42883') throw summaryError;
+  return fetchAllSupabaseRows(() => supabase
+    .from('water_examinations')
+    .select('water_type, sampled_at')
+    .order('sampled_at', { ascending: false }));
 }
 
 const examinationPayload = (form) => ({
@@ -149,18 +163,16 @@ export async function saveWaterExamination(form, userId) {
   const query = form.id
     ? supabase.from('water_examinations').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', form.id)
     : supabase.from('water_examinations').insert({ ...payload, created_by: userId });
-  const { data, error } = await query.select().single();
+  const { error } = await query;
   if (error) throw error;
-  return data;
 }
 
 // Satu insert dengan banyak baris diproses atomik oleh PostgreSQL: jika satu
 // baris ditolak constraint/trigger, tidak ada baris lain yang tersimpan.
 export async function saveWaterExaminationBatch(forms, userId) {
   const payloads = forms.map(form => ({ ...examinationPayload(form), created_by: userId }));
-  const { data, error } = await supabase.from('water_examinations').insert(payloads).select();
+  const { error } = await supabase.from('water_examinations').insert(payloads);
   if (error) throw error;
-  return data || [];
 }
 
 export async function deleteWaterExamination(id) {
