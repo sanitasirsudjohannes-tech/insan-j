@@ -33,7 +33,7 @@ const formatDate = value => {\n  if (!value) return '';\n  return new Intl.DateT
                   {waterDatesLoading ? (
                     <option value="">Memuat tanggal pemeriksaan...</option>
                   ) : availableWaterDates.length === 0 ? (
-                    <option value="">Belum ada data pemeriksaan</option>
+                    <option value="">Belum ada pemeriksaan</option>
                   ) : (
                     availableWaterDates.map(date => <option key={date} value={date}>{formatDate(date)}</option>)
                   )}
