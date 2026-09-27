@@ -91,7 +91,7 @@ export function useReportAssistant() {
     setForm(current => ({
       ...current,
       reportType,
-      period: reportType === 'clean_water'
+      period: ['clean_water', 'wastewater'].includes(reportType)
         ? { start: current.period.start, end: current.period.start }
         : current.period,
       facts: {},
@@ -104,7 +104,7 @@ export function useReportAssistant() {
   };
 
   const handleRecap = async () => {
-    const recapPeriod = form.reportType === 'clean_water'
+    const recapPeriod = ['clean_water', 'wastewater'].includes(form.reportType)
       ? { start: form.period.start, end: form.period.start }
       : form.period;
     if (!recapPeriod.start || !recapPeriod.end || recapPeriod.start > recapPeriod.end) {
