@@ -4,7 +4,7 @@ import { buildLocalReport } from '../domain/reportBuilder.js';
 import { REPORT_TYPES } from '../constants/reportTypes.js';
 import { validateReportPayload } from '../domain/reportValidation.js';
 import { fetchMedicalWasteRecap } from '../../../lib/reportRecap';
-import { fetchWaterReportRecap } from '../services/waterReportRecap.js';
+import { fetchWaterExaminationDates, fetchWaterReportRecap } from '../services/waterReportRecap.js';
 import { STORAGE_KEY, emptyState, initialPeriod, loadSavedState } from '../services/reportDraftStorage';
 const numberValue = value => Math.round((Number(value) || 0) * 100) / 100;
 
@@ -25,7 +25,7 @@ export function useReportAssistant() {
     }
   });
   const [errors, setErrors] = useState({});
-  const [recapLoading, setRecapLoading] = useState(false);
+  const [recapLoading, setRecapLoading] = useState(false);\n  const [availableWaterDates, setAvailableWaterDates] = useState([]);\n  const [waterDatesLoading, setWaterDatesLoading] = useState(false);
   const [status, setStatus] = useState('');
   const config = REPORT_TYPES[form.reportType];
 
@@ -36,6 +36,40 @@ export function useReportAssistant() {
       setStatus('Penyimpanan sementara tidak tersedia atau penuh. Salin atau unduh draft sebelum menutup halaman.');
     }
   }, [form, draft, chartData]);
+
+  useEffect(() => {
+    if (!['clean_water', 'wastewater'].includes(form.reportType)) {
+      setAvailableWaterDates([]);
+      setWaterDatesLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setWaterDatesLoading(true);
+    fetchWaterExaminationDates(form.reportType)
+      .then(dates => {
+        if (cancelled) return;
+        setAvailableWaterDates(dates);
+        setForm(current => {
+          if (!['clean_water', 'wastewater'].includes(current.reportType)) return current;
+          const selectedDate = dates.includes(current.period.start) ? current.period.start : (dates[0] || '');
+          return { ...current, period: { start: selectedDate, end: selectedDate }, analytics: null };
+        });
+        if (!dates.length) setStatus('Belum ada data pemeriksaan untuk jenis air ini. Isi data pemeriksaan terlebih dahulu.');
+      })
+      .catch(error => {
+        if (cancelled) return;
+        setAvailableWaterDates([]);
+        setStatus(!navigator.onLine || /failed to fetch/i.test(error?.message || '')
+          ? 'Daftar tanggal tidak dapat dimuat karena koneksi terputus.'
+          : 'Daftar tanggal pemeriksaan tidak dapat dimuat. Coba lagi.');
+      })
+      .finally(() => {
+        if (!cancelled) setWaterDatesLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [form.reportType]);
 
   const updateForm = (key, value) => {
     setForm(current => ({ ...current, [key]: value, analytics: ['period', 'reportType'].includes(key) ? null : current.analytics }));
@@ -189,5 +223,5 @@ export function useReportAssistant() {
     setStatus('');
   };
 
-  return { form, draft, setDraft, chartData, errors, recapLoading, status, config, updateForm, updateFact, handleTypeChange, handleRecap, handleBuildLocal, handleCopy, handleReset };
+  return { form, draft, setDraft, chartData, errors, recapLoading, status, config, availableWaterDates, waterDatesLoading, updateForm, updateFact, handleTypeChange, handleRecap, handleBuildLocal, handleCopy, handleReset };
 }
