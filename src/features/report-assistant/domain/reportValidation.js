@@ -4,7 +4,7 @@ export function validateReportPayload(payload = {}) {
   const errors = {};
   const config = REPORT_TYPES[payload.reportType];
   if (!config) errors.reportType = 'Pilih jenis laporan yang valid.';
-  const singleSamplingDate = payload.reportType === 'clean_water';
+  const singleSamplingDate = ['clean_water', 'wastewater'].includes(payload.reportType);
   if (!payload.period?.start) errors.periodStart = singleSamplingDate ? 'Tanggal pengambilan sampel wajib diisi.' : 'Tanggal awal wajib diisi.';
   if (!singleSamplingDate && !payload.period?.end) errors.periodEnd = 'Tanggal akhir wajib diisi.';
   if (!singleSamplingDate && payload.period?.start && payload.period?.end && payload.period.start > payload.period.end) {
