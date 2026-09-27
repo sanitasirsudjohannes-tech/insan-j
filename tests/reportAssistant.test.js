@@ -54,6 +54,21 @@ test('laporan air bersih hanya mewajibkan tanggal pengambilan sampel', () => {
   assert.deepEqual(errors, {});
 });
 
+test('laporan IPAL hanya mewajibkan satu tanggal pengambilan sampel', () => {
+  const errors = validateReportPayload({
+    reportType: 'wastewater',
+    period: { start: '2026-02-25', end: '' },
+    facts: {
+      samplingLocation: 'Inlet, Outlet',
+      inletResult: 'Memenuhi',
+      outletResult: 'Memenuhi',
+      compliance: 'Seluruh parameter memenuhi',
+      operationalIssue: '-',
+    },
+  });
+  assert.deepEqual(errors, {});
+});
+
 test('template lokal mempertahankan angka dan struktur BAB', () => {
   const report = buildLocalReport(validPayload);
   assert.match(report, /100,25 kg/);
