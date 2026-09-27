@@ -41,28 +41,5 @@ export const REPORT_TYPES = {
       { key: 'remonitoring', label: 'Rencana pemantauan ulang', multiline: true },
     ],
   },
-  lighting: {
-    label: 'Pemeriksaan Pencahayaan',
-    shortLabel: 'Pencahayaan',
-    icon: 'fas fa-lightbulb',
-    fields: [
-      { key: 'totalPoints', label: 'Jumlah titik diperiksa', type: 'number', required: true },
-      { key: 'compliantPoints', label: 'Jumlah memenuhi standar', type: 'number', required: true },
-      { key: 'nonCompliantPoints', label: 'Jumlah tidak memenuhi standar', type: 'number', required: true },
-      { key: 'mainFindings', label: 'Temuan utama', multiline: true, required: true },
-    ],
-  },
-  sanitation_activity: {
-    label: 'Kegiatan Sanitasi',
-    shortLabel: 'Kegiatan',
-    icon: 'fas fa-clipboard-check',
-    fields: [
-      { key: 'activityName', label: 'Nama kegiatan', required: true },
-      { key: 'location', label: 'Lokasi kegiatan', required: true },
-      { key: 'implementers', label: 'Pelaksana dan sasaran', multiline: true, required: true },
-      { key: 'activities', label: 'Rangkaian kegiatan', multiline: true, required: true },
-      { key: 'results', label: 'Hasil kegiatan', multiline: true, required: true },
-    ],
-  },
 };
 
