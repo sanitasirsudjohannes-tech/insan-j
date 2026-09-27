@@ -25,7 +25,9 @@ export function useReportAssistant() {
     }
   });
   const [errors, setErrors] = useState({});
-  const [recapLoading, setRecapLoading] = useState(false);\n  const [availableWaterDates, setAvailableWaterDates] = useState([]);\n  const [waterDatesLoading, setWaterDatesLoading] = useState(false);
+  const [recapLoading, setRecapLoading] = useState(false);
+  const [availableWaterDates, setAvailableWaterDates] = useState([]);
+  const [waterDatesLoading, setWaterDatesLoading] = useState(false);
   const [status, setStatus] = useState('');
   const config = REPORT_TYPES[form.reportType];
 
