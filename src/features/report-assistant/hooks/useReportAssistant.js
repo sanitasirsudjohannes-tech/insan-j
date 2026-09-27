@@ -55,7 +55,7 @@ export function useReportAssistant() {
           const selectedDate = dates.includes(current.period.start) ? current.period.start : (dates[0] || '');
           return { ...current, period: { start: selectedDate, end: selectedDate }, analytics: null };
         });
-        if (!dates.length) setStatus('Belum ada data pemeriksaan untuk jenis air ini. Isi data pemeriksaan terlebih dahulu.');
+        if (!dates.length) setStatus('Belum ada pemeriksaan untuk jenis air ini. Isi data pemeriksaan terlebih dahulu.');
       })
       .catch(error => {
         if (cancelled) return;
