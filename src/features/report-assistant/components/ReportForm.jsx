@@ -18,7 +18,7 @@ export default function ReportForm({ form, errors, handleTypeChange, updateForm,
               Ke Rekap
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {Object.entries(REPORT_TYPES).map(([key, type]) => (
               <button key={key} type="button" onClick={() => handleTypeChange(key)} className={`rounded-2xl border p-3 text-left transition ${form.reportType === key ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm' : 'border-slate-200 text-slate-600 hover:border-blue-200'}`}>
                 <i className={`${type.icon} mb-2 block`} />
