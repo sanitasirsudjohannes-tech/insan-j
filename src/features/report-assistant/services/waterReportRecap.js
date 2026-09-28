@@ -6,9 +6,9 @@ const WATER_DATE_CACHE_MS = 5 * 60 * 1000;
 let waterDateIndexCache = null;
 let waterDateIndexPromise = null;
 
-async function fetchWaterDateIndex() {
+async function fetchWaterDateIndex(force = false) {
   const now = Date.now();
-  if (waterDateIndexCache && now - waterDateIndexCache.loadedAt < WATER_DATE_CACHE_MS) {
+  if (!force && waterDateIndexCache && now - waterDateIndexCache.loadedAt < WATER_DATE_CACHE_MS) {
     return waterDateIndexCache.rows;
   }
   if (waterDateIndexPromise) return waterDateIndexPromise;
@@ -50,13 +50,13 @@ export async function fetchWaterReportRecap(start, end, reportType) {
   return summarizeWaterRecords(records, reportType);
 }
 
-export async function fetchWaterExaminationDates(reportType) {
+export async function fetchWaterExaminationDates(reportType, { force = false } = {}) {
   if (!['clean_water', 'wastewater'].includes(reportType)) return [];
   const waterType = reportType === 'clean_water' ? 'clean' : 'wastewater';
 
 
   try {
-    const summary = await fetchWaterDateIndex();
+    const summary = await fetchWaterDateIndex(force);
     return summary
       .filter(record => record.water_type === waterType && record.sampled_at)
       .map(record => record.sampled_at)
