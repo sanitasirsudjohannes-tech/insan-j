@@ -7,6 +7,8 @@ export const WASTEWATER_POINTS = ['Inlet', 'Outlet'];
 export const CLEAN_WATER_PARAMETERS = ['Total coliform', 'E. coli'];
 export const CLEAN_WATER_UNIT = '/100 mL';
 
+export const todayInMakassar = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Makassar' });
+
 export const createEmptyParameter = () => ({
   parameter: '',
   result: '',
@@ -93,10 +95,14 @@ export function normalizeParameters(parameters = []) {
     .filter((item) => item.parameter && item.result);
 }
 
-export function validateExamination(form) {
+export function validateExamination(form, today = todayInMakassar()) {
   if (!form.sampled_at) return 'Tanggal pengambilan sampel wajib diisi.';
+  if (form.sampled_at > today) return 'Tanggal pengambilan sampel tidak boleh melebihi hari ini.';
   if (form.resulted_at && form.resulted_at < form.sampled_at) {
     return 'Tanggal hasil tidak boleh lebih awal dari tanggal pengambilan sampel.';
+  }
+  if (form.resulted_at && form.resulted_at > today) {
+    return 'Tanggal hasil tidak boleh melebihi hari ini.';
   }
   if (form.water_type === 'clean' && !form.clean_water_location_id) {
     return 'Pilih lokasi pemeriksaan air bersih.';
@@ -110,6 +116,11 @@ export function validateExamination(form) {
       || CLEAN_WATER_PARAMETERS.some(name => normalized.filter(item => item.parameter === name && item.unit === CLEAN_WATER_UNIT).length !== 1)) {
       return 'Hasil Total coliform dan E. coli wajib diisi untuk setiap bak dengan satuan /100 mL.';
     }
+  }
+  if (form.water_type === 'wastewater' && (form.parameters || []).some(item => (
+    String(item.parameter || '').trim() && !String(item.result ?? '').trim()
+  ))) {
+    return 'Hasil semua parameter air limbah wajib diisi untuk Inlet dan Outlet.';
   }
   const filled = normalizeParameters(form.parameters);
   if (filled.length === 0) return 'Isi minimal satu parameter beserta hasil pemeriksaannya.';
