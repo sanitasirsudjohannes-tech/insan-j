@@ -54,7 +54,7 @@ export function buildWaterTableModels(reportType, analytics = {}) {
   if (reportType === 'clean_water') return buildCleanWaterTables(records);
 
   const rows = records.flatMap(record => (record.parameters || []).map(parameter => [
-    record.sampled_at || '-',
+    formatDateId(record.sampled_at),
     locationName(record) || '-',
     parameter.parameter || '-',
     `${parameter.result ?? '-'}${parameter.unit ? ` ${parameter.unit}` : ''}`,
