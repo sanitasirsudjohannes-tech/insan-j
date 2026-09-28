@@ -10,6 +10,8 @@ const CATEGORIES = [
   { label: 'Bandingkan', icon: 'fa-code-compare', items: ['Bandingkan jumlah ruangan kemarin dan hari ini', 'Bandingkan timbulan bulan ini dengan sebelumnya', 'Ruangan mana yang menyumbang kenaikan terbesar bulan ini?', 'Berapa selisih timbulan jika hanya menghitung ruangan yang tercatat pada kedua tanggal kemarin dan hari ini?'] },
   { label: 'Cari data', icon: 'fa-magnifying-glass', items: ['Kapan pengangkutan terakhir?', 'Ruangan dengan timbulan terbesar bulan ini', 'Tampilkan jumlah ruangan yang diinput setiap hari bulan ini', 'Berapa timbulan sejak pengangkutan terakhir bulan ini?'] },
   { label: 'Periksa data', icon: 'fa-clipboard-check', items: ['Apakah ada data yang perlu diperiksa bulan ini?', 'Apakah ada tanggal yang belum diinput bulan ini?', 'Apakah ada data ganda hari ini?', 'Apakah ada catatan tanpa nama petugas bulan ini?', 'Apakah ada data bertanggal setelah hari ini?', 'Apakah ada berat yang berbeda dari kebiasaan ruangan bulan ini?'] },
+  { label: 'Air Bersih', icon: 'fa-droplet', items: ['Tampilkan hasil pemeriksaan air bersih terakhir', 'Lokasi air bersih yang tidak memenuhi pada pemeriksaan terakhir', 'Hasil Total coliform air bersih terakhir', 'Daftar tanggal pemeriksaan air bersih'] },
+  { label: 'IPAL', icon: 'fa-water', items: ['Tampilkan hasil pemeriksaan IPAL terakhir', 'Bandingkan inlet dan outlet IPAL terakhir', 'Parameter IPAL yang tidak memenuhi pada pemeriksaan terakhir', 'Apakah data inlet dan outlet IPAL terakhir lengkap?'] },
 ];
 
 const STORAGE_KEY = 'insan_j_data_chat';
@@ -17,7 +19,7 @@ const getStorageKey = () => {
   const userId = getCurrentUser()?.id;
   return userId ? `${STORAGE_KEY}:${userId}` : null;
 };
-const initialMessage = { role: 'assistant', text: 'Tanyakan data limbah. Jawaban dihitung langsung dari data INSAN-J menggunakan template yang tersedia.' };
+const initialMessage = { role: 'assistant', text: 'Tanyakan data limbah atau pemeriksaan air. Jawaban dihitung langsung dari data INSAN-J menggunakan template yang tersedia.' };
 
 function loadMessages(storageKey) {
   if (!storageKey) return [initialMessage];
@@ -121,7 +123,7 @@ function AccountWasteDataChat({ className = '', hideHeader = false, onBusyChange
         {category && <div className="max-h-32 space-y-1 overflow-y-auto">{CATEGORIES.find(item => item.label === category)?.items.map(item => <button key={item} type="button" disabled={loading} onClick={() => ask(item)} className="block w-full rounded-xl bg-blue-50 px-3 py-2 text-left text-xs text-blue-700">{item}<span aria-hidden="true" className="ml-2">→</span></button>)}</div>}
       </div>}
       {favorites.length > 0 && <details className="mt-2 text-xs text-slate-600"><summary className="cursor-pointer py-2 font-bold">Pertanyaan favorit ({favorites.length}/8)</summary><div className="max-h-32 overflow-y-auto">{favorites.map(text => <div key={text} className="flex gap-2"><button type="button" disabled={loading} onClick={() => ask(text)} className="flex-1 py-2 text-left text-blue-700">{text}</button><button type="button" onClick={() => toggleFavorite(text)} aria-label={`Hapus favorit ${text}`}>×</button></div>)}</div></details>}
-      <form onSubmit={event => { event.preventDefault(); ask(); }} className="mt-3 flex gap-2"><input ref={inputRef} aria-label="Pertanyaan data limbah" maxLength={1000} value={question} onChange={event => setQuestion(event.target.value)} placeholder="Contoh: berapa ruangan yang input hari ini?" className="min-w-0 flex-1 rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" /><button type="submit" disabled={!question.trim() || loading} className="rounded-2xl bg-blue-600 px-4 text-white disabled:opacity-50" aria-label="Kirim pertanyaan"><i aria-hidden="true" className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-paper-plane'}`} /></button></form>
+      <form onSubmit={event => { event.preventDefault(); ask(); }} className="mt-3 flex gap-2"><input ref={inputRef} aria-label="Pertanyaan data INSAN-J" maxLength={1000} value={question} onChange={event => setQuestion(event.target.value)} placeholder="Contoh: bagaimana hasil pemeriksaan IPAL terakhir?" className="min-w-0 flex-1 rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" /><button type="submit" disabled={!question.trim() || loading} className="rounded-2xl bg-blue-600 px-4 text-white disabled:opacity-50" aria-label="Kirim pertanyaan"><i aria-hidden="true" className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-paper-plane'}`} /></button></form>
     </section>
   );
 }
