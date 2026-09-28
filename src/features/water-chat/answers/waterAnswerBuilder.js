@@ -9,7 +9,35 @@ const formatDate = value => {
 };
 const resultText = item => `${item.result ?? '-'}${item.unit ? ` ${item.unit}` : ''}`;
 const sourceLink = { label: 'Buka Pemeriksaan Air', to: '/pemeriksaan-air' };
-const compactIssueLines = items => items.map(item => `• ${item.location} — ${item.parameter}: ${resultText(item)} · BM ${item.standard || '-'} · ${statusLabel(item.status)}`);
+const parameterTable = (items, title = 'Lokasi yang perlu diperiksa') => items.length ? {
+  title,
+  columns: [
+    { key: 'location', label: 'Lokasi' }, { key: 'parameter', label: 'Parameter' },
+    { key: 'result', label: 'Hasil' }, { key: 'standard', label: 'Baku mutu' }, { key: 'status', label: 'Status' },
+  ],
+  rows: items.map((item, index) => ({ id: `${item.location}-${item.parameter}-${index}`, location: item.location, parameter: item.parameter, result: resultText(item), standard: item.standard || '-', status: statusLabel(item.status) })),
+} : null;
+
+const cleanResultTable = records => ({
+  title: 'Rincian seluruh lokasi',
+  columns: [
+    { key: 'location', label: 'Lokasi' }, { key: 'coliform', label: 'Total coliform' },
+    { key: 'ecoli', label: 'E. coli' }, { key: 'status', label: 'Status' },
+  ],
+  rows: records.map(record => {
+    const coliform = record.parameters.find(item => normalizeParameterName(item.parameter) === 'totalcoliform');
+    const ecoli = record.parameters.find(item => normalizeParameterName(item.parameter) === 'ecoli');
+    const statuses = record.parameters.map(item => item.status);
+    const status = statuses.includes('tidak_memenuhi') ? 'Tidak memenuhi' : statuses.includes('belum_dinilai') ? 'Belum dinilai' : 'Memenuhi';
+    return { id: record.id, location: locationName(record), coliform: coliform ? resultText(coliform) : '-', ecoli: ecoli ? resultText(ecoli) : '-', status };
+  }),
+});
+
+const summaryCards = (locations, total, compliant, failed, unassessed) => [
+  { label: 'Lokasi', value: locations }, { label: 'Hasil parameter', value: total },
+  { label: 'Memenuhi', value: compliant }, { label: 'Tidak memenuhi', value: failed },
+  { label: 'Belum dinilai', value: unassessed },
+];
 
 function recordLines(records, parameterFilter = null) {
   return records.flatMap(record => record.parameters
@@ -51,13 +79,19 @@ export function buildWaterAnswer(parsed, records, availableDates = []) {
   if (parsed.intent === 'parameter') {
     const lines = recordLines(analysis.records, parsed.parameter);
     if (!lines.length) return { text: `Parameter ${parsed.parameter} tidak ditemukan pada pemeriksaan ${waterLabel} tanggal ${formatDate(parsed.sampledAt)}.` };
-    if (parsed.waterType !== 'clean' || parsed.detailed) return { text: `Hasil ${parsed.parameter} pada pemeriksaan ${waterLabel} tanggal ${formatDate(parsed.sampledAt)}:\n${lines.join('\n')}` };
+    if (parsed.waterType !== 'clean') return { text: `Hasil ${parsed.parameter} pada pemeriksaan ${waterLabel} tanggal ${formatDate(parsed.sampledAt)}:\n${lines.join('\n')}` };
     const matches = analysis.parameters.filter(item => normalizeParameterName(item.parameter) === normalizeParameterName(parsed.parameter));
+    if (parsed.detailed) return {
+      text: `Rincian ${parsed.parameter} Air Bersih tanggal ${formatDate(parsed.sampledAt)}.`,
+      table: parameterTable(matches, `Rincian ${parsed.parameter}`),
+    };
     const failed = matches.filter(item => item.status === 'tidak_memenuhi');
     const unassessed = matches.filter(item => item.status === 'belum_dinilai');
-    const issues = compactIssueLines([...failed, ...unassessed]);
+    const issues = [...failed, ...unassessed];
     return {
-      text: `Ringkasan ${parsed.parameter} Air Bersih tanggal ${formatDate(parsed.sampledAt)}\n• ${matches.length} lokasi diperiksa\n• ${matches.length - failed.length - unassessed.length} memenuhi\n• ${failed.length} tidak memenuhi\n• ${unassessed.length} belum dinilai${issues.length ? `\n\nLokasi yang perlu diperiksa:\n${issues.join('\n')}` : '\n\nSeluruh lokasi yang dapat dinilai memenuhi baku mutu.'}`,
+      text: `Ringkasan ${parsed.parameter} Air Bersih tanggal ${formatDate(parsed.sampledAt)}. ${issues.length ? 'Berikut lokasi yang perlu diperiksa.' : 'Seluruh lokasi yang dapat dinilai memenuhi baku mutu.'}`,
+      cards: summaryCards(matches.length, matches.length, matches.length - failed.length - unassessed.length, failed.length, unassessed.length),
+      table: parameterTable(issues),
       actions: [{ label: 'Lihat rincian lengkap', question: `Tampilkan rincian lengkap ${parsed.parameter} air bersih tanggal ${parsed.sampledAt}` }],
     };
   }
@@ -69,10 +103,19 @@ export function buildWaterAnswer(parsed, records, availableDates = []) {
 
   const document = records[0];
   if (parsed.waterType === 'clean' && !parsed.detailed) {
-    const issueLines = compactIssueLines([...analysis.failed, ...analysis.unassessed]);
+    const issues = [...analysis.failed, ...analysis.unassessed];
     return {
-      text: `Ringkasan pemeriksaan Air Bersih tanggal ${formatDate(parsed.sampledAt)}\n• ${records.length} lokasi diperiksa\n• ${analysis.parameters.length} hasil parameter\n• ${analysis.compliant.length} memenuhi\n• ${analysis.failed.length} tidak memenuhi\n• ${analysis.unassessed.length} belum dinilai${issueLines.length ? `\n\nLokasi yang perlu diperiksa:\n${issueLines.join('\n')}` : '\n\nSeluruh hasil yang dapat dinilai memenuhi baku mutu.'}${document?.laboratory ? `\nLaboratorium: ${document.laboratory}.` : ''}${document?.report_number ? `\nNomor laporan: ${document.report_number}.` : ''}`,
+      text: `Ringkasan pemeriksaan Air Bersih tanggal ${formatDate(parsed.sampledAt)}. ${issues.length ? 'Berikut lokasi yang perlu diperiksa.' : 'Seluruh hasil yang dapat dinilai memenuhi baku mutu.'}${document?.laboratory ? `\nLaboratorium: ${document.laboratory}.` : ''}${document?.report_number ? `\nNomor laporan: ${document.report_number}.` : ''}`,
+      cards: summaryCards(records.length, analysis.parameters.length, analysis.compliant.length, analysis.failed.length, analysis.unassessed.length),
+      table: parameterTable(issues),
       actions: [{ label: 'Lihat rincian lengkap', question: `Tampilkan rincian lengkap hasil air bersih tanggal ${parsed.sampledAt}` }],
+    };
+  }
+  if (parsed.waterType === 'clean' && parsed.detailed) {
+    return {
+      text: `Rincian pemeriksaan Air Bersih tanggal ${formatDate(parsed.sampledAt)}.`,
+      cards: summaryCards(records.length, analysis.parameters.length, analysis.compliant.length, analysis.failed.length, analysis.unassessed.length),
+      table: cleanResultTable(analysis.records),
     };
   }
   const lines = recordLines(analysis.records);
