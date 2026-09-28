@@ -5,6 +5,7 @@ import {
   deleteWaterExamination,
   getCleanWaterLocations,
   getWaterExaminationIndex,
+  getWaterExaminationConflicts,
   getWaterExaminations,
   getWaterStandards,
   saveWaterExamination,
@@ -221,6 +222,7 @@ export function useWaterExaminations() {
 
   const submit = async event => {
     event.preventDefault();
+    if (saving) return;
     if (!tableGenerated) return Swal.fire('Tabel Belum Dibuat', 'Klik Generate Tabel sebelum menyimpan.', 'warning');
     const rows = form.water_type === 'clean' ? cleanRows : wastewaterRows;
     for (const row of rows) {
@@ -239,6 +241,15 @@ export function useWaterExaminations() {
         sample_point: row.samplePoint,
         parameters: row.parameters,
       }));
+      const conflicts = await getWaterExaminationConflicts(forms);
+      if (conflicts.length) {
+        const conflictNames = conflicts.map(conflict => conflict.water_type === 'clean'
+          ? rows.find(row => row.locationId === conflict.clean_water_location_id)?.locationName || 'Lokasi air bersih'
+          : conflict.sample_point).join(', ');
+        const duplicateError = new Error(`Pemeriksaan ${conflictNames} pada tanggal ${form.sampled_at} sudah tersimpan. Edit data yang ada atau pilih tanggal lain.`);
+        duplicateError.code = 'WATER_DUPLICATE';
+        throw duplicateError;
+      }
       if (form.id && forms.length === 1) await saveWaterExamination(forms[0], user?.id);
       else await saveWaterExaminationBatch(forms, user?.id);
       const savedMonth = form.sampled_at.slice(0, 7);
