@@ -69,6 +69,21 @@ test('laporan IPAL hanya mewajibkan satu tanggal pengambilan sampel', () => {
   assert.deepEqual(errors, {});
 });
 
+test('laporan IPAL menolak rekap yang belum memiliki pasangan inlet dan outlet', () => {
+  const errors = validateReportPayload({
+    reportType: 'wastewater',
+    period: { start: '2026-02-25', end: '2026-02-25' },
+    facts: {
+      samplingLocation: 'Inlet',
+      inletResult: 'Memenuhi',
+      outletResult: 'Tidak ada data outlet pada tanggal ini.',
+      compliance: 'Memenuhi',
+    },
+    analytics: { inletCount: 1, outletCount: 0 },
+  });
+  assert.equal(errors.outletResult, 'Data pemeriksaan outlet belum tersedia pada tanggal ini.');
+});
+
 test('template lokal mempertahankan angka dan struktur BAB', () => {
   const report = buildLocalReport(validPayload);
   assert.match(report, /100,25 kg/);
