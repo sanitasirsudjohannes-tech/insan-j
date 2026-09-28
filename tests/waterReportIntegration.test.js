@@ -111,6 +111,7 @@ test('lampiran Word membuat satu baris untuk setiap parameter IPAL', () => {
   const [table] = buildWaterTableModels('wastewater', recap.analytics);
   assert.equal(table.placement, 'results');
   assert.equal(table.rows.length, 4);
+  assert.equal(table.rows[0][0], '20 Sep 2026');
   assert.deepEqual(table.headers, ['Tanggal', 'Lokasi', 'Parameter', 'Hasil', 'Baku Mutu', 'Rujukan', 'Status']);
   assert.ok(table.rows.some(row => row[1] === 'Inlet' && row[2] === 'COD'));
   assert.ok(table.rows.some(row => row[1] === 'Outlet' && row[2] === 'pH'));
