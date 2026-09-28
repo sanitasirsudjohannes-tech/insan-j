@@ -70,8 +70,8 @@ export function summarizeWaterRecords(rawRecords = [], reportType) {
     return {
       facts: {
         samplingLocation: locations.join(', ') || 'Tidak ada data pemeriksaan',
-        inletResult: inlet.map(recordLine).join('\n') || 'Tidak ada data inlet pada periode ini.',
-        outletResult: outlet.map(recordLine).join('\n') || 'Tidak ada data outlet pada periode ini.',
+        inletResult: inlet.map(recordLine).join('\n') || 'Tidak ada data inlet pada tanggal ini.',
+        outletResult: outlet.map(recordLine).join('\n') || 'Tidak ada data outlet pada tanggal ini.',
         compliance: nonCompliant.length
           ? `${nonCompliant.length} parameter tidak memenuhi baku mutu: ${nonCompliant.map(item => `${item.parameter} di ${item.location} (${item.result}${item.unit ? ` ${item.unit}` : ''}${item.standard ? `; baku mutu ${item.standard}` : ''}${item.regulation ? `; rujukan ${item.regulation}` : ''})`).join('; ')}.`
           : common.unassessedParameters
@@ -85,7 +85,7 @@ export function summarizeWaterRecords(rawRecords = [], reportType) {
   return {
     facts: {
       samplingLocation: locations.join(', ') || 'Tidak ada data pemeriksaan',
-      parameterResults: records.map(recordLine).join('\n') || 'Tidak ada data air bersih pada periode ini.',
+      parameterResults: records.map(recordLine).join('\n') || 'Tidak ada data air bersih pada tanggal ini.',
       problemParameters: nonCompliant.length
         ? nonCompliant.map(item => `${formatDate(item.date)} — ${item.location}: ${item.parameter} ${item.result}${item.unit ? ` ${item.unit}` : ''}${item.standard ? `; baku mutu ${item.standard}` : ''}${item.regulation ? `; rujukan ${item.regulation}` : ''}`).join('\n')
         : common.unassessedParameters
@@ -93,7 +93,7 @@ export function summarizeWaterRecords(rawRecords = [], reportType) {
           : 'Tidak terdapat parameter yang ditandai tidak memenuhi baku mutu; verifikasi hasil lab tetap diperlukan.',
       evaluation: records.length
         ? `Terdapat ${records.length} pemeriksaan pada ${locations.length} lokasi dengan ${common.totalParameters} hasil parameter. ${common.compliantParameters} memenuhi, ${nonCompliant.length} tidak memenuhi, dan ${common.unassessedParameters} belum dinilai.`
-        : 'Belum ada data yang dapat dievaluasi pada periode ini.',
+        : 'Belum ada data yang dapat dievaluasi pada tanggal ini.',
     },
     analytics: common,
   };
