@@ -24,6 +24,17 @@ function MiniBars({ data }) {
   return <div className="mt-3 rounded-2xl bg-slate-50 p-3"><p className="mb-2 text-[11px] font-black uppercase tracking-wide text-slate-500">{data.title}</p><div className="space-y-2">{items.slice(0, 8).map((item, index) => <div key={`${item.label}-${index}`} className="grid grid-cols-[minmax(72px,1fr)_2fr_auto] items-center gap-2 text-[11px]"><span className="truncate text-slate-600">{item.label}</span><span className="h-2 overflow-hidden rounded-full bg-slate-200"><span className="block h-full rounded-full bg-blue-500" style={{ width: `${(Math.max(Number(item.value), 0) / max) * 100}%` }} /></span><span className="font-bold text-slate-700">{new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(item.value || 0)}</span></div>)}</div></div>;
 }
 
+const statusStyle = value => value === 'Tidak memenuhi'
+  ? 'bg-red-50 text-red-700 ring-red-200'
+  : value === 'Memenuhi'
+    ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+    : 'bg-slate-100 text-slate-600 ring-slate-200';
+
+function ResultTable({ data }) {
+  if (!data?.columns?.length || !data?.rows?.length) return null;
+  return <div className="mt-3 overflow-hidden rounded-xl border border-slate-200"><p className="bg-slate-50 px-3 py-2 text-[11px] font-black uppercase tracking-wide text-slate-500">{data.title}</p><div className="overflow-x-auto"><table className="min-w-full text-left text-[11px]"><thead className="border-y border-slate-200 bg-white text-slate-500"><tr>{data.columns.map(column => <th key={column.key} scope="col" className="whitespace-nowrap px-3 py-2 font-bold">{column.label}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{data.rows.map((row, rowIndex) => <tr key={row.id || rowIndex} className="bg-white">{data.columns.map(column => <td key={column.key} className="whitespace-nowrap px-3 py-2 text-slate-700">{column.key === 'status' ? <span className={`inline-flex rounded-full px-2 py-1 font-bold ring-1 ring-inset ${statusStyle(row[column.key])}`}>{row[column.key]}</span> : row[column.key] ?? '-'}</td>)}</tr>)}</tbody></table></div></div>;
+}
+
 export default function WasteChatAnswer({ message, onAsk, onReport, onNavigate, onEdit, onFavorite, isFavorite = false, busy = false }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -40,6 +51,7 @@ export default function WasteChatAnswer({ message, onAsk, onReport, onNavigate, 
     {message.cards?.length > 0 && <div className="mb-3 grid grid-cols-1 min-[380px]:grid-cols-3 gap-1.5">{message.cards.map(card => <div key={card.label} className="rounded-xl border border-slate-200 bg-linear-to-br from-blue-50 to-white px-3 py-3"><span className="block text-[9px] font-bold uppercase text-slate-400">{card.label}</span><span className="mt-0.5 block break-words text-base font-black text-slate-800">{card.value}</span></div>)}</div>}
     <div className="whitespace-pre-line">{visibleText}</div>
     {truncated && <button type="button" onClick={() => setExpanded(value => !value)} className="mt-2 text-xs font-bold text-blue-600">{expanded ? 'Ringkas kembali' : `Tampilkan semua (${lines.length} baris)`}</button>}
+    <ResultTable data={message.table} />
     {message.visualization?.items?.length > 0 && <MiniBars data={message.visualization} />}
     {message.warnings?.map(item => <p key={item} className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800"><i className="fas fa-triangle-exclamation mr-1.5" />{item}</p>)}
     {message.context?.calculation && <details className="mt-3 text-xs text-slate-600"><summary className="cursor-pointer py-2 font-semibold">Cara menghitung</summary><p className="whitespace-pre-line">{message.context.calculation}</p></details>}
