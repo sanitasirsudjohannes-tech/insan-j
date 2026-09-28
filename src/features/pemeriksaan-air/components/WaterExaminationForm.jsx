@@ -1,4 +1,4 @@
-import { WATER_TYPES } from '../waterHelpers';
+import { todayInMakassar, WATER_TYPES } from '../waterHelpers';
 import CleanWaterInputTable from './CleanWaterInputTable';
 import WastewaterInputTable from './WastewaterInputTable';
 
@@ -6,6 +6,7 @@ export default function WaterExaminationForm({
   form, saving, tableGenerated, cleanRows, wastewaterRows,
   onChange, onGenerate, onResultChange, onSubmit, onClose,
 }) {
+  const today = todayInMakassar();
   return <form onSubmit={onSubmit} className="space-y-5 rounded-3xl border border-blue-100 bg-white p-4 shadow-lg sm:p-6">
     <div className="flex items-center justify-between">
       <h3 className="font-black text-slate-800">{form.id ? 'Edit' : 'Tambah'} {WATER_TYPES[form.water_type]}</h3>
@@ -16,10 +17,10 @@ export default function WaterExaminationForm({
         <select value={form.water_type} disabled={Boolean(form.id)} onChange={event => onChange('water_type', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"><option value="clean">Air Bersih</option><option value="wastewater">Air Limbah</option></select>
       </label>
       <label className="text-xs font-bold text-slate-600">Tanggal Sampling
-        <input type="date" value={form.sampled_at} onChange={event => onChange('sampled_at', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm" />
+        <input type="date" max={today} value={form.sampled_at} onChange={event => onChange('sampled_at', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm" />
       </label>
       <label className="text-xs font-bold text-slate-600">Tanggal Hasil
-        <input type="date" value={form.resulted_at} onChange={event => onChange('resulted_at', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm" />
+        <input type="date" min={form.sampled_at || undefined} max={today} value={form.resulted_at} onChange={event => onChange('resulted_at', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm" />
       </label>
       <label className="text-xs font-bold text-slate-600">Laboratorium
         <input value={form.laboratory} onChange={event => onChange('laboratory', event.target.value)} placeholder="Contoh: Labkes Provinsi NTT" className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm" />
