@@ -5,7 +5,7 @@ const formatDate = value => {
   return new Intl.DateTimeFormat('id-ID', { day: '2-digit', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`));
 };
 
-export default function ReportForm({ form, errors, handleTypeChange, updateForm, navigate, availableWaterDates, waterDatesLoading }) {
+export default function ReportForm({ form, errors, handleTypeChange, updateForm, navigate, availableWaterDates, waterDatesLoading, waterDatesError, refreshWaterDates }) {
   const isWaterReport = ['clean_water', 'wastewater'].includes(form.reportType);
   return (
         <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
@@ -47,6 +47,10 @@ export default function ReportForm({ form, errors, handleTypeChange, updateForm,
                 <span className="mt-1 block text-xs font-normal text-slate-500">
                   {availableWaterDates.length > 0 ? 'Hanya tanggal yang memiliki data pemeriksaan yang ditampilkan.' : ''}
                 </span>
+                <button type="button" onClick={refreshWaterDates} disabled={waterDatesLoading} className="mt-2 rounded-lg border border-blue-200 px-3 py-1.5 text-xs font-bold text-blue-700 disabled:opacity-60">
+                  <i className={`fas ${waterDatesLoading ? 'fa-spinner fa-spin' : 'fa-rotate'} mr-1.5`} />
+                  {waterDatesError ? 'Coba lagi' : 'Perbarui daftar tanggal'}
+                </button>
                 <span className="mt-1 block text-xs font-normal text-red-600">{errors.periodStart}</span>
               </label>
             ) : ([
