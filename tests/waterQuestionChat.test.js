@@ -1,0 +1,58 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { isWaterQuestion, parseWaterQuestion } from '../src/features/water-chat/parsers/waterQuestionParser.js';
+import { answerWaterQuestion } from '../src/features/water-chat/services/answerWaterQuestion.js';
+
+const index = [
+  { water_type: 'clean', sampled_at: '2026-09-21', total: 1 },
+  { water_type: 'wastewater', sampled_at: '2026-09-20', total: 2 },
+];
+const wastewater = [{
+  id: 'inlet-1', water_type: 'wastewater', sample_point: 'Inlet', sampled_at: '2026-09-20',
+  laboratory: 'Labkes NTT', report_number: '01/LAB/2026',
+  parameters: [{ parameter: 'BOD', result: '50', unit: 'mg/L', standard: '<=30', regulation: 'Permen LHK' }],
+}];
+const repository = {
+  fetchDateIndex: async () => index,
+  fetchRecords: async type => type === 'wastewater' ? wastewater : [],
+};
+
+test('router mengenali air limbah sebagai pemeriksaan air, bukan limbah medis', () => {
+  assert.equal(isWaterQuestion('Tampilkan hasil pemeriksaan air limbah terakhir'), true);
+  assert.equal(parseWaterQuestion('Tampilkan hasil pemeriksaan air limbah terakhir').waterType, 'wastewater');
+});
+
+test('konteks air tidak mengambil alih pertanyaan limbah medis yang eksplisit', () => {
+  assert.equal(isWaterQuestion('Berapa timbulan limbah medis bulan ini?', { domain: 'water', waterType: 'clean' }), false);
+});
+
+test('parser mendahulukan maksud khusus walaupun pertanyaan menyebut terakhir', () => {
+  assert.equal(parseWaterQuestion('Parameter IPAL yang tidak memenuhi pada pemeriksaan terakhir').intent, 'non_compliant');
+  assert.equal(parseWaterQuestion('Bandingkan inlet dan outlet IPAL terakhir').intent, 'inlet_outlet');
+  assert.equal(parseWaterQuestion('Apakah data inlet dan outlet IPAL terakhir lengkap?').intent, 'completeness');
+});
+
+test('jawaban IPAL terakhir memakai tanggal terbaru dan status baku mutu', async () => {
+  const answer = await answerWaterQuestion('Tampilkan hasil pemeriksaan IPAL terakhir', { repository });
+  assert.match(answer.text, /20 September 2026/);
+  assert.match(answer.text, /BOD: 50 mg\/L/);
+  assert.match(answer.text, /Tidak memenuhi/);
+  assert.equal(answer.context.domain, 'water');
+  assert.equal(answer.context.waterType, 'wastewater');
+});
+
+test('kelengkapan IPAL memperingatkan outlet yang belum tersedia', async () => {
+  const answer = await answerWaterQuestion('Apakah data inlet dan outlet IPAL terakhir lengkap?', { repository });
+  assert.match(answer.text, /belum lengkap/i);
+  assert.match(answer.text, /Outlet belum tersedia/i);
+});
+
+test('daftar tanggal air bersih tidak mengambil rincian pemeriksaan', async () => {
+  let detailsCalled = false;
+  const answer = await answerWaterQuestion('Daftar tanggal pemeriksaan air bersih', { repository: {
+    fetchDateIndex: async () => index,
+    fetchRecords: async () => { detailsCalled = true; return []; },
+  } });
+  assert.match(answer.text, /21 September 2026/);
+  assert.equal(detailsCalled, false);
+});
