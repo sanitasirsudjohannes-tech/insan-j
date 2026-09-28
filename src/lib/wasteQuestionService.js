@@ -9,9 +9,14 @@ import { OPERATIONAL_INTENTS } from '../features/waste-chat/parsers/operationalI
 import { buildSourceLink } from '../features/waste-chat/presentation/questionPresentation.js';
 import { fetchSharedCachedResource } from './databaseAggregations';
 import { normalizeConversationQuestion } from '../features/waste-chat/parsers/conversationMemory.js';
+import { isWaterQuestion } from '../features/water-chat/parsers/waterQuestionParser.js';
+import { answerWaterQuestion } from '../features/water-chat/services/answerWaterQuestion.js';
 
 export async function answerWasteQuestion(question, { context = null, contextPeriod = null, fetchRecap = fetchMedicalWasteRecap, fetchRooms = fetchDaftarRuangan } = {}) {
   const conversationContext = context || (contextPeriod ? { period: contextPeriod } : null);
+  if (isWaterQuestion(question, conversationContext)) {
+    return answerWaterQuestion(question, { context: conversationContext });
+  }
   const preliminary = parseWasteQuestion(question, conversationContext, []);
   if (preliminary.conversationClarification) return { text: preliminary.conversationClarification, clarification: true };
   if (preliminary.intent === 'calculation_help') return {
@@ -33,7 +38,7 @@ export async function answerWasteQuestion(question, { context = null, contextPer
   }
   if (preliminary.intent === 'capabilities') {
     return {
-      text: 'Saya dapat membantu membaca data INSAN-J, antara lain:\n\n• Ringkasan timbulan, pengangkutan, dan sisa limbah.\n• Rincian jenis limbah dan data per ruangan.\n• Perbandingan maksimal 3 bulan.\n• Tanggal pengangkutan, pengangkutan terakhir, dan jeda pengangkutan.\n• Pemeriksaan tanggal kosong, ruangan yang belum input, data ganda, dan angka tidak wajar.\n• Analisis tren, bulan atau tanggal tertinggi, serta rata-rata.\n\nUntuk laporan dan periode yang lebih panjang, gunakan menu Rekap Limbah atau Laporan.',
+      text: 'Saya dapat membantu membaca data INSAN-J, antara lain:\n\n• Ringkasan timbulan, pengangkutan, dan sisa limbah.\n• Rincian jenis limbah dan data per ruangan.\n• Hasil pemeriksaan Air Bersih dan IPAL.\n• Parameter tidak memenuhi serta kelengkapan Inlet–Outlet.\n• Tanggal pengangkutan, pengangkutan terakhir, dan jeda pengangkutan.\n• Pemeriksaan data kosong, data ganda, dan angka tidak wajar.\n• Analisis tren dan perbandingan maksimal 3 bulan.\n\nUntuk laporan yang lebih lengkap, gunakan menu Rekap Limbah atau Asisten Laporan.',
       parsed: preliminary,
       actions: [
         { label: 'Ringkasan bulan ini', question: 'Rincian data limbah bulan ini' },
@@ -84,7 +89,7 @@ export async function answerWasteQuestion(question, { context = null, contextPer
   if (clarification) return { ...clarification, clarification: true, understanding: { status: 'clarification', intent: 'Perlu konfirmasi', period: parsed.period?.label } };
   if (parsed.intent === 'capabilities') {
     return {
-      text: 'Saya dapat membantu membaca data INSAN-J, antara lain:\n\n• Ringkasan timbulan, pengangkutan, dan sisa limbah.\n• Rincian jenis limbah dan data per ruangan.\n• Perbandingan maksimal 3 bulan.\n• Tanggal pengangkutan, pengangkutan terakhir, dan jeda pengangkutan.\n• Pemeriksaan tanggal kosong, ruangan yang belum input, data ganda, dan angka tidak wajar.\n• Analisis tren, bulan atau tanggal tertinggi, serta rata-rata.\n\nUntuk laporan dan periode yang lebih panjang, gunakan menu Rekap Limbah atau Laporan.',
+      text: 'Saya dapat membantu membaca data INSAN-J, antara lain:\n\n• Ringkasan timbulan, pengangkutan, dan sisa limbah.\n• Rincian jenis limbah dan data per ruangan.\n• Hasil pemeriksaan Air Bersih dan IPAL.\n• Parameter tidak memenuhi serta kelengkapan Inlet–Outlet.\n• Tanggal pengangkutan, pengangkutan terakhir, dan jeda pengangkutan.\n• Pemeriksaan data kosong, data ganda, dan angka tidak wajar.\n• Analisis tren dan perbandingan maksimal 3 bulan.\n\nUntuk laporan yang lebih lengkap, gunakan menu Rekap Limbah atau Asisten Laporan.',
       parsed,
       actions: [
         { label: 'Ringkasan bulan ini', question: 'Rincian data limbah bulan ini' },
