@@ -28,6 +28,31 @@ test('tanggal hasil tidak boleh lebih awal dari tanggal sampling', () => {
   assert.equal(message, 'Tanggal hasil tidak boleh lebih awal dari tanggal pengambilan sampel.');
 });
 
+test('tanggal sampling dan hasil tidak boleh berada di masa depan', () => {
+  assert.equal(validateExamination({
+    water_type: 'wastewater', sample_point: 'Inlet', sampled_at: '2026-09-24',
+    resulted_at: '', parameters: [],
+  }, '2026-09-23'), 'Tanggal pengambilan sampel tidak boleh melebihi hari ini.');
+  assert.equal(validateExamination({
+    water_type: 'wastewater', sample_point: 'Inlet', sampled_at: '2026-09-22',
+    resulted_at: '2026-09-24', parameters: [],
+  }, '2026-09-23'), 'Tanggal hasil tidak boleh melebihi hari ini.');
+});
+
+test('air limbah mewajibkan hasil untuk seluruh parameter yang ditampilkan', () => {
+  const parameters = [
+    { parameter: 'BOD', result: '20', standard_id: 'std-bod', standard: '30', regulation: 'Peraturan X' },
+    { parameter: 'COD', result: '', standard_id: 'std-cod', standard: '100', regulation: 'Peraturan X' },
+  ];
+  assert.equal(validateExamination({
+    water_type: 'wastewater', sample_point: 'Inlet', sampled_at: '2026-09-23', parameters,
+  }, '2026-09-23'), 'Hasil semua parameter air limbah wajib diisi untuk Inlet dan Outlet.');
+  parameters[1].result = '80';
+  assert.equal(validateExamination({
+    water_type: 'wastewater', sample_point: 'Inlet', sampled_at: '2026-09-23', parameters,
+  }, '2026-09-23'), null);
+});
+
 test('air bersih starts with Total coliform and E. coli per 100 mL', () => {
   assert.deepEqual(createCleanWaterParameters().map(item => [item.parameter, item.unit]), [
     ['Total coliform', '/100 mL'], ['E. coli', '/100 mL'],
