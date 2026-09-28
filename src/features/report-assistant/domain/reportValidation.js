@@ -10,6 +10,10 @@ export function validateReportPayload(payload = {}) {
   if (!singleSamplingDate && payload.period?.start && payload.period?.end && payload.period.start > payload.period.end) {
     errors.periodEnd = 'Tanggal akhir tidak boleh sebelum tanggal awal.';
   }
+  if (payload.reportType === 'wastewater' && payload.analytics) {
+    if (!payload.analytics.inletCount) errors.inletResult = 'Data pemeriksaan inlet belum tersedia pada tanggal ini.';
+    if (!payload.analytics.outletCount) errors.outletResult = 'Data pemeriksaan outlet belum tersedia pada tanggal ini.';
+  }
   config?.fields.forEach(field => {
     const value = payload.facts?.[field.key];
     if (field.required && String(value ?? '').trim() === '') errors[field.key] = `${field.label} wajib diisi.`;
