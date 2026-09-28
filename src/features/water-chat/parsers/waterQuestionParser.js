@@ -46,5 +46,6 @@ export function parseWaterQuestion(question, context = null) {
   else if (waterType === 'wastewater' && /banding|perbandingan|selisih|inlet.*outlet|outlet.*inlet/i.test(text)) intent = 'inlet_outlet';
   else if (parameter) intent = 'parameter';
   else if (/terakhir|terbaru/i.test(text)) intent = 'latest';
-  return { domain: 'water', question: text, waterType, sampledAt, parameter, intent };
+  const detailed = /rincian\s+lengkap|detail\s+lengkap|tampilkan\s+semua|seluruh\s+(?:lokasi|hasil)/i.test(text);
+  return { domain: 'water', question: text, waterType, sampledAt, parameter, intent, detailed };
 }
