@@ -70,9 +70,9 @@ test('hasil air bersih diringkas dan hanya menampilkan lokasi bermasalah', async
     fetchDateIndex: async () => index,
     fetchRecords: async () => cleanWater,
   } });
-  assert.match(answer.text, /18 lokasi diperiksa/);
-  assert.match(answer.text, /Bak 5/);
-  assert.doesNotMatch(answer.text, /Bak 18 —/);
+  assert.equal(answer.cards.find(card => card.label === 'Lokasi').value, 18);
+  assert.equal(answer.table.rows[0].location, 'Bak 5');
+  assert.doesNotMatch(answer.text, /Bak 18/);
   assert.equal(answer.actions[0].label, 'Lihat rincian lengkap');
 });
 
@@ -81,6 +81,7 @@ test('rincian lengkap air bersih tetap tersedia atas permintaan pengguna', async
     fetchDateIndex: async () => index,
     fetchRecords: async () => cleanWater,
   } });
-  assert.match(answer.text, /Bak 1 — Total coliform/);
-  assert.match(answer.text, /Bak 18 — E\. coli/);
+  assert.equal(answer.table.rows.length, 18);
+  assert.equal(answer.table.rows[0].location, 'Bak 1');
+  assert.equal(answer.table.rows[17].location, 'Bak 18');
 });
