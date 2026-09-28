@@ -2,9 +2,8 @@ import {
   CLEAN_WATER_PARAMETERS,
   createCleanWaterParameters,
   parameterFromStandard,
+  todayInMakassar,
 } from '../waterHelpers';
-
-export const todayInMakassar = () => new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Makassar' });
 
 export const currentWaterMonth = () => todayInMakassar().slice(0, 7);
 
