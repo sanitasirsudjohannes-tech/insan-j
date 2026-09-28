@@ -12,6 +12,14 @@ const wastewater = [{
   laboratory: 'Labkes NTT', report_number: '01/LAB/2026',
   parameters: [{ parameter: 'BOD', result: '50', unit: 'mg/L', standard: '<=30', regulation: 'Permen LHK' }],
 }];
+const cleanWater = Array.from({ length: 18 }, (_, index) => ({
+  id: `clean-${index}`, water_type: 'clean', sampled_at: '2026-09-21',
+  water_clean_locations: { name: `Bak ${index + 1}` },
+  parameters: [
+    { parameter: 'Total coliform', result: index === 4 ? '12' : '0', unit: '/100 mL', standard: '<=10' },
+    { parameter: 'E. coli', result: '0', unit: '/100 mL', standard: '<=0' },
+  ],
+}));
 const repository = {
   fetchDateIndex: async () => index,
   fetchRecords: async type => type === 'wastewater' ? wastewater : [],
@@ -55,4 +63,24 @@ test('daftar tanggal air bersih tidak mengambil rincian pemeriksaan', async () =
   } });
   assert.match(answer.text, /21 September 2026/);
   assert.equal(detailsCalled, false);
+});
+
+test('hasil air bersih diringkas dan hanya menampilkan lokasi bermasalah', async () => {
+  const answer = await answerWaterQuestion('Tampilkan hasil air bersih terakhir', { repository: {
+    fetchDateIndex: async () => index,
+    fetchRecords: async () => cleanWater,
+  } });
+  assert.match(answer.text, /18 lokasi diperiksa/);
+  assert.match(answer.text, /Bak 5/);
+  assert.doesNotMatch(answer.text, /Bak 18 —/);
+  assert.equal(answer.actions[0].label, 'Lihat rincian lengkap');
+});
+
+test('rincian lengkap air bersih tetap tersedia atas permintaan pengguna', async () => {
+  const answer = await answerWaterQuestion('Tampilkan rincian lengkap hasil air bersih tanggal 21 September 2026', { repository: {
+    fetchDateIndex: async () => index,
+    fetchRecords: async () => cleanWater,
+  } });
+  assert.match(answer.text, /Bak 1 — Total coliform/);
+  assert.match(answer.text, /Bak 18 — E\. coli/);
 });
