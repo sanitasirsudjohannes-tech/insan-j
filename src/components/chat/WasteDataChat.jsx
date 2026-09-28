@@ -31,6 +31,7 @@ function compactMessages(messages) {
     const compact = { ...message };
     delete compact.reportPayload;
     compact.visualization = message.visualization?.items?.length ? { ...message.visualization, items: message.visualization.items.slice(0, 8) } : null;
+    compact.table = message.table?.rows?.length ? { ...message.table, rows: message.table.rows.slice(0, 40) } : null;
     return compact;
   });
 }
@@ -89,7 +90,7 @@ function AccountWasteDataChat({ className = '', hideHeader = false, onBusyChange
     setLoading(true);
     try {
       const answer = await answerWasteQuestion(text, { context });
-      appendMessage({ role: 'assistant', question: text, favoriteQuestion: answer.favoriteQuestion, text: answer.text, period: answer.period, context: answer.context, cards: answer.cards, visualization: answer.visualization, warnings: answer.warnings, followUps: answer.followUps, source: answer.source, sourceLink: answer.sourceLink, sourceLinks: answer.sourceLinks, understanding: answer.understanding, dataStatus: answer.dataStatus, reportPayload: answer.reportPayload, actions: answer.actions, clarification: answer.clarification });
+      appendMessage({ role: 'assistant', question: text, favoriteQuestion: answer.favoriteQuestion, text: answer.text, period: answer.period, context: answer.context, cards: answer.cards, table: answer.table, visualization: answer.visualization, warnings: answer.warnings, followUps: answer.followUps, source: answer.source, sourceLink: answer.sourceLink, sourceLinks: answer.sourceLinks, understanding: answer.understanding, dataStatus: answer.dataStatus, reportPayload: answer.reportPayload, actions: answer.actions, clarification: answer.clarification });
     } catch {
       appendMessage({ role: 'assistant', text: 'Data belum dapat diambil. Periksa koneksi dan status sinkronisasi, lalu coba kembali.', error: true });
     } finally { busyRef.current = false; setLoading(false); onBusyChange?.(false); }
