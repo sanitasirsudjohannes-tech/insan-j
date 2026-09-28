@@ -175,6 +175,24 @@ export async function saveWaterExaminationBatch(forms, userId) {
   if (error) throw error;
 }
 
+export async function getWaterExaminationConflicts(forms = []) {
+  if (!forms.length) return [];
+  const [{ water_type: waterType, sampled_at: sampledAt }] = forms;
+  const { data, error } = await supabase
+    .from('water_examinations')
+    .select('id, water_type, clean_water_location_id, sample_point, sampled_at')
+    .eq('water_type', waterType)
+    .eq('sampled_at', sampledAt);
+  if (error) throw error;
+
+  return forms.filter(form => (data || []).some(record => (
+    record.id !== form.id
+    && (waterType === 'clean'
+      ? record.clean_water_location_id === form.clean_water_location_id
+      : record.sample_point === form.sample_point)
+  )));
+}
+
 export async function deleteWaterExamination(id) {
   const { error } = await supabase.from('water_examinations').delete().eq('id', id);
   if (error) throw error;
