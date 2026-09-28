@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 import { buildLocalReport } from '../domain/reportBuilder.js';
 import { REPORT_TYPES } from '../constants/reportTypes.js';
@@ -28,8 +28,12 @@ export function useReportAssistant() {
   const [recapLoading, setRecapLoading] = useState(false);
   const [availableWaterDates, setAvailableWaterDates] = useState([]);
   const [waterDatesLoading, setWaterDatesLoading] = useState(false);
+  const [waterDatesError, setWaterDatesError] = useState(false);
+  const [waterDatesRefresh, setWaterDatesRefresh] = useState(0);
   const [status, setStatus] = useState('');
   const config = REPORT_TYPES[form.reportType];
+  const selectedWaterDateRef = useRef(form.period.start);
+  selectedWaterDateRef.current = form.period.start;
 
   useEffect(() => {
     try {
@@ -48,20 +52,34 @@ export function useReportAssistant() {
 
     let cancelled = false;
     setWaterDatesLoading(true);
-    fetchWaterExaminationDates(form.reportType)
+    setWaterDatesError(false);
+    fetchWaterExaminationDates(form.reportType, { force: waterDatesRefresh > 0 })
       .then(dates => {
         if (cancelled) return;
         setAvailableWaterDates(dates);
+        const currentDate = selectedWaterDateRef.current;
+        const selectedDate = dates.includes(currentDate) ? currentDate : (dates[0] || '');
+        if (selectedDate !== currentDate) {
+          setDraft('');
+          setChartData(null);
+        }
         setForm(current => {
           if (!['clean_water', 'wastewater'].includes(current.reportType)) return current;
-          const selectedDate = dates.includes(current.period.start) ? current.period.start : (dates[0] || '');
-          return { ...current, period: { start: selectedDate, end: selectedDate }, analytics: null };
+          const currentSelectedDate = dates.includes(current.period.start) ? current.period.start : selectedDate;
+          const dateChanged = current.period.start !== currentSelectedDate;
+          return {
+            ...current,
+            period: { start: currentSelectedDate, end: currentSelectedDate },
+            facts: dateChanged ? {} : current.facts,
+            analytics: dateChanged ? null : current.analytics,
+          };
         });
-        if (!dates.length) setStatus('Belum ada pemeriksaan untuk jenis air ini. Isi data pemeriksaan terlebih dahulu.');
+        setStatus(dates.length ? '' : 'Belum ada pemeriksaan untuk jenis air ini. Isi data pemeriksaan terlebih dahulu.');
       })
       .catch(error => {
         if (cancelled) return;
         setAvailableWaterDates([]);
+        setWaterDatesError(true);
         setStatus(!navigator.onLine || /failed to fetch/i.test(error?.message || '')
           ? 'Daftar tanggal tidak dapat dimuat karena koneksi terputus.'
           : 'Daftar tanggal pemeriksaan tidak dapat dimuat. Coba lagi.');
@@ -71,10 +89,20 @@ export function useReportAssistant() {
       });
 
     return () => { cancelled = true; };
-  }, [form.reportType]);
+  }, [form.reportType, waterDatesRefresh]);
 
   const updateForm = (key, value) => {
-    setForm(current => ({ ...current, [key]: value, analytics: ['period', 'reportType'].includes(key) ? null : current.analytics }));
+    setForm(current => {
+      const waterDateChanged = key === 'period'
+        && ['clean_water', 'wastewater'].includes(current.reportType)
+        && current.period.start !== value?.start;
+      return {
+        ...current,
+        [key]: value,
+        facts: waterDateChanged ? {} : current.facts,
+        analytics: ['period', 'reportType'].includes(key) ? null : current.analytics,
+      };
+    });
     setDraft('');
     if (key === 'period') setChartData(null);
   };
@@ -82,7 +110,7 @@ export function useReportAssistant() {
     setForm(current => ({
       ...current,
       facts: { ...current.facts, [key]: value },
-      analytics: null,
+      analytics: ['clean_water', 'wastewater'].includes(current.reportType) ? current.analytics : null,
     }));
     setDraft('');
   };
@@ -120,7 +148,7 @@ export function useReportAssistant() {
         : await fetchWaterReportRecap(recapPeriod.start, recapPeriod.end, form.reportType);
       if (form.reportType !== 'medical_waste' && !recap.analytics.totalExaminations) {
         setForm(current => ({ ...current, facts: {}, analytics: null }));
-        setStatus('Tidak ada hasil pemeriksaan pada periode ini. Pilih periode lain atau isi data pemeriksaan terlebih dahulu.');
+        setStatus('Tidak ada hasil pemeriksaan pada tanggal ini. Pilih tanggal lain atau isi data pemeriksaan terlebih dahulu.');
         return;
       }
       const facts = form.reportType === 'medical_waste'
@@ -128,11 +156,15 @@ export function useReportAssistant() {
         : recap.facts;
       setForm(current => ({ ...current, facts: { ...current.facts, ...facts }, analytics: recap.analytics }));
       setChartData(form.reportType === 'medical_waste' ? recap.charts : null);
-      setStatus('Rekap berhasil diambil. Periksa hasil dan status parameter sebelum membuat laporan.');
+      const incompleteWastewater = form.reportType === 'wastewater'
+        && (!recap.analytics.inletCount || !recap.analytics.outletCount);
+      setStatus(incompleteWastewater
+        ? 'Rekap berhasil diambil, tetapi data inlet atau outlet belum lengkap. Lengkapi pemeriksaan sebelum membuat laporan.'
+        : 'Rekap berhasil diambil. Periksa hasil dan status parameter sebelum membuat laporan.');
       await Swal.fire({
         icon: 'success',
         title: 'Data Rekap Diambil',
-        text: 'Angka berasal dari data yang sudah tersinkron pada periode tersebut.',
+        text: 'Angka berasal dari data yang sudah tersinkron pada tanggal tersebut.',
         timer: 1800,
         showConfirmButton: false
       });
@@ -225,5 +257,7 @@ export function useReportAssistant() {
     setStatus('');
   };
 
-  return { form, draft, setDraft, chartData, errors, recapLoading, status, config, availableWaterDates, waterDatesLoading, updateForm, updateFact, handleTypeChange, handleRecap, handleBuildLocal, handleCopy, handleReset };
+  const refreshWaterDates = () => setWaterDatesRefresh(value => value + 1);
+
+  return { form, draft, setDraft, chartData, errors, recapLoading, status, config, availableWaterDates, waterDatesLoading, waterDatesError, refreshWaterDates, updateForm, updateFact, handleTypeChange, handleRecap, handleBuildLocal, handleCopy, handleReset };
 }
