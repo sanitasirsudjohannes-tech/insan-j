@@ -9,6 +9,7 @@ const formatDate = value => {
 };
 const resultText = item => `${item.result ?? '-'}${item.unit ? ` ${item.unit}` : ''}`;
 const sourceLink = { label: 'Buka Pemeriksaan Air', to: '/pemeriksaan-air' };
+const compactIssueLines = items => items.map(item => `• ${item.location} — ${item.parameter}: ${resultText(item)} · BM ${item.standard || '-'} · ${statusLabel(item.status)}`);
 
 function recordLines(records, parameterFilter = null) {
   return records.flatMap(record => record.parameters
@@ -49,7 +50,16 @@ export function buildWaterAnswer(parsed, records, availableDates = []) {
   }
   if (parsed.intent === 'parameter') {
     const lines = recordLines(analysis.records, parsed.parameter);
-    return { text: lines.length ? `Hasil ${parsed.parameter} pada pemeriksaan ${waterLabel} tanggal ${formatDate(parsed.sampledAt)}:\n${lines.join('\n')}` : `Parameter ${parsed.parameter} tidak ditemukan pada pemeriksaan ${waterLabel} tanggal ${formatDate(parsed.sampledAt)}.` };
+    if (!lines.length) return { text: `Parameter ${parsed.parameter} tidak ditemukan pada pemeriksaan ${waterLabel} tanggal ${formatDate(parsed.sampledAt)}.` };
+    if (parsed.waterType !== 'clean' || parsed.detailed) return { text: `Hasil ${parsed.parameter} pada pemeriksaan ${waterLabel} tanggal ${formatDate(parsed.sampledAt)}:\n${lines.join('\n')}` };
+    const matches = analysis.parameters.filter(item => normalizeParameterName(item.parameter) === normalizeParameterName(parsed.parameter));
+    const failed = matches.filter(item => item.status === 'tidak_memenuhi');
+    const unassessed = matches.filter(item => item.status === 'belum_dinilai');
+    const issues = compactIssueLines([...failed, ...unassessed]);
+    return {
+      text: `Ringkasan ${parsed.parameter} Air Bersih tanggal ${formatDate(parsed.sampledAt)}\n• ${matches.length} lokasi diperiksa\n• ${matches.length - failed.length - unassessed.length} memenuhi\n• ${failed.length} tidak memenuhi\n• ${unassessed.length} belum dinilai${issues.length ? `\n\nLokasi yang perlu diperiksa:\n${issues.join('\n')}` : '\n\nSeluruh lokasi yang dapat dinilai memenuhi baku mutu.'}`,
+      actions: [{ label: 'Lihat rincian lengkap', question: `Tampilkan rincian lengkap ${parsed.parameter} air bersih tanggal ${parsed.sampledAt}` }],
+    };
   }
   if (parsed.intent === 'inlet_outlet') {
     const lines = recordLines([...analysis.inlet, ...analysis.outlet], parsed.parameter);
@@ -57,8 +67,15 @@ export function buildWaterAnswer(parsed, records, availableDates = []) {
     return { text: `Perbandingan Inlet–Outlet IPAL tanggal ${formatDate(parsed.sampledAt)}:\n${lines.join('\n')}${warning}` };
   }
 
-  const lines = recordLines(analysis.records);
   const document = records[0];
+  if (parsed.waterType === 'clean' && !parsed.detailed) {
+    const issueLines = compactIssueLines([...analysis.failed, ...analysis.unassessed]);
+    return {
+      text: `Ringkasan pemeriksaan Air Bersih tanggal ${formatDate(parsed.sampledAt)}\n• ${records.length} lokasi diperiksa\n• ${analysis.parameters.length} hasil parameter\n• ${analysis.compliant.length} memenuhi\n• ${analysis.failed.length} tidak memenuhi\n• ${analysis.unassessed.length} belum dinilai${issueLines.length ? `\n\nLokasi yang perlu diperiksa:\n${issueLines.join('\n')}` : '\n\nSeluruh hasil yang dapat dinilai memenuhi baku mutu.'}${document?.laboratory ? `\nLaboratorium: ${document.laboratory}.` : ''}${document?.report_number ? `\nNomor laporan: ${document.report_number}.` : ''}`,
+      actions: [{ label: 'Lihat rincian lengkap', question: `Tampilkan rincian lengkap hasil air bersih tanggal ${parsed.sampledAt}` }],
+    };
+  }
+  const lines = recordLines(analysis.records);
   return {
     text: `Hasil pemeriksaan ${waterLabel} tanggal ${formatDate(parsed.sampledAt)}\n${lines.join('\n')}\n\nRingkasan: ${analysis.compliant.length} memenuhi, ${analysis.failed.length} tidak memenuhi, dan ${analysis.unassessed.length} belum dinilai.${document?.laboratory ? `\nLaboratorium: ${document.laboratory}.` : ''}${document?.report_number ? `\nNomor laporan: ${document.report_number}.` : ''}`,
   };
