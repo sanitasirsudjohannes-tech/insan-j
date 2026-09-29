@@ -1,13 +1,13 @@
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import {
   clearCachedUser,
   getCachedUser,
   restoreUserSession,
 } from '../lib/session';
-import Swal from 'sweetalert2';
+import { SessionContext } from '../features/session/SessionContext';
 import { fetchDaftarRuangan } from '../lib/api';
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 
 function SessionLoading() {
   return (
@@ -37,10 +37,11 @@ function SessionError({ onRetry, onLogin }) {
   );
 }
 
-export default function ProtectedRoute({ children, requiredRole, allowedRoles, deniedRoles }) {
+export default function ProtectedRoute() {
   const [status, setStatus] = useState('checking');
   const [user, setUser] = useState(getCachedUser);
   const [retryKey, setRetryKey] = useState(0);
+  const [adminVerified, setAdminVerified] = useState(false);
   const requestIdRef = useRef(0);
   const location = useLocation();
 
@@ -57,6 +58,7 @@ export default function ProtectedRoute({ children, requiredRole, allowedRoles, d
       });
       if (!active || requestId !== requestIdRef.current) return;
       setUser(result.user);
+      setAdminVerified(result.adminVerified === true);
       setStatus(result.status);
       if (result.status === 'authenticated' && result.user?.id) {
         // Siapkan master ruangan meski pengguna hanya membuka dashboard.
@@ -76,6 +78,7 @@ export default function ProtectedRoute({ children, requiredRole, allowedRoles, d
         requestIdRef.current += 1;
         clearCachedUser();
         setUser(null);
+        setAdminVerified(false);
         setStatus('unauthenticated');
         return;
       }
@@ -116,26 +119,5 @@ export default function ProtectedRoute({ children, requiredRole, allowedRoles, d
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
-  const normalizedRole = user.role?.trim().toLowerCase();
-  const normalizedAllowedRoles = allowedRoles?.map(role => role.toLowerCase());
-  const normalizedDeniedRoles = deniedRoles?.map(role => role.toLowerCase());
-  const roleDenied = requiredRole
-    ? normalizedRole !== requiredRole.toLowerCase()
-    : (normalizedAllowedRoles && !normalizedAllowedRoles.includes(normalizedRole))
-      || normalizedDeniedRoles?.includes(normalizedRole);
-
-  if (roleDenied) return <RoleCheckRedirect />;
-  return children;
-}
-
-function RoleCheckRedirect() {
-  useEffect(() => {
-    Swal.fire({
-      icon: 'error',
-      title: 'Akses Ditolak',
-      text: 'Akun Anda tidak memiliki izin untuk membuka halaman ini.',
-      confirmButtonColor: '#3b82f6',
-    });
-  }, []);
-  return <Navigate to="/dashboard" replace />;
+  return <SessionContext.Provider key={user.id} value={{ user, status, adminVerified, retrySession: () => setRetryKey(value => value + 1) }}><Suspense fallback={<div role="status" className="p-6 text-sm text-slate-500">Memuat halaman…</div>}><Outlet /></Suspense></SessionContext.Provider>;
 }

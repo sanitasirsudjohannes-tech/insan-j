@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import PrefetchLink from '../../features/navigation/PrefetchLink';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import AppLayout from '../AppLayout';
 import { getWitaMonthString } from '../../lib/localDate';
@@ -109,7 +109,7 @@ export default function DashboardAdmin({ user }) {
   return <AppLayout title="Dashboard Admin"><div className={styles.shell}>
     <header className={styles.header}>
       <div><p className={styles.eyebrow}>INSAN-J / Administrasi</p><h1 className={styles.title}>Pantau lingkungan rumah sakit.</h1><p className={styles.muted}>Selamat datang, {user?.nama || 'Admin'}. Ringkasan untuk membantu pemantauan dan tindak lanjut.</p></div>
-      <div className={styles.links}><Link className={styles.button} to="/kelola-admin">Kelola data & akun</Link><Link className={styles.button} to="/rekap-limbah">Buka rekap</Link></div>
+      <div className={styles.links}><PrefetchLink className={styles.button} to="/kelola-admin">Kelola data & akun</PrefetchLink><PrefetchLink className={styles.button} to="/rekap-limbah">Buka rekap</PrefetchLink></div>
     </header>
     <div className={styles.toolbar}>
       <div className={styles.tabs} role="group" aria-label="Tampilan dashboard admin">{sections.map(([id, label]) => <button key={id} type="button" aria-pressed={section === id} onClick={() => setSection(id)} className={styles.tab + ' ' + (section === id ? styles.active : '')}>{label}</button>)}</div>
