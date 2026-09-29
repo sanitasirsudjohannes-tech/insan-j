@@ -79,7 +79,10 @@ export default function ProtectedRoute({ children, requiredRole, allowedRoles, d
       }
     });
 
-    const restoreWhenOnline = () => restore({ showLoading: true });
+    // Saat koneksi kembali, verifikasi sesi di belakang layar. Mengubah status
+    // menjadi `checking` akan melepas seluruh halaman dan menghapus state lokal
+    // seperti tab/form yang sedang aktif tepat ketika antrean offline disinkronkan.
+    const restoreWhenOnline = () => restore();
     window.addEventListener('online', restoreWhenOnline);
 
     return () => {
