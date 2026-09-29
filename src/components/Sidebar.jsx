@@ -58,17 +58,21 @@ export default function Sidebar({ isOpen, onClose }) {
     { to: '/akun', label: 'Setting Akun', icon: 'fas fa-cog' },
   ] : [
     { to: '/dashboard', label: 'Dashboard', icon: 'fas fa-th-large' },
-    { id: 'waste', label: 'Pengelolaan Limbah', icon: 'fas fa-recycle', items: [
-      { to: '/limbah-dihasilkan', label: 'Limbah Dihasilkan', icon: 'fas fa-biohazard' },
-      { to: '/pengangkutan', label: 'Pengangkutan', icon: 'fas fa-truck' },
-      { to: '/rekap-limbah', label: 'Rekap Limbah', icon: 'fas fa-file-invoice' },
-    ] },
-    { to: '/asisten-laporan', label: 'Asisten Laporan', icon: 'fas fa-wand-magic-sparkles' },
-    { id: 'inspection', label: 'Inspeksi Sanitasi', icon: 'fas fa-clipboard-check', items: [
-      { to: '/inspeksi', label: 'Form Inspeksi', icon: 'fas fa-pen-to-square' },
-      { to: '/riwayat', label: 'Riwayat Inspeksi', icon: 'fas fa-history' },
-    ] },
+    {
+      id: 'waste', label: 'Pengelolaan Limbah', icon: 'fas fa-recycle', items: [
+        { to: '/limbah-dihasilkan', label: 'Limbah Dihasilkan', icon: 'fas fa-biohazard' },
+        { to: '/pengangkutan', label: 'Pengangkutan', icon: 'fas fa-truck' },
+        { to: '/rekap-limbah', label: 'Rekap Limbah', icon: 'fas fa-file-invoice' },
+      ]
+    },
+    {
+      id: 'inspection', label: 'Inspeksi Sanitasi', icon: 'fas fa-clipboard-check', items: [
+        { to: '/inspeksi', label: 'Form Inspeksi', icon: 'fas fa-pen-to-square' },
+        { to: '/riwayat', label: 'Riwayat Inspeksi', icon: 'fas fa-history' },
+      ]
+    },
     { to: '/pemeriksaan-air', label: 'Pemeriksaan Air', icon: 'fas fa-droplet' },
+    { to: '/asisten-laporan', label: 'Asisten Laporan', icon: 'fas fa-wand-magic-sparkles' },
     { to: '/akun', label: 'Setting Akun', icon: 'fas fa-cog' },
   ];
 
