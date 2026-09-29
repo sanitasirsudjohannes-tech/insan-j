@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import AppLayout from '../components/AppLayout';
 import WaterExaminationForm from '../features/pemeriksaan-air/components/WaterExaminationForm';
 import WaterRecordsSection from '../features/pemeriksaan-air/components/WaterRecordsSection';
@@ -6,7 +5,7 @@ import { useWaterExaminations } from '../features/pemeriksaan-air/hooks/useWater
 
 export default function PemeriksaanAir() {
   const water = useWaterExaminations();
-  const [choosingType, setChoosingType] = useState(false);
+  const { choosingType, setChoosingType } = water;
 
   return <AppLayout title="Pemeriksaan Air">
     <div className="mx-auto max-w-7xl space-y-5 p-4 sm:p-6">
@@ -48,8 +47,7 @@ export default function PemeriksaanAir() {
               type="button"
               disabled={water.masterLoading}
               onClick={() => {
-                water.openNew(option.type);
-                setChoosingType(false);
+                if (water.openNew(option.type)) setChoosingType(false);
               }}
               className={`flex items-center gap-3 rounded-xl border p-4 text-left transition-colors disabled:opacity-60 ${option.color}`}
             >
