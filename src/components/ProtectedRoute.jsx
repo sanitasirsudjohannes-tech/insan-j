@@ -119,5 +119,5 @@ export default function ProtectedRoute() {
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
-  return <SessionContext.Provider key={user.id} value={{ user, status, adminVerified, retrySession: () => setRetryKey(value => value + 1) }}><Suspense fallback={<div role="status" className="p-6 text-sm text-slate-500">Memuat halaman…</div>}><Outlet /></Suspense></SessionContext.Provider>;
+  return <SessionContext.Provider key={user.id} value={{ user, status, adminVerified, retrySession: () => setRetryKey(value => value + 1) }}><Suspense fallback={<div role="status" className="flex min-h-screen items-center justify-center bg-gray-50 px-4 text-sm font-semibold text-slate-500">Memuat halaman…</div>}><Outlet /></Suspense></SessionContext.Provider>;
 }
