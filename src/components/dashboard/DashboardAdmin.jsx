@@ -4,16 +4,13 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import AppLayout from '../AppLayout';
 import { getWitaMonthString } from '../../lib/localDate';
 import useAdminOverview from './admin/useAdminOverview';
+import { ChartLegend, DataSourceStatus } from './admin/AdminMeta';
 import styles from './admin/AdminOverview.module.css';
 
 const number = value => value == null ? '—' : Number(value).toLocaleString('id-ID', { maximumFractionDigits: 2 });
 const date = value => value ? new Date(value.slice(0, 10) + 'T00:00:00+08:00').toLocaleDateString('id-ID', { timeZone: 'Asia/Makassar', day: 'numeric', month: 'long', year: 'numeric' }) : 'Belum tersedia';
 const monthLabel = value => new Date(value + '-01T00:00:00+08:00').toLocaleDateString('id-ID', { timeZone: 'Asia/Makassar', month: 'long', year: 'numeric' });
 const timestamp = value => value ? new Date(value).toLocaleString('id-ID', { timeZone: 'Asia/Makassar', dateStyle: 'medium', timeStyle: 'short' }) + ' WITA' : '—';
-
-function Source({ response }) {
-  return <p className={styles.muted}>{response?.source === 'offline' ? 'Salinan offline' : 'Data yang diterima server'} · Diperbarui {timestamp(response?.updatedAt)}</p>;
-}
 
 function Metric({ label, value, note }) {
   return <article className={styles.card}><p className={styles.muted}>{label}</p><p className={styles.value}>{value}</p><p className={styles.muted}>{note}</p></article>;
@@ -49,15 +46,15 @@ function WasteOverview({ result, month }) {
         <p className="my-4 text-sm text-slate-600">Timbulan bulan ini <strong>{number(totals.masuk)} kg</strong> · Diangkut <strong>{number(totals.diangkut)} kg</strong></p>
         {!rows.length ? <p className="py-16 text-center text-sm text-slate-500">Belum ada data pada bulan ini.</p> : table ?
           <div className="max-h-80 overflow-auto"><table className={styles.table}><caption className="sr-only">Rincian limbah {monthLabel(month)}</caption><thead><tr><th>Tanggal</th><th>Timbulan (kg)</th><th>Diangkut (kg)</th></tr></thead><tbody>{rows.map(row => <tr key={row.tanggal}><td>{date(row.tanggal)}</td><td>{number(row.masuk)}</td><td>{number(row.diangkut)}</td></tr>)}</tbody></table></div> :
-          <div className="mt-6 h-72 min-w-0"><ResponsiveContainer width="100%" height="100%" minWidth={1}>
+          <div className={styles.chartBlock}><div className={styles.chartCanvas}><ResponsiveContainer width="100%" height="100%" minWidth={1}>
             <BarChart data={rows} margin={{ top: 5, right: 5, left: 0, bottom: 5 }}>
               <CartesianGrid vertical={false} stroke="#edf1f4" /><XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} /><YAxis width={55} axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
               <Tooltip labelFormatter={(_, payload) => date(payload?.[0]?.payload?.tanggal)} formatter={(value, name) => [number(value) + ' kg', name]} />
               <Bar dataKey="masuk" name="Timbulan" fill="#0f766e" radius={[3, 3, 0, 0]} isAnimationActive={false} />
               <Bar dataKey="diangkut" name="Diangkut" fill="#94a3b8" radius={[3, 3, 0, 0]} isAnimationActive={false} />
             </BarChart>
-          </ResponsiveContainer><p className="text-center text-xs text-slate-500">Hijau: timbulan · Abu-abu: diangkut · Sentuh batang untuk melihat nilai</p></div>}
-        <div className="mt-5"><Source response={result.waste} /></div>
+          </ResponsiveContainer></div><ChartLegend /></div>}
+        <DataSourceStatus response={result.waste} />
       </section>
     </>}
     <section className={styles.panel}>
@@ -82,7 +79,7 @@ function Inspections({ response }) {
         const count = Number(row.jumlah) || 0;
         const value = count ? Number(row.total) / count : 0;
         return <div key={row.label}><div className={styles.row}><span className="text-sm font-medium">{row.label}</span><span className={styles.muted}>{count} inspeksi · {count ? number(value) + '%' : 'Belum ada data'}</span></div><div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-teal-600 transition-[width] duration-300 motion-reduce:transition-none" style={{ width: Math.min(100, Math.max(0, value)) + '%' }} /></div></div>;
-      })}</div><div className="mt-8"><Source response={response} /></div>
+      })}</div><DataSourceStatus response={response} />
     </section>
   </div>;
 }
@@ -99,7 +96,7 @@ function Water({ response }) {
           <details><summary className="cursor-pointer text-sm font-semibold">Lihat hasil per titik</summary><ul className="mt-3 divide-y divide-slate-100">{group.rows.map(row => <li key={row.id} className="py-3"><p className="text-sm font-semibold">{row.water_clean_locations?.name || row.sample_point || 'Lokasi tidak tercantum'}</p>{(row.parameters || []).map((item, index) => <p key={index} className="mt-1 text-xs text-slate-600">{item.parameter}: {item.result} {item.unit} · {item.status === 'tidak_memenuhi' ? 'Tidak memenuhi' : item.status === 'memenuhi' ? 'Memenuhi' : 'Belum dinilai'}</p>)}</li>)}</ul></details>
         </>}
       </section>;
-    })}<Source response={response} />
+    })}<DataSourceStatus response={response} />
   </div>;
 }
 
