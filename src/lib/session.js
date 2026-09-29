@@ -70,7 +70,9 @@ export async function loadUserProfile(userId) {
   };
 }
 
-export async function restoreUserSession() {
+export async function restoreUserSession({ isCurrent = () => true } = {}) {
+  const cancelled = () => ({ status: 'cancelled', user: null });
+  if (!isCurrent()) return cancelled();
   const cachedUser = getCachedUser();
 
   if (!navigator.onLine) {
@@ -82,11 +84,13 @@ export async function restoreUserSession() {
   let session = null;
   try {
     const current = await withTimeout(supabase.auth.getSession());
+    if (!isCurrent()) return cancelled();
     if (current.error) throw current.error;
     session = current.data?.session || null;
 
     if (!session && cachedUser) {
       const refreshed = await withTimeout(supabase.auth.refreshSession());
+      if (!isCurrent()) return cancelled();
       if (refreshed.error) throw refreshed.error;
       session = refreshed.data?.session || null;
     }
@@ -97,9 +101,11 @@ export async function restoreUserSession() {
     }
 
     const user = await loadUserProfile(session.user.id);
+    if (!isCurrent()) return cancelled();
     cacheUser(user);
     return { status: 'authenticated', user };
   } catch (error) {
+    if (!isCurrent()) return cancelled();
     if (isInvalidSessionError(error) || isMissingProfileError(error)) {
       clearCachedUser();
       if (isMissingProfileError(error)) {
