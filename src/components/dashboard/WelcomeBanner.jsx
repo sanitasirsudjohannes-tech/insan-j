@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 
-const hourFormatter = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Makassar', hour: '2-digit', hourCycle: 'h23' });
-const dateFormatter = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Makassar', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+const dateOptions = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
 
 function greetingAt(date) {
-  const hour = Number(hourFormatter.format(date));
+  const hour = date.getHours();
   if (hour >= 5 && hour < 11) return { title: 'Selamat pagi', emoji: '🌤️', message: 'Semangat memulai hari! Mari jaga kebersihan lingkungan rumah sakit bersama.' };
   if (hour >= 11 && hour < 15) return { title: 'Selamat siang', emoji: '☀️', message: 'Semoga aktivitas hari ini lancar. Terima kasih sudah mencatat dengan teliti.' };
   if (hour >= 15 && hour < 18) return { title: 'Selamat sore', emoji: '🌇', message: 'Terima kasih atas kerja hari ini. Mari periksa kembali catatan yang sudah dibuat.' };
@@ -38,7 +37,7 @@ export default function WelcomeBanner({ user, student = false }) {
       </div>
       <div className="flex max-w-full shrink-0 items-center gap-2 self-start rounded-lg bg-blue-50 px-4 py-2 text-sm font-bold text-blue-600 md:max-w-xs">
         <i aria-hidden="true" className="fas fa-calendar-day" />
-        <span>{dateFormatter.format(now)}<span className="block text-xs font-medium text-blue-500">Waktu Indonesia Tengah (WITA)</span></span>
+        <span>{now.toLocaleDateString('id-ID', dateOptions)}<span className="block text-xs font-medium text-blue-500">Waktu perangkat</span></span>
       </div>
     </section>
   );
