@@ -38,6 +38,7 @@ export default function LimbahDihasilkan() {
   const visibleTabs = isMahasiswa ? TABS.filter((tab) => tab.id !== 'padat') : TABS;
   const activeTabData = TABS.find(tab => tab.id === activeTab);
   const tabListRef = useRef(null);
+  const tabScrollRef = useRef(null);
   const tabRefs = useRef({});
   const panelRefs = useRef({});
   const previousTabRef = useRef(activeTab);
@@ -54,11 +55,22 @@ export default function LimbahDihasilkan() {
       setIndicator({ left: activeButton.offsetLeft, width: activeButton.offsetWidth });
     };
     updateIndicator();
+    const scroller = tabScrollRef.current;
+    if (scroller) {
+      const left = activeButton.offsetLeft;
+      const right = left + activeButton.offsetWidth;
+      if (left < scroller.scrollLeft || right > scroller.scrollLeft + scroller.clientWidth) {
+        scroller.scrollTo({
+          left: Math.max(0, left - (scroller.clientWidth - activeButton.offsetWidth) / 2),
+          behavior: reduceMotion ? 'instant' : 'smooth',
+        });
+      }
+    }
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateIndicator);
     observer?.observe(tabList);
     observer?.observe(activeButton);
     return () => observer?.disconnect();
-  }, [activeTab, isMahasiswa]);
+  }, [activeTab, isMahasiswa, reduceMotion]);
 
   useEffect(() => {
     const preference = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -73,12 +85,10 @@ export default function LimbahDihasilkan() {
     if (previousTab === activeTab || reduceMotion) return undefined;
     const panel = panelRefs.current[activeTab];
     if (!panel?.animate) return undefined;
-    const direction = TABS.findIndex(tab => tab.id === activeTab) >
-      TABS.findIndex(tab => tab.id === previousTab) ? 1 : -1;
     const animation = panel.animate(
       [
-        { opacity: 0.65, transform: 'translateX(' + (direction * 18) + 'px)' },
-        { opacity: 1, transform: 'translateX(0)' },
+        { opacity: 0.65, transform: 'translateY(8px)' },
+        { opacity: 1, transform: 'translateY(0)' },
       ],
       { duration: 320, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
     );
@@ -118,6 +128,21 @@ export default function LimbahDihasilkan() {
     };
   }, [isMahasiswa]);
 
+  const handleTabKeyDown = (event, tabId) => {
+    const current = visibleTabs.findIndex(tab => tab.id === tabId);
+    let next = current;
+    if (event.key === 'ArrowRight') next = (current + 1) % visibleTabs.length;
+    else if (event.key === 'ArrowLeft') next = (current - 1 + visibleTabs.length) % visibleTabs.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = visibleTabs.length - 1;
+    else return;
+
+    event.preventDefault();
+    const nextId = visibleTabs[next].id;
+    handleTabChange(nextId);
+    tabRefs.current[nextId]?.focus();
+  };
+
   const handleTabChange = (tabId) => {
     setActiveTab(tabId);
     setVisitedTabs((previousTabs) => {
@@ -134,7 +159,7 @@ export default function LimbahDihasilkan() {
       <MissingDateToast user={user} enabled={!isMahasiswa} />
 
       <div className="bg-slate-800 border-b border-slate-700 shadow-md">
-        <div className="overflow-x-auto px-3 py-2">
+        <div ref={tabScrollRef} className="overflow-x-auto px-3 py-2">
           <div ref={tabListRef} role="tablist" aria-label="Jenis limbah" className="relative flex w-max gap-1.5">
             {indicator && (
               <span
@@ -156,8 +181,12 @@ export default function LimbahDihasilkan() {
                   ref={element => { tabRefs.current[tab.id] = element; }}
                   role="tab"
                   aria-selected={isActive}
+                  aria-controls={`limbah-panel-${tab.id}`}
+                  id={`limbah-tab-${tab.id}`}
+                  tabIndex={isActive ? 0 : -1}
+                  onKeyDown={event => handleTabKeyDown(event, tab.id)}
                   onClick={() => handleTabChange(tab.id)}
-                  className={`relative z-10 flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors duration-200
+                  className={`relative z-10 flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold ${reduceMotion ? '' : 'transition-colors duration-200'}
                     ${isActive ? 'text-white' : 'text-slate-400 hover:bg-white/10 hover:text-white'}`}
                 >
                   <i className={`${tab.icon} text-[10px]`} />
@@ -171,21 +200,21 @@ export default function LimbahDihasilkan() {
       </div>
 
       {!isMahasiswa && visitedTabs.has('padat') && (
-        <div ref={element => { panelRefs.current.padat = element; }} role="tabpanel" className={activeTab === 'padat' ? 'block' : 'hidden'}>
+        <div ref={element => { panelRefs.current.padat = element; }} role="tabpanel" id="limbah-panel-padat" aria-labelledby="limbah-tab-padat" className={activeTab === 'padat' ? 'block' : 'hidden'}>
           <Suspense fallback={<LoadingTab />}>
             <LimbahPadat embedded />
           </Suspense>
         </div>
       )}
       {visitedTabs.has('ruangan') && (
-        <div ref={element => { panelRefs.current.ruangan = element; }} role="tabpanel" className={activeTab === 'ruangan' ? 'block' : 'hidden'}>
+        <div ref={element => { panelRefs.current.ruangan = element; }} role="tabpanel" id="limbah-panel-ruangan" aria-labelledby="limbah-tab-ruangan" className={activeTab === 'ruangan' ? 'block' : 'hidden'}>
           <Suspense fallback={<LoadingTab />}>
             <LimbahRuangan embedded />
           </Suspense>
         </div>
       )}
       {visitedTabs.has('anorganik') && (
-        <div ref={element => { panelRefs.current.anorganik = element; }} role="tabpanel" className={activeTab === 'anorganik' ? 'block' : 'hidden'}>
+        <div ref={element => { panelRefs.current.anorganik = element; }} role="tabpanel" id="limbah-panel-anorganik" aria-labelledby="limbah-tab-anorganik" className={activeTab === 'anorganik' ? 'block' : 'hidden'}>
           <Suspense fallback={<LoadingTab />}>
             <LimbahAnorganik embedded />
           </Suspense>
