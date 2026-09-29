@@ -13,9 +13,33 @@ export default function WaterExaminationForm({
       <button type="button" onClick={onClose} className="h-9 w-9 rounded-xl bg-slate-100 text-slate-500" aria-label="Tutup form"><i className="fas fa-xmark" /></button>
     </div>
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <label className="text-xs font-bold text-slate-600">Jenis Pemeriksaan
-        <select value={form.water_type} disabled={Boolean(form.id)} onChange={event => onChange('water_type', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"><option value="clean">Air Bersih</option><option value="wastewater">Air Limbah</option></select>
-      </label>
+      <fieldset className="text-xs font-bold text-slate-600" disabled={Boolean(form.id)}>
+        <legend>Jenis Pemeriksaan</legend>
+        <div role="tablist" aria-label="Jenis pemeriksaan air" className="relative mt-1 grid grid-cols-2 rounded-xl bg-slate-100 p-1">
+          <span
+            aria-hidden="true"
+            className={`absolute inset-y-1 left-1 w-[calc(50%-0.25rem)] rounded-lg shadow-sm transition-[transform,background-color] duration-300 ease-out motion-reduce:transition-none ${form.water_type === 'clean' ? 'translate-x-0 bg-cyan-600' : 'translate-x-full bg-indigo-600'}`}
+          />
+          <button
+            type="button"
+            role="tab"
+            aria-selected={form.water_type === 'clean'}
+            onClick={() => onChange('water_type', 'clean')}
+            className={`relative z-10 rounded-lg px-3 py-2.5 text-center transition-colors duration-200 motion-reduce:transition-none disabled:cursor-not-allowed ${form.water_type === 'clean' ? 'text-white' : 'text-slate-600 hover:text-slate-900'}`}
+          >
+            <i className="fas fa-droplet mr-2" />Air Bersih
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={form.water_type === 'wastewater'}
+            onClick={() => onChange('water_type', 'wastewater')}
+            className={`relative z-10 rounded-lg px-3 py-2.5 text-center transition-colors duration-200 motion-reduce:transition-none disabled:cursor-not-allowed ${form.water_type === 'wastewater' ? 'text-white' : 'text-slate-600 hover:text-slate-900'}`}
+          >
+            <i className="fas fa-water mr-2" />Air Limbah
+          </button>
+        </div>
+      </fieldset>
       <label className="text-xs font-bold text-slate-600">Tanggal Sampling
         <input type="date" max={today} value={form.sampled_at} onChange={event => onChange('sampled_at', event.target.value)} className="mt-1 w-full rounded-xl border border-slate-200 p-2.5 text-sm" />
       </label>
