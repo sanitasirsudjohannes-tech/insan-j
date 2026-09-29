@@ -1,4 +1,4 @@
-import { MONTH_NAMES } from '../../../lib/rekapQueries';
+import { MONTH_NAMES } from '../../../features/rekap/domain/rekapCalculations';
 
 export default function RekapFilter({
   selectedYear,
@@ -7,7 +7,8 @@ export default function RekapFilter({
   setSelectedMonth,
   availableYears,
   onPrint,
-  isPrinting
+  isPrinting,
+  printDisabled = false
 }) {
   return (
     <div className="bg-white rounded-2xl p-4 md:p-5 shadow-sm border border-slate-100 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -64,7 +65,7 @@ export default function RekapFilter({
       {/* Action Button */}
       <button
         onClick={onPrint}
-        disabled={isPrinting}
+        disabled={isPrinting || printDisabled}
         className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-200 disabled:opacity-50 cursor-pointer"
       >
         <i className={`fas ${isPrinting ? 'fa-spinner fa-spin' : 'fa-print'}`}></i>

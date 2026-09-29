@@ -102,8 +102,19 @@ export async function restoreUserSession({ isCurrent = () => true } = {}) {
 
     const user = await loadUserProfile(session.user.id);
     if (!isCurrent()) return cancelled();
+    // Verify privileged identity once per recovery, shared by protected routes.
+    let adminVerified = false;
+    if (user.role?.trim().toLowerCase() === 'admin') {
+      const verified = await withTimeout(supabase.auth.getUser());
+      if (!isCurrent()) return cancelled();
+      if (verified.error) throw verified.error;
+      if (verified.data?.user?.id !== session.user.id) {
+        throw Object.assign(new Error('Identitas sesi administrator tidak cocok.'), { code: 'session_not_found' });
+      }
+      adminVerified = true;
+    }
     cacheUser(user);
-    return { status: 'authenticated', user };
+    return { status: 'authenticated', user, adminVerified };
   } catch (error) {
     if (!isCurrent()) return cancelled();
     if (isInvalidSessionError(error) || isMissingProfileError(error)) {

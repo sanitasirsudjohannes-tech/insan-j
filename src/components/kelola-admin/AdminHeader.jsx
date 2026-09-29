@@ -16,7 +16,7 @@ export default function AdminHeader({
 }) {
   const getLabel = (tab) => {
     if (tab.id === 'pengguna') return `${tab.label} (${userCount})`;
-    if (tab.id === 'ruangan') return `${tab.label} (${roomCount})`;
+    if (tab.id === 'ruangan' && roomCount != null) return `${tab.label} (${roomCount})`;
     return tab.label;
   };
 

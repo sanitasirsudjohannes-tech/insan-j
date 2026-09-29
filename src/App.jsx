@@ -1,17 +1,19 @@
 import { lazy, Suspense } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
+import RoleGate from './features/session/RoleGate';
+import { loadAdminPage, loadRekapPage } from './features/navigation/routeModules';
 
 // Lazy loading components
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Akun = lazy(() => import('./pages/Akun'));
 const Riwayat = lazy(() => import('./pages/Riwayat'));
-const KelolaAdmin = lazy(() => import('./pages/KelolaAdmin'));
+const KelolaAdmin = lazy(loadAdminPage);
 const Inspeksi = lazy(() => import('./pages/Inspeksi'));
 const LimbahDihasilkan = lazy(() => import('./pages/LimbahDihasilkan'));
 const PengangkutanLimbah = lazy(() => import('./pages/PengangkutanLimbah'));
-const RekapLimbah = lazy(() => import('./pages/RekapLimbah'));
+const RekapLimbah = lazy(loadRekapPage);
 const PemeriksaanAir = lazy(() => import('./pages/PemeriksaanAir'));
 const AsistenLaporan = lazy(() => import('./pages/AsistenLaporan'));
 
@@ -30,41 +32,41 @@ function App() {
         <Routes>
           <Route path="/" element={<Login />} />
 
-          {/* Protected Routes */}
+          <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={
-            <ProtectedRoute>
+            <RoleGate>
               <Dashboard />
-            </ProtectedRoute>
+            </RoleGate>
           } />
 
           <Route path="/akun" element={
-            <ProtectedRoute>
+            <RoleGate>
               <Akun />
-            </ProtectedRoute>
+            </RoleGate>
           } />
 
           <Route path="/riwayat" element={
-            <ProtectedRoute deniedRoles={['mahasiswa']}>
+            <RoleGate deniedRoles={['mahasiswa']}>
               <Riwayat />
-            </ProtectedRoute>
+            </RoleGate>
           } />
 
           <Route path="/kelola-admin" element={
-            <ProtectedRoute requiredRole="admin">
+            <RoleGate requiredRole="admin">
               <KelolaAdmin />
-            </ProtectedRoute>
+            </RoleGate>
           } />
 
           <Route path="/inspeksi" element={
-            <ProtectedRoute deniedRoles={['mahasiswa']}>
+            <RoleGate deniedRoles={['mahasiswa']}>
               <Inspeksi />
-            </ProtectedRoute>
+            </RoleGate>
           } />
 
           <Route path="/limbah-dihasilkan" element={
-            <ProtectedRoute allowedRoles={['petugas', 'mahasiswa', 'user']}>
+            <RoleGate allowedRoles={['petugas', 'mahasiswa', 'user']}>
               <LimbahDihasilkan />
-            </ProtectedRoute>
+            </RoleGate>
           } />
 
           {/* Redirect route lama ke route baru */}
@@ -72,28 +74,30 @@ function App() {
           <Route path="/limbah-ruangan" element={<Navigate to="/limbah-dihasilkan" replace />} />
 
           <Route path="/pengangkutan" element={
-            <ProtectedRoute deniedRoles={['mahasiswa']}>
+            <RoleGate deniedRoles={['mahasiswa']}>
               <PengangkutanLimbah />
-            </ProtectedRoute>
+            </RoleGate>
           } />
 
           <Route path="/rekap-limbah" element={
-            <ProtectedRoute deniedRoles={['mahasiswa']}>
+            <RoleGate deniedRoles={['mahasiswa']}>
               <RekapLimbah />
-            </ProtectedRoute>
+            </RoleGate>
           } />
 
           <Route path="/asisten-laporan" element={
-            <ProtectedRoute deniedRoles={['mahasiswa']}>
+            <RoleGate deniedRoles={['mahasiswa']}>
               <AsistenLaporan />
-            </ProtectedRoute>
+            </RoleGate>
           } />
 
           <Route path="/pemeriksaan-air" element={
-            <ProtectedRoute allowedRoles={['petugas', 'user']}>
+            <RoleGate allowedRoles={['petugas', 'user']}>
               <PemeriksaanAir />
-            </ProtectedRoute>
+            </RoleGate>
           } />
+
+          </Route>
 
           {/* Catch all */}
           <Route path="*" element={<Navigate to="/" replace />} />

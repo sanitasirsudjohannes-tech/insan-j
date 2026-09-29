@@ -1,4 +1,4 @@
-import { formatKg } from '../../../lib/rekapQueries';
+import { formatKg } from '../../../features/rekap/domain/rekapCalculations';
 
 function EmptyState() {
   return (
