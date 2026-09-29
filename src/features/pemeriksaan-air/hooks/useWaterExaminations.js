@@ -46,6 +46,7 @@ export function useWaterExaminations() {
   const [masterLoading, setMasterLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [choosingType, setChoosingType] = useState(false);
   const [tableGenerated, setTableGenerated] = useState(false);
   const [cleanRows, setCleanRows] = useState([]);
   const [wastewaterRows, setWastewaterRows] = useState([]);
@@ -120,33 +121,47 @@ export function useWaterExaminations() {
     setWastewaterRows([]);
   };
 
+  const canUseType = waterType => {
+    if (saving) return false;
+    if (masterLoading) {
+      Swal.fire('Mohon Tunggu', 'Lokasi dan baku mutu sedang dimuat.', 'info');
+      return false;
+    }
+    if (!['clean', 'wastewater'].includes(waterType)) return false;
+    const available = standardsForType(standards, waterType);
+    if (waterType === 'clean' && CLEAN_WATER_PARAMETERS.some(name => !available.some(item => item.parameter === name))) {
+      Swal.fire('Baku Mutu Belum Lengkap', 'Admin perlu mengatur Total coliform dan E. coli beserta rujukannya.', 'warning');
+      return false;
+    }
+    if (waterType === 'wastewater' && !available.length) {
+      Swal.fire('Baku Mutu Belum Tersedia', 'Admin perlu menambah parameter dan rujukan air limbah terlebih dahulu.', 'warning');
+      return false;
+    }
+    return true;
+  };
+
   const changeField = (field, value) => {
-    if (field === 'water_type') resetGeneratedTable();
+    if (saving) return;
+    if (field === 'water_type') {
+      if (form.id || value === form.water_type || !canUseType(value)) return;
+      // Keep each type's draft when switching back and forth.
+      setTableGenerated((value === 'clean' ? cleanRows : wastewaterRows).length > 0);
+    }
     setForm(current => field === 'water_type'
       ? { ...current, water_type: value, clean_water_location_id: '', sample_point: 'Inlet', parameters: parametersFor(value) }
       : { ...current, [field]: value });
   };
 
   const openNew = waterType => {
-    if (masterLoading) {
-      Swal.fire('Mohon Tunggu', 'Lokasi dan baku mutu sedang dimuat.', 'info');
-      return;
-    }
-    const available = standardsForType(standards, waterType);
-    if (waterType === 'clean' && CLEAN_WATER_PARAMETERS.some(name => !available.some(item => item.parameter === name))) {
-      Swal.fire('Baku Mutu Belum Lengkap', 'Admin perlu mengatur Total coliform dan E. coli beserta rujukannya.', 'warning');
-      return;
-    }
-    if (waterType === 'wastewater' && !available.length) {
-      Swal.fire('Baku Mutu Belum Tersedia', 'Admin perlu menambah parameter dan rujukan air limbah terlebih dahulu.', 'warning');
-      return;
-    }
+    if (!canUseType(waterType)) return false;
     setForm({ ...createWaterForm(waterType), parameters: parametersFor(waterType) });
     resetGeneratedTable();
     setShowForm(true);
+    return true;
   };
 
   const generateTable = () => {
+    if (!canUseType(form.water_type)) return;
     if (!form.sampled_at) {
       Swal.fire('Data Belum Lengkap', 'Tanggal sampling wajib diisi sebelum membuat tabel.', 'warning');
       return;
@@ -192,6 +207,7 @@ export function useWaterExaminations() {
   };
 
   const editRecord = async record => {
+    if (saving || masterLoading) return;
     if (record.water_type === 'clean' && record.parameters?.some(item => !['coliform', 'totalcoliform', 'ecoli'].includes(String(item.parameter || '').toLowerCase().replace(/[^a-z0-9]/g, '')))) {
       const { isConfirmed } = await Swal.fire({
         icon: 'warning', title: 'Data air bersih lama',
@@ -225,6 +241,7 @@ export function useWaterExaminations() {
     if (saving) return;
     if (!tableGenerated) return Swal.fire('Tabel Belum Dibuat', 'Klik Generate Tabel sebelum menyimpan.', 'warning');
     const rows = form.water_type === 'clean' ? cleanRows : wastewaterRows;
+    if (!rows.length) return Swal.fire('Tabel Kosong', 'Buat tabel pemeriksaan sebelum menyimpan.', 'warning');
     for (const row of rows) {
       const rowForm = form.water_type === 'clean'
         ? { ...form, clean_water_location_id: row.locationId, parameters: row.parameters }
@@ -302,7 +319,7 @@ export function useWaterExaminations() {
 
   return {
     form, records, monthGroups, dateGroupsByType, detailRecords, month, typeFilter, selectedDate,
-    loading, masterLoading, saving, showForm, tableGenerated,
+    loading, masterLoading, saving, showForm, tableGenerated, choosingType, setChoosingType,
     cleanRows, wastewaterRows, selectMonth, selectDate, setSelectedDate, setShowForm, changeField,
     openNew, generateTable, updateResult, editRecord, removeRecord, submit, refreshArchive,
   };
