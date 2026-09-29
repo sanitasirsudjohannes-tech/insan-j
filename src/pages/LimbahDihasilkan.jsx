@@ -99,9 +99,6 @@ export default function LimbahDihasilkan() {
 
       <div className="bg-slate-800 border-b border-slate-700 shadow-md">
         <div className="flex items-center gap-2 px-3 py-2">
-          <div className="w-6 h-6 rounded-md bg-amber-500/20 flex items-center justify-center shrink-0">
-            <i className="fas fa-biohazard text-amber-400 text-[10px]" />
-          </div>
           <div className="flex gap-1.5 overflow-x-auto">
             {visibleTabs.map(tab => {
               const isActive = activeTab === tab.id;
