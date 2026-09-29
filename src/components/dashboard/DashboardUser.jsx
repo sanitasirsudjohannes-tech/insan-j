@@ -1,3 +1,4 @@
+import WelcomeBanner from './WelcomeBanner';
 import { useEffect, useState } from 'react';
 import AppLayout from '../AppLayout';
 import TabPengangkutan from './TabPengangkutan';
@@ -41,19 +42,7 @@ export default function DashboardUser({ user }) {
       <div className="container mx-auto px-4 py-8">
         <DashboardNotification key={`notification-${dataRevision}`} />
 
-        {/* Welcome Banner */}
-        <div className="bg-white rounded-2xl shadow-sm p-6 md:p-8 mb-6 border border-gray-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-extrabold text-gray-800">
-              Hallo, {user?.nama}! <span className="text-2xl">👋</span>
-            </h2>
-            <p className="text-gray-500 mt-2 font-medium">Monitoring data limbah medis padat rumah sakit dengan mudah.</p>
-          </div>
-          <div className="bg-blue-50 text-blue-600 px-4 py-2 rounded-lg font-bold text-sm shadow-inner flex items-center w-max">
-            <i className="fas fa-calendar-day mr-2"></i>
-            {new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-          </div>
-        </div>
+        <WelcomeBanner user={user} />
 
         {/* Tab Navigation */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-2 mb-8 inline-flex flex-wrap md:flex-nowrap gap-2">
