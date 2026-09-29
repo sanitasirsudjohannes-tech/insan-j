@@ -26,7 +26,18 @@
 .table th,.table td { padding:13px 10px; border-bottom:1px solid #edf1f4; }
 .notice { padding:14px 18px; border-radius:12px; background:#fff7ed; color:#9a4c12; font-size:13px; }
 .badge { display:inline-block; padding:4px 9px; border-radius:20px; background:#f0f5f5; font-size:11px; color:#52706d; }
+.chartBlock { margin-top:24px; min-width:0; }
+.chartCanvas { height:288px; min-width:0; }
+.chartLegend { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:8px 16px; margin-top:14px; color:#64748b; font-size:12px; line-height:1.5; }
+.chartLegend > span { display:inline-flex; align-items:center; gap:6px; min-width:0; }
+.legendDot { display:inline-block; width:9px; height:9px; border-radius:999px; flex:0 0 auto; }
+.legendIncoming { background:#0f766e; }
+.legendTransported { background:#94a3b8; }
+.chartHint { flex-basis:100%; justify-content:center; text-align:center; }
+.sourceStatus { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:5px 14px; margin-top:20px; padding-top:14px; border-top:1px solid #edf1f4; color:#64748b; font-size:12px; line-height:1.5; }
+.sourceLabel { color:#3e625d; font-weight:600; }
+.sourceTime { overflow-wrap:anywhere; }
 .reveal { animation:adminReveal .24s ease-out both; }
 @keyframes adminReveal { from { opacity:.5; transform:translateY(5px); } to { opacity:1; transform:translateY(0); } }
-@media(max-width:640px) { .shell {padding:22px 16px;} .header {flex-direction:column;} .cards {grid-template-columns:1fr;} .card,.panel {padding:18px;} .row {flex-wrap:wrap;} }
+@media(max-width:640px) { .shell {padding:22px 16px;} .header {flex-direction:column;} .cards {grid-template-columns:1fr;} .card,.panel {padding:18px;} .row {flex-wrap:wrap;} .chartCanvas {height:250px;} .chartLegend {justify-content:flex-start;} .chartHint {justify-content:flex-start;text-align:left;} .sourceStatus {align-items:flex-start;flex-direction:column;} }
 @media(prefers-reduced-motion:reduce) { .reveal {animation:none;} .button,.tab,.card {transition:none;} .button:active {transform:none;} }
