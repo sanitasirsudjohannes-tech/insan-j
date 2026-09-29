@@ -205,7 +205,7 @@ export default function useRuanganForm({
         } = await supabase.from('limbah_ruangan').insert(insertPayloads);
         if (error) throw error;
         notifyDatabaseTablesChanged('limbah_ruangan');
-        MySwal.fire('Berhasil', `Data berhasil disimpan untuk ${totalHari} hari (dibagi rata)`, `success`);
+        MySwal.fire('Berhasil', totalHari === 1 ? 'Data limbah ruangan berhasil disimpan' : `Data berhasil disimpan untuk ${totalHari} hari (dibagi rata)`, 'success');
       }
 
       // Retain date and distribution settings for next input
