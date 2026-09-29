@@ -46,11 +46,15 @@ export default function ProtectedRoute({ children, requiredRole, allowedRoles, d
 
   useEffect(() => {
     let active = true;
+    let authRestoreTimer;
 
     const restore = async ({ showLoading = false } = {}) => {
+      if (!active) return;
       const requestId = ++requestIdRef.current;
       if (showLoading) setStatus('checking');
-      const result = await restoreUserSession();
+      const result = await restoreUserSession({
+        isCurrent: () => active && requestId === requestIdRef.current,
+      });
       if (!active || requestId !== requestIdRef.current) return;
       setUser(result.user);
       setStatus(result.status);
@@ -68,6 +72,7 @@ export default function ProtectedRoute({ children, requiredRole, allowedRoles, d
     const { data: listener } = supabase.auth.onAuthStateChange((event) => {
       if (!active || event === 'INITIAL_SESSION') return;
       if (event === 'SIGNED_OUT') {
+        window.clearTimeout(authRestoreTimer);
         requestIdRef.current += 1;
         clearCachedUser();
         setUser(null);
@@ -75,7 +80,8 @@ export default function ProtectedRoute({ children, requiredRole, allowedRoles, d
         return;
       }
       if (['SIGNED_IN', 'TOKEN_REFRESHED', 'USER_UPDATED'].includes(event)) {
-        window.setTimeout(() => restore(), 0);
+        window.clearTimeout(authRestoreTimer);
+        authRestoreTimer = window.setTimeout(() => restore(), 0);
       }
     });
 
@@ -87,6 +93,7 @@ export default function ProtectedRoute({ children, requiredRole, allowedRoles, d
 
     return () => {
       active = false;
+      window.clearTimeout(authRestoreTimer);
       requestIdRef.current += 1;
       listener?.subscription?.unsubscribe();
       window.removeEventListener('online', restoreWhenOnline);
