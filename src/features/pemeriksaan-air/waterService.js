@@ -111,6 +111,17 @@ export async function setWaterStandardActive(id, isActive) {
   if (error) throw error;
 }
 
+export async function getUsedWaterStandardIds() {
+  const { data, error } = await supabase.rpc('get_used_water_standard_ids');
+  if (error) throw error;
+  return (data || []).map(item => item.standard_id);
+}
+
+export async function deleteWaterStandard(id) {
+  const { error } = await supabase.rpc('delete_unused_water_standard', { target_id: id });
+  if (error) throw error;
+}
+
 export async function getWaterExaminations({ month, waterType, sampledAt }) {
   let query = supabase
     .from('water_examinations')

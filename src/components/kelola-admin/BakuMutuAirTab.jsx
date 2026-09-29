@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import Swal from 'sweetalert2';
 import {
   getWaterRegulations, getWaterStandards,
+  getUsedWaterStandardIds,
   saveWaterRegulation, saveWaterStandard,
-  setWaterRegulationActive, setWaterStandardActive,
+  setWaterRegulationActive, setWaterStandardActive, deleteWaterStandard,
 } from '../../features/pemeriksaan-air/waterService';
 import { calculateParameterStatus, CLEAN_WATER_PARAMETERS, CLEAN_WATER_UNIT } from '../../features/pemeriksaan-air/waterHelpers';
 
@@ -14,6 +15,7 @@ const citation = item => [item.title, item.number, item.year].filter(Boolean).jo
 export default function BakuMutuAirTab() {
   const [regulations, setRegulations] = useState([]);
   const [standards, setStandards] = useState([]);
+  const [usedStandardIds, setUsedStandardIds] = useState(new Set());
   const [regulation, setRegulation] = useState(blankRegulation);
   const [standard, setStandard] = useState(blankStandard);
   const [loading, setLoading] = useState(true);
@@ -24,12 +26,14 @@ export default function BakuMutuAirTab() {
     setLoading(true);
     setError('');
     try {
-      const [rules, limits] = await Promise.all([
+      const [rules, limits, usedIds] = await Promise.all([
         getWaterRegulations({ includeInactive: true }),
         getWaterStandards({ includeInactive: true }),
+        getUsedWaterStandardIds(),
       ]);
       setRegulations(rules);
       setStandards(limits);
+      setUsedStandardIds(new Set(usedIds));
     } catch (err) {
       setError(err?.message || 'Pengaturan baku mutu tidak dapat dimuat.');
     } finally {
@@ -99,6 +103,22 @@ export default function BakuMutuAirTab() {
     );
   };
 
+  const removeStandard = async item => {
+    const { isConfirmed } = await Swal.fire({
+      icon: 'warning',
+      title: 'Hapus baku mutu permanen?',
+      text: `${item.parameter} akan dihapus dari master baku mutu. Riwayat pemeriksaan yang sudah tersimpan tidak berubah.`,
+      showCancelButton: true,
+      confirmButtonText: 'Ya, hapus permanen',
+      cancelButtonText: 'Batal',
+      confirmButtonColor: '#dc2626',
+      focusCancel: true,
+    });
+    if (!isConfirmed) return;
+    await run(() => deleteWaterStandard(item.id), 'Baku mutu dihapus');
+    if (standard.id === item.id) setStandard(blankStandard);
+  };
+
   return <div className="space-y-5">
     <section className="rounded-2xl border border-indigo-100 bg-white p-5 shadow-sm">
       <h2 className="text-lg font-black text-slate-800">Rujukan Peraturan</h2>
@@ -121,7 +141,7 @@ export default function BakuMutuAirTab() {
 
     <section className="rounded-2xl border border-cyan-100 bg-white p-5 shadow-sm">
       <h2 className="text-lg font-black text-slate-800">Baku Mutu Pemeriksaan Air</h2>
-      <p className="mb-4 text-xs text-slate-500">Air bersih memakai Total coliform dan E. coli. Parameter air limbah ditentukan di sini. Angka tanpa operator adalah batas maksimum.</p>
+      <p className="mb-4 text-xs text-slate-500">Air bersih memakai Total coliform dan E. coli. Master air limbah aktif mengacu pada pemanfaatan untuk penyiraman dan/atau pencucian selain fasilitas pelayanan kesehatan. Angka tanpa operator adalah batas maksimum.</p>
       <form onSubmit={submitStandard} className="grid gap-2 sm:grid-cols-2">
         <select value={standard.water_type} onChange={event => setStandard({
           ...standard, water_type: event.target.value,
@@ -153,6 +173,7 @@ export default function BakuMutuAirTab() {
           <div className="mt-2 flex gap-3 text-xs font-bold">
             <button type="button" onClick={() => setStandard({ id: item.id, water_type: item.water_type, parameter: item.parameter, unit: item.unit, standard: item.standard, regulation_id: item.regulation_id || '' })} className="text-blue-700">Edit</button>
             <button type="button" disabled={saving} onClick={() => toggle(item, 'standard')} className="text-amber-700 disabled:opacity-50">{item.is_active ? 'Nonaktifkan' : 'Aktifkan'}</button>
+            {!item.is_active && !usedStandardIds.has(item.id) && <button type="button" disabled={saving} onClick={() => removeStandard(item)} className="text-red-700 disabled:opacity-50">Hapus Permanen</button>}
           </div>
         </div>)}
       </div>}
