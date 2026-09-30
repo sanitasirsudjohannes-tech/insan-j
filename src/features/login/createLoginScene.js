@@ -7,7 +7,7 @@ export function createLoginScene(host) {
   const compact = window.matchMedia('(max-width: 640px)').matches;
   const renderer = new WebGLRenderer({ alpha: true, antialias: false, powerPreference: 'low-power' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, compact ? 1 : 1.5));
-  renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;opacity:.65';
+  renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;opacity:1';
   const scene = new Scene();
   const camera = new PerspectiveCamera(45, 1, 0.1, 50);
   camera.position.z = 9;
@@ -17,10 +17,10 @@ export function createLoginScene(host) {
   const positions = [];
   const phases = [];
   const tones = [];
-  const count = compact ? 64 : 110;
+  const count = compact ? 96 : 130;
   for (let i = 0; i < count; i++) {
     const phase = i * 2.399963;
-    positions.push((Math.random() - .5) * 16, (Math.random() - .5) * 11, (Math.random() - .5) * 3);
+    positions.push((Math.random() - .5) * 1.8, (Math.random() - .5) * 1.8, (Math.random() - .5) * 3);
     phases.push(phase);
     tones.push(i % 3 / 2);
   }
@@ -34,25 +34,30 @@ export function createLoginScene(host) {
     uniforms: {
       time: { value: 0 },
       pixelRatio: { value: renderer.getPixelRatio() },
+      viewport: { value: [1, 1] },
     },
     vertexShader: `
       uniform float time;
       uniform float pixelRatio;
+      uniform vec2 viewport;
       attribute float phase;
       attribute float tone;
       varying float vTone;
       varying float vAlpha;
       void main() {
         vec3 p = position;
+        // Fit every depth layer to the actual viewport, including narrow phones.
+        float halfHeight = (9.0 - p.z) * 0.41421356;
+        p.xy *= vec2(halfHeight * viewport.x / viewport.y, halfHeight);
         // Two gentle currents suggest water ripples and drifting air.
-        p.x += sin(time * 0.16 + phase) * 0.38;
-        p.y += sin(p.x * 0.65 + time * 0.24 + phase) * 0.22;
+        p.x += sin(time * 0.3 + phase) * 0.22;
+        p.y += sin(p.x * 0.65 + time * 0.4 + phase) * 0.3;
         p.z += cos(time * 0.12 + phase) * 0.15;
         vec4 view = modelViewMatrix * vec4(p, 1.0);
         gl_Position = projectionMatrix * view;
-        gl_PointSize = clamp((20.0 + tone * 6.0) / -view.z, 1.5, 4.0) * pixelRatio;
+        gl_PointSize = clamp((40.0 + tone * 12.0) / -view.z, 3.5, 6.0) * pixelRatio;
         vTone = tone;
-        vAlpha = 0.35 + 0.15 * sin(time * 0.3 + phase);
+        vAlpha = 0.65 + 0.12 * sin(time * 0.3 + phase);
       }
     `,
     fragmentShader: `
@@ -60,7 +65,7 @@ export function createLoginScene(host) {
       varying float vAlpha;
       void main() {
         float radius = length(gl_PointCoord - vec2(0.5));
-        float alpha = (1.0 - smoothstep(0.15, 0.5, radius)) * vAlpha;
+        float alpha = (1.0 - smoothstep(0.25, 0.5, radius)) * vAlpha;
         vec3 color = mix(vec3(0.72, 0.90, 1.0), vec3(0.65, 1.0, 0.83), vTone);
         gl_FragColor = vec4(color, alpha);
       }
@@ -93,6 +98,7 @@ export function createLoginScene(host) {
     const { width, height } = host.getBoundingClientRect();
     camera.aspect = Math.max(width, 1) / Math.max(height, 1);
     camera.updateProjectionMatrix();
+    material.uniforms.viewport.value = [Math.max(width, 1), Math.max(height, 1)];
     renderer.setSize(Math.max(width, 1), Math.max(height, 1), false);
   }
   function pointer(event) {
@@ -107,7 +113,7 @@ export function createLoginScene(host) {
   }
   function contextRestored() {
     lost = false;
-    renderer.domElement.style.opacity = '.65';
+    renderer.domElement.style.opacity = '1';
     resize();
     visibility();
   }
