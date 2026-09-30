@@ -16,15 +16,15 @@ export function createWelcomeWave(host) {
     fragmentShader:`uniform float time; varying vec2 vUv;
       void main(){
         float x=vUv.x;
-        float a=0.25+0.08*sin(x*6.0+time*0.5);
-        float b=0.18+0.07*sin(x*7.0-time*0.4+1.4);
-        float c=0.10+0.05*sin(x*5.0+time*0.35+2.0);
+        float a=0.44+0.15*sin(x*6.0+time*0.85);
+        float b=0.32+0.12*sin(x*7.0-time*0.7+1.4);
+        float c=0.20+0.09*sin(x*5.0+time*0.6+2.0);
         float wa=1.0-smoothstep(a-0.008,a+0.008,vUv.y);
         float wb=1.0-smoothstep(b-0.008,b+0.008,vUv.y);
         float wc=1.0-smoothstep(c-0.008,c+0.008,vUv.y);
         vec3 color=mix(vec3(0.48,0.79,0.94),vec3(0.25,0.72,0.76),wb*0.7);
         color=mix(color,vec3(0.38,0.82,0.73),wc*0.65);
-        gl_FragColor=vec4(color,wa*0.55+wb*0.12+wc*0.12);
+        gl_FragColor=vec4(color,wa*0.62+wb*0.14+wc*0.14);
       }`,
   });
   scene.add(new Mesh(geometry, material));
