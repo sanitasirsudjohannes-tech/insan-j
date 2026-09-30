@@ -116,7 +116,7 @@ export default function DashboardAdmin({ user }) {
       <div className={styles.links}><PrefetchLink className={styles.button} to="/kelola-admin">Kelola data & akun</PrefetchLink><PrefetchLink className={styles.button} to="/rekap-limbah">Buka rekap</PrefetchLink></div>
     </header>
     <div className={styles.toolbar}>
-      <div className={styles.tabs} role="group" aria-label="Tampilan dashboard admin">{sections.map(([id, label]) => <button key={id} type="button" aria-pressed={section === id} onClick={() => setSection(id)} className={styles.tab + ' ' + (section === id ? styles.active : '')}>{label}</button>)}</div>
+      <div className={styles.tabs} style={{ '--tab-index': sections.findIndex(([id]) => id === section), '--tab-count': sections.length }} role="group" aria-label="Tampilan dashboard admin">{sections.map(([id, label]) => <button key={id} type="button" aria-pressed={section === id} onClick={() => setSection(id)} className={styles.tab + ' ' + (section === id ? styles.active : '')}>{label}</button>)}</div>
       <div className={styles.filters}>
         {section !== 'air' && <label className={styles.period}>Periode<input aria-label="Bulan grafik dan inspeksi" type="month" value={month} onChange={event => { if (/^\d{4}-\d{2}$/.test(event.target.value)) setMonth(event.target.value); }} className={styles.monthInput} /></label>}
         <button type="button" className={styles.button} disabled={loading} onClick={refresh}>{loading ? 'Memuat…' : 'Segarkan'}</button>
