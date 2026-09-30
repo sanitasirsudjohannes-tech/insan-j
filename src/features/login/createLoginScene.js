@@ -1,6 +1,6 @@
 import {
-  BufferGeometry, Float32BufferAttribute, Group, Mesh, MeshBasicMaterial,
-  PerspectiveCamera, Points, PointsMaterial, Scene, TorusGeometry, WebGLRenderer,
+  BufferGeometry, Float32BufferAttribute, Group,
+  PerspectiveCamera, Points, Scene, ShaderMaterial, WebGLRenderer,
 } from 'three';
 
 export function createLoginScene(host) {
@@ -13,33 +13,72 @@ export function createLoginScene(host) {
   camera.position.z = 9;
   const group = new Group();
   scene.add(group);
+  // One draw call, no textures, lighting, models or post-processing.
   const positions = [];
-  for (let i = 0; i < (compact ? 45 : 100); i++) {
-    positions.push((Math.random() - .5) * 18, (Math.random() - .5) * 12, (Math.random() - .5) * 5);
+  const phases = [];
+  const tones = [];
+  const count = compact ? 64 : 110;
+  for (let i = 0; i < count; i++) {
+    const phase = i * 2.399963;
+    positions.push((Math.random() - .5) * 16, (Math.random() - .5) * 11, (Math.random() - .5) * 3);
+    phases.push(phase);
+    tones.push(i % 3 / 2);
   }
   const geometry = new BufferGeometry();
   geometry.setAttribute('position', new Float32BufferAttribute(positions, 3));
-  const material = new PointsMaterial({ color: '#d8f7ff', size: .035, transparent: true, opacity: .6, depthWrite: false });
+  geometry.setAttribute('phase', new Float32BufferAttribute(phases, 1));
+  geometry.setAttribute('tone', new Float32BufferAttribute(tones, 1));
+  const material = new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    uniforms: {
+      time: { value: 0 },
+      pixelRatio: { value: renderer.getPixelRatio() },
+    },
+    vertexShader: `
+      uniform float time;
+      uniform float pixelRatio;
+      attribute float phase;
+      attribute float tone;
+      varying float vTone;
+      varying float vAlpha;
+      void main() {
+        vec3 p = position;
+        // Two gentle currents suggest water ripples and drifting air.
+        p.x += sin(time * 0.16 + phase) * 0.38;
+        p.y += sin(p.x * 0.65 + time * 0.24 + phase) * 0.22;
+        p.z += cos(time * 0.12 + phase) * 0.15;
+        vec4 view = modelViewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * view;
+        gl_PointSize = clamp((20.0 + tone * 6.0) / -view.z, 1.5, 4.0) * pixelRatio;
+        vTone = tone;
+        vAlpha = 0.35 + 0.15 * sin(time * 0.3 + phase);
+      }
+    `,
+    fragmentShader: `
+      varying float vTone;
+      varying float vAlpha;
+      void main() {
+        float radius = length(gl_PointCoord - vec2(0.5));
+        float alpha = (1.0 - smoothstep(0.15, 0.5, radius)) * vAlpha;
+        vec3 color = mix(vec3(0.72, 0.90, 1.0), vec3(0.65, 1.0, 0.83), vTone);
+        gl_FragColor = vec4(color, alpha);
+      }
+    `,
+  });
   group.add(new Points(geometry, material));
-  const orbitGeometry = new TorusGeometry(2.5, .009, 4, 80);
-  const orbitMaterial = new MeshBasicMaterial({ color: '#b7ecff', transparent: true, opacity: .22, depthWrite: false });
-  for (let i = 0; i < 3; i++) {
-    const orbit = new Mesh(orbitGeometry, orbitMaterial);
-    orbit.position.x = i === 1 ? 4 : -4;
-    orbit.rotation.set(.5 + i * .6, .4 + i * .5, i);
-    group.add(orbit);
-  }
   let lost = false;
   let disposed = false;
   let lastFrame = 0;
   let elapsed = 0;
   let targetX = 0;
   let targetY = 0;
-  const interval = 1000 / (compact ? 24 : 30);
+  const interval = 1000 / (compact ? 20 : 24);
   function render(time) {
     if (time - lastFrame < interval) return;
     elapsed += Math.min((time - lastFrame) / 1000, .05);
     lastFrame = time;
+    material.uniforms.time.value = elapsed;
     group.rotation.y += (targetX * .12 - group.rotation.y) * .04;
     group.rotation.x += (targetY * .08 - group.rotation.x) * .04;
     group.position.y = Math.sin(elapsed * .3) * .12;
@@ -92,8 +131,6 @@ export function createLoginScene(host) {
     renderer.domElement.removeEventListener('webglcontextrestored', contextRestored);
     geometry.dispose();
     material.dispose();
-    orbitGeometry.dispose();
-    orbitMaterial.dispose();
     renderer.dispose();
     renderer.forceContextLoss();
     renderer.domElement.remove();

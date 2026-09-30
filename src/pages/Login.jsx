@@ -116,7 +116,7 @@ export default function Login() {
   };
 
   return (
-    <div className="relative isolate min-h-screen flex items-center justify-center bg-linear-to-br from-blue-500 to-purple-600 px-4 py-8">
+    <div className="relative isolate min-h-screen flex items-center justify-center bg-linear-to-br from-blue-600 via-cyan-700 to-emerald-700 px-4 py-8">
       <LoginBackdrop />
       <div className="relative z-10 bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md transform transition-all hover:scale-[1.02] duration-300">
         <div className="text-center mb-8">
