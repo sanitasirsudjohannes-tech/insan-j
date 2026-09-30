@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import WelcomeWave from '../../features/dashboard/welcome/WelcomeWave';
 
 const dateOptions = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' };
 
@@ -28,14 +29,15 @@ export default function WelcomeBanner({ user, student = false }) {
   const greeting = greetingAt(now);
   const name = user?.nama?.trim() || (student ? 'Teman Praktik' : 'Petugas');
   return (
-    <section className="mb-6 flex flex-col justify-between gap-4 rounded-2xl border border-blue-100 bg-white p-6 shadow-sm md:flex-row md:items-center md:p-8">
-      <div className="min-w-0">
+    <section className="relative isolate overflow-hidden mb-6 flex flex-col justify-between gap-4 rounded-2xl border border-blue-100 bg-white p-6 shadow-sm md:flex-row md:items-center md:p-8">
+      <WelcomeWave />
+      <div className="relative z-10 min-w-0">
         {student && <span className="mb-3 inline-flex rounded-full bg-cyan-100 px-3 py-1 text-xs font-bold text-cyan-700">MAHASISWA PRAKTIK</span>}
         <h2 className="break-words text-2xl font-extrabold text-gray-800">{greeting.title}, {name}! <span aria-hidden="true">{greeting.emoji}</span></h2>
         <p className="mt-2 font-medium text-gray-500">{greeting.message}</p>
         {student && <p className="mt-2 text-sm text-gray-500">Anda dapat mencatat dan mengelola data limbah per ruangan serta limbah anorganik yang Anda input sendiri.</p>}
       </div>
-      <div className="flex max-w-full shrink-0 items-center gap-2 self-start rounded-lg bg-blue-50 px-4 py-2 text-sm font-bold text-blue-600 md:max-w-xs">
+      <div className="relative z-10 flex max-w-full shrink-0 items-center gap-2 self-start rounded-lg bg-blue-50 px-4 py-2 text-sm font-bold text-blue-600 md:max-w-xs">
         <i aria-hidden="true" className="fas fa-calendar-day" />
         <span>{now.toLocaleDateString('id-ID', dateOptions)}<span className="block text-xs font-medium text-blue-500">Waktu perangkat</span></span>
       </div>
