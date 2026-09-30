@@ -19,6 +19,7 @@
     "recharts": "^3.8.1",
     "sweetalert2": "^11.10.7",
     "sweetalert2-react-content": "^5.0.7",
+    "three": "^0.186.1",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
