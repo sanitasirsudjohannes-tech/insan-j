@@ -108,15 +108,17 @@ export default function DashboardAdmin({ user }) {
   const { data, loading, error, refresh } = useAdminOverview(section, month);
   const sections = [['limbah', 'Ringkasan limbah'], ['inspeksi', 'Inspeksi sanitasi'], ...(waterEnabled ? [['air', 'Pemeriksaan air']] : [])];
   return <AppLayout title="Dashboard Admin"><div className={styles.shell}>
-    <header className={styles.header + ' relative isolate'}>
+    <header className={styles.header}>
+      <div className={styles.welcomePanel}>
       <WelcomeWave />
-      <div className="relative z-10"><p className={styles.eyebrow}>INSAN-J / Administrasi</p><h1 className={styles.title}>Pantau lingkungan rumah sakit.</h1><p className={styles.muted}>Selamat datang, {user?.nama || 'Admin'}. Ringkasan untuk membantu pemantauan dan tindak lanjut.</p></div>
-      <div className={styles.links + ' relative z-10'}><PrefetchLink className={styles.button} to="/kelola-admin">Kelola data & akun</PrefetchLink><PrefetchLink className={styles.button} to="/rekap-limbah">Buka rekap</PrefetchLink></div>
+      <div className={styles.welcomeCopy}><p className={styles.eyebrow}>INSAN-J / Administrasi</p><h1 className={styles.title}>Pantau lingkungan rumah sakit.</h1><p className={styles.muted}>Selamat datang, {user?.nama || 'Admin'}. Ringkasan untuk membantu pemantauan dan tindak lanjut.</p></div>
+      </div>
+      <div className={styles.links}><PrefetchLink className={styles.button} to="/kelola-admin">Kelola data & akun</PrefetchLink><PrefetchLink className={styles.button} to="/rekap-limbah">Buka rekap</PrefetchLink></div>
     </header>
     <div className={styles.toolbar}>
       <div className={styles.tabs} role="group" aria-label="Tampilan dashboard admin">{sections.map(([id, label]) => <button key={id} type="button" aria-pressed={section === id} onClick={() => setSection(id)} className={styles.tab + ' ' + (section === id ? styles.active : '')}>{label}</button>)}</div>
-      <div className="flex flex-wrap items-center gap-2">
-        {section !== 'air' && <label className="text-xs text-slate-500">Periode<input aria-label="Bulan grafik dan inspeksi" type="month" value={month} onChange={event => { if (/^\d{4}-\d{2}$/.test(event.target.value)) setMonth(event.target.value); }} className="ml-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700" /></label>}
+      <div className={styles.filters}>
+        {section !== 'air' && <label className={styles.period}>Periode<input aria-label="Bulan grafik dan inspeksi" type="month" value={month} onChange={event => { if (/^\d{4}-\d{2}$/.test(event.target.value)) setMonth(event.target.value); }} className={styles.monthInput} /></label>}
         <button type="button" className={styles.button} disabled={loading} onClick={refresh}>{loading ? 'Memuat…' : 'Segarkan'}</button>
       </div>
     </div>
