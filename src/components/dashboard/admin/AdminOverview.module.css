@@ -19,8 +19,8 @@
 .shell button:focus-visible,.shell a:focus-visible,.shell input:focus-visible,.shell summary:focus-visible { outline:2px solid #0f766e; outline-offset:4px; }
 .toolbar { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:end; gap:16px; margin-bottom:22px; }
 .tabs { position:relative; display:grid; grid-auto-flow:column; grid-auto-columns:minmax(0,1fr); gap:4px; padding:4px; background:#e7edef; border-radius:14px; min-width:0; isolation:isolate; }
-.tabs::after { content:""; position:absolute; z-index:-1; top:4px; bottom:4px; left:4px; width:calc((100% - 8px - (var(--tab-count) - 1) * 4px) / var(--tab-count)); border-radius:10px; background:#fff; box-shadow:0 2px 8px #153a2910; transform:translateX(calc(var(--tab-index) * (100% + 4px))); transition:transform .28s cubic-bezier(.2,.8,.2,1); pointer-events:none; }
-.tab { min-width:0; min-height:44px; line-height:1.4; padding:10px 12px; border-radius:10px; border:0; background:transparent; color:#475569; font-size:13px; cursor:pointer; transition:color .22s,transform .22s; }
+.tabs::after { content:""; position:absolute; z-index:0; top:4px; bottom:4px; left:4px; width:calc((100% - 8px - (var(--tab-count) - 1) * 4px) / var(--tab-count)); border-radius:10px; background:#fff; box-shadow:0 2px 8px #153a2910; transform:translateX(calc(var(--tab-index) * (100% + 4px))); transition:transform .28s cubic-bezier(.2,.8,.2,1); pointer-events:none; }
+.tab { position:relative; z-index:1; min-width:0; min-height:44px; line-height:1.4; padding:10px 12px; border-radius:10px; border:0; background:transparent; color:#475569; font-size:13px; cursor:pointer; transition:color .22s,transform .22s; }
 .tab:hover { color:#0f766e; }
 .tab:active { transform:scale(.98); }
 .active { color:#0f766e; font-weight:700; }
