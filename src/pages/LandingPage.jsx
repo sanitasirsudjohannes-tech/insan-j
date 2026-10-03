@@ -63,13 +63,13 @@ export default function LandingPage() {
         <LoginBackdrop />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.18),transparent_42%)]" />
         <nav className="relative z-20 mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-5 sm:px-8 lg:px-10">
-          <a href="#beranda" className="flex items-center gap-3">
+          <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="flex items-center gap-3 text-left">
             <img src={import.meta.env.BASE_URL + "img/Icon.webp"} alt="INSAN-J" className="h-10 w-10 rounded-xl object-contain" />
             <div>
               <div className="text-sm font-extrabold tracking-wide">INSAN-J</div>
               <div className="text-[10px] text-slate-300">Sanitasi RSUD Johannes</div>
             </div>
-          </a>
+          </button>
           <div className="hidden items-center gap-7 text-sm text-slate-300 md:flex">
             <button type="button" onClick={() => document.getElementById("tentang")?.scrollIntoView({ behavior: "smooth" })} className="transition hover:text-white">Tentang</button>
             <button type="button" onClick={() => document.getElementById("fitur")?.scrollIntoView({ behavior: "smooth" })} className="transition hover:text-white">Fitur</button>
