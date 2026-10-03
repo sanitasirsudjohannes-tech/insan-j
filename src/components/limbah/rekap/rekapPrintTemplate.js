@@ -12,7 +12,7 @@ export function buildRekapPrintHTML(tableRows, summary, selectedYear, selectedMo
       'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
     ];
     const mName = monthNames[parseInt(selectedMonth, 10) - 1];
-    periodLabel = `${mName} ${selectedYear}`;
+    periodLabel = `Januari – ${mName} ${selectedYear}`;
   } else {
     periodLabel = `Januari – Desember ${selectedYear}`;
   }
