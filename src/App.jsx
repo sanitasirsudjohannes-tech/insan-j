@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import RoleGate from './features/session/RoleGate';
 import { loadAdminPage, loadRekapPage } from './features/navigation/routeModules';
+import { getCachedUser } from './lib/session';
 
 // Lazy loading components
 const LandingPage = lazy(() => import('./pages/LandingPage'));
@@ -19,6 +20,13 @@ const PemeriksaanAir = lazy(() => import('./pages/PemeriksaanAir'));
 const AsistenLaporan = lazy(() => import('./pages/AsistenLaporan'));
 
 // Loading component
+const EntryRoute = () => {
+  // Jika pengguna sudah memiliki sesi/cache login, buka aplikasi langsung
+  // ke dashboard seperti alur sebelum landing page ditambahkan.
+  const cachedUser = getCachedUser();
+  return cachedUser ? <Navigate to="/dashboard" replace /> : <LandingPage />;
+};
+
 const LoadingScreen = () => (
   <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
     <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -31,7 +39,7 @@ function App() {
     <HashRouter>
       <Suspense fallback={<LoadingScreen />}>
         <Routes>
-          <Route path="/" element={<LandingPage />} />
+          <Route path="/" element={<EntryRoute />} />
           <Route path="/login" element={<Login />} />
 
           <Route element={<ProtectedRoute />}>
