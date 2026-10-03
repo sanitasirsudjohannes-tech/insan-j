@@ -14,7 +14,7 @@ export default function useRekapData() {
   const initialFilters = readDataFilters(search);
   const requestedMonth = initialFilters.month || (initialFilters.start && initialFilters.start.slice(0, 7) === initialFilters.end?.slice(0, 7) ? initialFilters.start.slice(0, 7) : '');
   const [selectedYear, setSelectedYear] = useState(() => requestedMonth?.slice(0, 4) || initialFilters.start?.slice(0, 4) || currentYearStr);
-  const [selectedMonth, setSelectedMonth] = useState(() => requestedMonth ? String(Number(requestedMonth.slice(5, 7))) : 'semua');
+  const [selectedMonth, setSelectedMonth] = useState(() => requestedMonth ? String(Number(requestedMonth.slice(5, 7))) : String(new Date().getMonth() + 1));
   const [activeTab, setActiveTab] = useState('bulanan');
   const [roomMonth, setRoomMonth] = useState(String(new Date().getMonth() + 1));
   const [roomRows, setRoomRows] = useState([]);
