@@ -64,16 +64,16 @@ export default function LandingPage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(34,211,238,0.18),transparent_42%)]" />
         <nav className="relative z-20 mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-5 sm:px-8 lg:px-10">
           <a href="#beranda" className="flex items-center gap-3">
-            <img src="/img/Icon.webp" alt="INSAN-J" className="h-10 w-10 rounded-xl object-contain" />
+            <img src={import.meta.env.BASE_URL + "img/Icon.webp"} alt="INSAN-J" className="h-10 w-10 rounded-xl object-contain" />
             <div>
               <div className="text-sm font-extrabold tracking-wide">INSAN-J</div>
               <div className="text-[10px] text-slate-300">Sanitasi RSUD Johannes</div>
             </div>
           </a>
           <div className="hidden items-center gap-7 text-sm text-slate-300 md:flex">
-            <a href="#tentang" className="transition hover:text-white">Tentang</a>
-            <a href="#fitur" className="transition hover:text-white">Fitur</a>
-            <a href="#alur" className="transition hover:text-white">Alur</a>
+            <button type="button" onClick={() => document.getElementById("tentang")?.scrollIntoView({ behavior: "smooth" })} className="transition hover:text-white">Tentang</button>
+            <button type="button" onClick={() => document.getElementById("fitur")?.scrollIntoView({ behavior: "smooth" })} className="transition hover:text-white">Fitur</button>
+            <button type="button" onClick={() => document.getElementById("alur")?.scrollIntoView({ behavior: "smooth" })} className="transition hover:text-white">Alur</button>
           </div>
           <Link to="/login" className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold backdrop-blur transition hover:bg-white/20">
             Masuk
@@ -81,7 +81,7 @@ export default function LandingPage() {
         </nav>
 
         <div id="beranda" className="relative z-10 mx-auto flex min-h-[calc(88vh-80px)] w-full max-w-7xl items-center px-5 py-16 sm:px-8 lg:px-10">
-          <div className="max-w-3xl" data-landing-reveal className="translate-y-4 opacity-0 transition-all duration-700">
+          <div className="max-w-3xl translate-y-4 opacity-0 transition-all duration-700" data-landing-reveal>
             <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5 text-xs font-semibold text-cyan-100 backdrop-blur">
               <span className="h-1.5 w-1.5 rounded-full bg-cyan-300" />
               Sistem Informasi Sanitasi
@@ -99,9 +99,9 @@ export default function LandingPage() {
               <Link to="/login" className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-slate-900 shadow-xl transition hover:-translate-y-0.5 hover:bg-cyan-50">
                 Masuk ke Aplikasi <i className="fas fa-arrow-right text-xs" />
               </Link>
-              <a href="#tentang" className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 px-6 py-3.5 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/10">
+              <button type="button" onClick={() => document.getElementById("tentang")?.scrollIntoView({ behavior: "smooth" })} className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 px-6 py-3.5 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/10">
                 Pelajari INSAN-J
-              </a>
+              </button>
             </div>
           </div>
         </div>
