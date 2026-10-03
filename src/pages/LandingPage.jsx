@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import LoginBackdrop from '../features/login/LoginBackdrop';
 
@@ -273,62 +273,46 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Video */} 
+      {/* Video */}
       <section id="video" className="relative overflow-hidden bg-slate-900/70 px-5 py-20 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-7xl">
           <div data-landing-reveal className="max-w-3xl translate-y-4 opacity-0 transition-all duration-700">
             <p className="text-xs font-bold uppercase tracking-[0.25em] text-cyan-300">Video INSAN-J</p>
             <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Kenali INSAN-J lebih dekat</h2>
-            <p className="mt-4 text-sm leading-6 text-slate-400">
-              Kumpulan video untuk membantu mengenal aplikasi dan alur kerja sanitasi yang didukung INSAN-J.
-            </p>
+            <p className="mt-4 text-sm leading-6 text-slate-400">Lihat video terkait INSAN-J dalam satu carousel yang ringan dan mudah dijelajahi.</p>
           </div>
 
-          <div className="mt-10 grid gap-6 md:grid-cols-3">
-            {videos.map((video, index) => (
-              <article
-                key={video.id}
-                ref={node => { videoRefs.current[index] = node; }}
-                className="will-change-transform transition-transform duration-300 ease-out"
-              >
-                <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 shadow-xl">
-                  <div className="relative aspect-video overflow-hidden bg-slate-950">
-                    {activeVideo === video.id ? (
+          <div className="relative mt-10">
+            <div className="flex snap-x snap-mandatory gap-5 overflow-x-auto pb-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:grid md:grid-cols-3 md:overflow-visible">
+              {videos.map(video => (
+                <article key={video.id} className="w-[86vw] shrink-0 snap-center sm:w-[70vw] md:w-auto">
+                  <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 shadow-xl">
+                    <div className="relative aspect-video overflow-hidden bg-slate-950">
                       <iframe
                         className="h-full w-full"
-                        src={`https://www.youtube-nocookie.com/embed/${video.id}?autoplay=1&rel=0`}
+                        src={`https://www.youtube-nocookie.com/embed/${video.id}?rel=0`}
                         title={video.title}
                         loading="lazy"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowFullScreen
                       />
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setActiveVideo(video.id)}
-                        className="group absolute inset-0 flex h-full w-full items-center justify-center bg-slate-950 text-left"
-                        aria-label={`Putar ${video.title}`}
-                      >
-                        <img
-                          src={`https://i.ytimg.com/vi/${video.id}/hqdefault.jpg`}
-                          alt=""
-                          loading="lazy"
-                          className="absolute inset-0 h-full w-full object-cover opacity-75 transition duration-500 group-hover:scale-105 group-hover:opacity-90"
-                        />
-                        <span className="absolute inset-0 bg-slate-950/35" />
-                        <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-white text-slate-950 shadow-xl transition group-hover:scale-110">
-                          <i className="fas fa-play ml-0.5 text-sm" />
-                        </span>
-                      </button>
-                    )}
+                    </div>
+                    <div className="p-4">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300">{video.label}</p>
+                      <h3 className="mt-1 font-bold">{video.title}</h3>
+                    </div>
                   </div>
-                  <div className="p-4">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300">{video.label}</p>
-                    <h3 className="mt-1 font-bold">{video.title}</h3>
-                  </div>
-                </div>
-              </article>
-            ))}
+                </article>
+              ))}
+            </div>
+
+            <div className="mt-2 flex justify-center gap-1.5 md:hidden" aria-hidden="true">
+              {videos.map((video, index) => (
+                <span key={video.id} className="h-1.5 w-5 rounded-full bg-white/20">
+                  <span className={`block h-full rounded-full ${index === 0 ? 'bg-cyan-300' : 'bg-transparent'}`} />
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       </section>
