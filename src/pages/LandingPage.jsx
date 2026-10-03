@@ -86,34 +86,39 @@ export default function LandingPage() {
     return () => observer.disconnect();
   }, []);
 
-  const videoRefs = useRef([]);
-  const [activeVideo, setActiveVideo] = useState(null);
+  const videoCarouselRef = useRef(null);
+  const [activeVideo, setActiveVideo] = useState(0);
 
   useEffect(() => {
-    let frame = null;
-    const updateParallax = () => {
-      frame = null;
-      if (window.innerWidth >= 768) return;
-      const viewport = window.innerHeight;
-      videoRefs.current.forEach((node, index) => {
-        if (!node) return;
-        const rect = node.getBoundingClientRect();
-        const centerOffset = (rect.top + rect.height / 2 - viewport / 2) / viewport;
-        const direction = index % 2 === 0 ? -1 : 1;
-        const offset = Math.max(-28, Math.min(28, centerOffset * 28 * direction));
-        node.style.transform = `translate3d(0, ${offset}px, 0)`;
+    const carousel = videoCarouselRef.current;
+    if (!carousel) return undefined;
+
+    const updateActiveVideo = () => {
+      const cards = Array.from(carousel.children);
+      if (!cards.length) return;
+
+      const center = carousel.scrollLeft + carousel.clientWidth / 2;
+      let closestIndex = 0;
+      let closestDistance = Infinity;
+
+      cards.forEach((card, index) => {
+        const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+        const distance = Math.abs(cardCenter - center);
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          closestIndex = index;
+        }
       });
+
+      setActiveVideo(closestIndex);
     };
-    const onScroll = () => {
-      if (frame === null) frame = window.requestAnimationFrame(updateParallax);
-    };
-    updateParallax();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll);
+
+    updateActiveVideo();
+    carousel.addEventListener('scroll', updateActiveVideo, { passive: true });
+    window.addEventListener('resize', updateActiveVideo);
     return () => {
-      if (frame !== null) window.cancelAnimationFrame(frame);
-      window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onScroll);
+      carousel.removeEventListener('scroll', updateActiveVideo);
+      window.removeEventListener('resize', updateActiveVideo);
     };
   }, []);
 
@@ -282,7 +287,7 @@ export default function LandingPage() {
           </div>
 
           <div className="relative mt-10">
-            <div className="flex snap-x snap-mandatory gap-5 overflow-x-auto pb-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:grid md:grid-cols-3 md:overflow-visible">
+            <div ref={videoCarouselRef} className="flex snap-x snap-mandatory gap-5 overflow-x-auto pb-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:grid md:grid-cols-3 md:overflow-visible">
               {videos.map(video => (
                 <article key={video.id} className="w-[86vw] shrink-0 snap-center sm:w-[70vw] md:w-auto">
                   <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 shadow-xl">
@@ -304,7 +309,7 @@ export default function LandingPage() {
             <div className="mt-2 flex justify-center gap-1.5 md:hidden" aria-hidden="true">
               {videos.map((video, index) => (
                 <span key={video.id} className="h-1.5 w-5 rounded-full bg-white/20">
-                  <span className={`block h-full rounded-full ${index === 0 ? 'bg-cyan-300' : 'bg-transparent'}`} />
+                  <span className={`block h-full rounded-full ${index === activeVideo ? 'bg-cyan-300' : 'bg-transparent'}`} />
                 </span>
               ))}
             </div>
