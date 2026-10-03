@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import LoginBackdrop from '../features/login/LoginBackdrop';
 
@@ -41,6 +41,12 @@ const modules = [
   },
 ];
 
+const videos = [
+  { id: 'md9iaur645M', title: 'Video INSAN-J 01', label: 'INSAN-J · Video' },
+  { id: 'DWBzpEFwcQw', title: 'Video INSAN-J 02', label: 'INSAN-J · Video' },
+  { id: 'u8jKbiJrPX8', title: 'Video INSAN-J 03', label: 'INSAN-J · Video' },
+];
+
 const workflow = [
   ['01', 'Catat di lapangan', 'Petugas memasukkan data kegiatan sanitasi melalui perangkat yang digunakan.'],
   ['02', 'Data tersimpan', 'Data dikumpulkan dan dikelola sesuai modul serta hak akses pengguna.'],
@@ -80,6 +86,37 @@ export default function LandingPage() {
     return () => observer.disconnect();
   }, []);
 
+  const videoRefs = useRef([]);
+  const [activeVideo, setActiveVideo] = useState(null);
+
+  useEffect(() => {
+    let frame = null;
+    const updateParallax = () => {
+      frame = null;
+      if (window.innerWidth >= 768) return;
+      const viewport = window.innerHeight;
+      videoRefs.current.forEach((node, index) => {
+        if (!node) return;
+        const rect = node.getBoundingClientRect();
+        const centerOffset = (rect.top + rect.height / 2 - viewport / 2) / viewport;
+        const direction = index % 2 === 0 ? -1 : 1;
+        const offset = Math.max(-28, Math.min(28, centerOffset * 28 * direction));
+        node.style.transform = `translate3d(0, ${offset}px, 0)`;
+      });
+    };
+    const onScroll = () => {
+      if (frame === null) frame = window.requestAnimationFrame(updateParallax);
+    };
+    updateParallax();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll);
+    return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onScroll);
+    };
+  }, []);
+
   const scrollTo = id => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
   return (
@@ -102,6 +139,7 @@ export default function LandingPage() {
             <button type="button" onClick={() => scrollTo('tentang')} className="transition hover:text-white">Tentang</button>
             <button type="button" onClick={() => scrollTo('modul')} className="transition hover:text-white">Modul</button>
             <button type="button" onClick={() => scrollTo('alur')} className="transition hover:text-white">Alur</button>
+            <button type="button" onClick={() => scrollTo('video')} className="transition hover:text-white">Video</button>
           </div>
 
           <Link to="/login" className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold backdrop-blur transition hover:bg-white/20">
@@ -229,6 +267,66 @@ export default function LandingPage() {
                 </div>
                 <h3 className="mt-5 font-bold">{module.title}</h3>
                 <p className="mt-2 text-sm leading-6 text-slate-400">{module.text}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Video */} 
+      <section id="video" className="relative overflow-hidden bg-slate-900/70 px-5 py-20 sm:px-8 lg:px-10">
+        <div className="mx-auto max-w-7xl">
+          <div data-landing-reveal className="max-w-3xl translate-y-4 opacity-0 transition-all duration-700">
+            <p className="text-xs font-bold uppercase tracking-[0.25em] text-cyan-300">Video INSAN-J</p>
+            <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Kenali INSAN-J lebih dekat</h2>
+            <p className="mt-4 text-sm leading-6 text-slate-400">
+              Kumpulan video untuk membantu mengenal aplikasi dan alur kerja sanitasi yang didukung INSAN-J.
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-6 md:grid-cols-3">
+            {videos.map((video, index) => (
+              <article
+                key={video.id}
+                ref={node => { videoRefs.current[index] = node; }}
+                className="will-change-transform transition-transform duration-300 ease-out"
+              >
+                <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 shadow-xl">
+                  <div className="relative aspect-video overflow-hidden bg-slate-950">
+                    {activeVideo === video.id ? (
+                      <iframe
+                        className="h-full w-full"
+                        src={`https://www.youtube-nocookie.com/embed/${video.id}?autoplay=1&rel=0`}
+                        title={video.title}
+                        loading="lazy"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setActiveVideo(video.id)}
+                        className="group absolute inset-0 flex h-full w-full items-center justify-center bg-slate-950 text-left"
+                        aria-label={`Putar ${video.title}`}
+                      >
+                        <img
+                          src={`https://i.ytimg.com/vi/${video.id}/hqdefault.jpg`}
+                          alt=""
+                          loading="lazy"
+                          className="absolute inset-0 h-full w-full object-cover opacity-75 transition duration-500 group-hover:scale-105 group-hover:opacity-90"
+                        />
+                        <span className="absolute inset-0 bg-slate-950/35" />
+                        <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-white text-slate-950 shadow-xl transition group-hover:scale-110">
+                          <i className="fas fa-play ml-0.5 text-sm" />
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                  <div className="p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300">{video.label}</p>
+                    <h3 className="mt-1 font-bold">{video.title}</h3>
+                  </div>
+                </div>
               </article>
             ))}
           </div>
