@@ -5,6 +5,7 @@ import RoleGate from './features/session/RoleGate';
 import { loadAdminPage, loadRekapPage } from './features/navigation/routeModules';
 
 // Lazy loading components
+const LandingPage = lazy(() => import('./pages/LandingPage'));
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Akun = lazy(() => import('./pages/Akun'));
@@ -30,7 +31,8 @@ function App() {
     <HashRouter>
       <Suspense fallback={<LoadingScreen />}>
         <Routes>
-          <Route path="/" element={<Login />} />
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<Login />} />
 
           <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={
