@@ -22,7 +22,7 @@ export function formatKg(num, suffix = ' kg') {
 }
 
 /**
- * Computes chronological monthly balance and filters for the selected year and period.
+ * Computes chronological monthly balance and filters from January through the selected end month.
  */
 export function calculateRekapitulasi(allData, selectedYear, selectedMonth) {
   const { padatRows, ruanganRows, angkutRows } = allData || {};
@@ -150,10 +150,12 @@ export function calculateRekapitulasi(allData, selectedYear, selectedMonth) {
       }
     }
   } else {
-    const m = parseInt(selectedMonth, 10);
-    const ym = `${yr}-${String(m).padStart(2, '0')}`;
-    if (processedMonths[ym]) {
-      tableRows.push(processedMonths[ym]);
+    const endMonth = Math.min(Math.max(parseInt(selectedMonth, 10) || 1, 1), 12);
+    for (let m = 1; m <= endMonth; m++) {
+      const ym = `${yr}-${String(m).padStart(2, '0')}`;
+      if (processedMonths[ym]) {
+        tableRows.push(processedMonths[ym]);
+      }
     }
   }
 
