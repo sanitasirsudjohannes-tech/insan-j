@@ -39,7 +39,7 @@ export default function RekapFilter({
 
         <div className="flex items-center gap-2">
           <label htmlFor="select-periode" className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-            Periode:
+            Bulan Akhir:
           </label>
           <div className="relative">
             <select
@@ -48,7 +48,6 @@ export default function RekapFilter({
               onChange={(e) => setSelectedMonth(e.target.value)}
               className="appearance-none bg-slate-50 border border-slate-200 text-slate-800 font-semibold text-sm rounded-xl px-4 py-2 pr-9 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer hover:bg-slate-100 transition-all"
             >
-              <option value="semua">Semua Bulan</option>
               {MONTH_NAMES.map((name, idx) => (
                 <option key={idx + 1} value={String(idx + 1)}>
                   {name}
