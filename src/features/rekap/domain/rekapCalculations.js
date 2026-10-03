@@ -22,7 +22,7 @@ export function formatKg(num, suffix = ' kg') {
 }
 
 /**
- * Computes chronological monthly balance and filters for the selected year and period.
+ * Computes chronological monthly balance and filters from January through the selected end month.
  */
 export function calculateRekapitulasi(allData, selectedYear, selectedMonth) {
   const { padatRows, ruanganRows, angkutRows } = allData || {};
