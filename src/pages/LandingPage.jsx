@@ -42,9 +42,9 @@ const modules = [
 ];
 
 const videos = [
-  { id: 'md9iaur645M', title: 'Video INSAN-J 01', label: 'INSAN-J · Video' },
-  { id: 'DWBzpEFwcQw', title: 'Video INSAN-J 02', label: 'INSAN-J · Video' },
-  { id: 'u8jKbiJrPX8', title: 'Video INSAN-J 03', label: 'INSAN-J · Video' },
+  { id: 'md9iaur645M' },
+  { id: 'DWBzpEFwcQw' },
+  { id: 'u8jKbiJrPX8' },
 ];
 
 const workflow = [
@@ -291,7 +291,7 @@ export default function LandingPage() {
                       <iframe
                         className="h-full w-full"
                         src={`https://www.youtube-nocookie.com/embed/${video.id}?rel=0`}
-                        title={video.title}
+                        title={`Video kegiatan sanitasi RSUD Prof. Dr. W.Z. Johannes Kupang`}
                         loading="lazy"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowFullScreen
