@@ -277,9 +277,8 @@ export default function LandingPage() {
       <section id="video" className="relative overflow-hidden bg-slate-900/70 px-5 py-20 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-7xl">
           <div data-landing-reveal className="max-w-3xl translate-y-4 opacity-0 transition-all duration-700">
-            <p className="text-xs font-bold uppercase tracking-[0.25em] text-cyan-300">Video INSAN-J</p>
-            <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Kenali INSAN-J lebih dekat</h2>
-            <p className="mt-4 text-sm leading-6 text-slate-400">Lihat video terkait INSAN-J dalam satu carousel yang ringan dan mudah dijelajahi.</p>
+            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Kegiatan Sanitasi RSUD Prof. Dr. W.Z. Johannes Kupang</h2>
+            <p className="mt-5 max-w-2xl leading-7 text-slate-300">Dokumentasi kegiatan sanitasi dalam upaya menjaga kebersihan, kesehatan, keamanan, dan kualitas lingkungan rumah sakit.</p>
           </div>
 
           <div className="relative mt-10">
@@ -296,10 +295,6 @@ export default function LandingPage() {
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowFullScreen
                       />
-                    </div>
-                    <div className="p-4">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-300">{video.label}</p>
-                      <h3 className="mt-1 font-bold">{video.title}</h3>
                     </div>
                   </div>
                 </article>
