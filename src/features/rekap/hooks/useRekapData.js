@@ -9,7 +9,7 @@ export default function useRekapData() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedYear, setSelectedYear] = useState(currentYearStr);
-  const [selectedMonth, setSelectedMonth] = useState('semua');
+  const [selectedMonth, setSelectedMonth] = useState(String(new Date().getMonth() + 1));
   const [activeTab, setActiveTab] = useState('bulanan');
   const [roomMonth, setRoomMonth] = useState(String(new Date().getMonth() + 1));
   const [roomRows, setRoomRows] = useState([]);
