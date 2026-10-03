@@ -119,5 +119,5 @@ export default function useRekapData() {
     }
   }, [availableYears, selectedYear]);
 
-  return { loading, error, loadData, selectedYear, setSelectedYear, selectedMonth, setSelectedMonth, activeTab, setActiveTab, roomMonth, setRoomMonth, roomRows, roomLoading, roomError, loadRoomData, availableYears, tableRows, summary, hasAnomaly };
+  return { loading, error, loadData, allData, selectedYear, setSelectedYear, selectedMonth, setSelectedMonth, activeTab, setActiveTab, roomMonth, setRoomMonth, roomRows, roomLoading, roomError, loadRoomData, availableYears, tableRows, summary, hasAnomaly };
 }
