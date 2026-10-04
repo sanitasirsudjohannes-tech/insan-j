@@ -145,7 +145,7 @@ export default function LandingPage() {
             </div>
           </button>
 
-          <button type="button" onClick={() => setSidebarOpen(true)} className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold backdrop-blur transition hover:bg-white/20" aria-label="Buka menu">
+          <button type="button" onClick={() => setSidebarOpen(true)} className="hidden rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold backdrop-blur transition hover:bg-white/20 lg:inline-flex" aria-label="Buka menu">
             <i className="fas fa-bars mr-2 text-xs" />Menu
           </button>
           <Link to="/login" className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold backdrop-blur transition hover:bg-white/20">
