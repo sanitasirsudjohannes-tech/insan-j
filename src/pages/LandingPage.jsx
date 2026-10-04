@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import LoginBackdrop from '../features/login/LoginBackdrop';
+import Sidebar from '../components/Sidebar';
+import BottomNavigation from '../components/BottomNavigation';
 
 const modules = [
   {
@@ -126,6 +128,8 @@ export default function LandingPage() {
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-slate-950 text-white">
+      <Sidebar variant="landing" isOpen={true} onClose={() => {}} />
+      <BottomNavigation variant="landing" />
       {/* Hero */}
       <section className="relative isolate min-h-[92vh] overflow-hidden bg-linear-to-br from-slate-950 via-blue-950 to-emerald-950">
         <LoginBackdrop />
@@ -139,13 +143,6 @@ export default function LandingPage() {
               <div className="text-[10px] text-slate-300">Informasi Sanitasi Johannes</div>
             </div>
           </button>
-
-          <div className="hidden items-center gap-7 text-sm text-slate-300 md:flex">
-            <button type="button" onClick={() => scrollTo('tentang')} className="transition hover:text-white">Tentang</button>
-            <button type="button" onClick={() => scrollTo('modul')} className="transition hover:text-white">Modul</button>
-            <button type="button" onClick={() => scrollTo('alur')} className="transition hover:text-white">Alur</button>
-            <button type="button" onClick={() => scrollTo('video')} className="transition hover:text-white">Video</button>
-          </div>
 
           <Link to="/login" className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold backdrop-blur transition hover:bg-white/20">
             Masuk
@@ -279,7 +276,7 @@ export default function LandingPage() {
       </section>
 
       {/* Video */}
-      <section id="video" className="relative overflow-hidden bg-slate-900/70 px-5 py-20 sm:px-8 lg:px-10">
+      <section id="galery" className="relative scroll-mt-6 overflow-hidden bg-slate-900/70 px-5 py-20 sm:px-8 lg:px-10">
         <div className="mx-auto max-w-7xl">
           <div data-landing-reveal className="max-w-3xl translate-y-4 opacity-0 transition-all duration-700">
             <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Kegiatan Sanitasi RSUD Prof. Dr. W.Z. Johannes Kupang</h2>
