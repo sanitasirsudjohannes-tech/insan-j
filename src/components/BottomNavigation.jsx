@@ -35,23 +35,31 @@ export default function BottomNavigation({ variant = 'app' }) {
   const [landingActiveIndex, setLandingActiveIndex] = useState(0);
 
   useEffect(() => {
-    if (variant !== 'landing') return undefined;    const sections = LANDING_NAV_ITEMS.map(item => document.getElementById(item.id)).filter(Boolean);
-    if (!sections.length || !('IntersectionObserver' in window)) return undefined;
+    if (variant !== 'landing') return undefined;
 
-    const observer = new IntersectionObserver(
-      entries => {
-        const visible = entries.filter(entry => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (visible) {
-          const index = LANDING_NAV_ITEMS.findIndex(item => item.id === visible.target.id);
-          if (index >= 0) setLandingActiveIndex(index);
-        }
-      },
-      { rootMargin: '-20% 0px -55% 0px', threshold: [0.15, 0.35, 0.6] }
-    );
+    const updateActiveSection = () => {
+      const sections = LANDING_NAV_ITEMS
+        .map(item => ({ ...item, node: document.getElementById(item.id) }))
+        .filter(item => item.node);
 
-    sections.forEach(section => observer.observe(section));
-    return () => observer.disconnect();
+      if (!sections.length) return;
+
+      const offset = 96;
+      const current = sections.reduce((active, item, index) => {
+        return item.node.getBoundingClientRect().top <= offset ? index : active;
+      }, -1);
+
+      if (current >= 0) setLandingActiveIndex(current);
+    };
+
+    updateActiveSection();
+    window.addEventListener('scroll', updateActiveSection, { passive: true });
+    window.addEventListener('resize', updateActiveSection);
+
+    return () => {
+      window.removeEventListener('scroll', updateActiveSection);
+      window.removeEventListener('resize', updateActiveSection);
+    };
   }, [variant]);
 
   if (variant === 'landing') {
