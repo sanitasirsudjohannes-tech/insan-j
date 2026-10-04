@@ -141,7 +141,7 @@ export default function LandingPage() {
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
-              className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-slate-200 backdrop-blur transition hover:bg-white/20 hover:text-white lg:inline-flex"
+              className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-slate-200 backdrop-blur transition hover:bg-white/20 hover:text-white md:inline-flex"
               aria-label="Buka menu"
             >
               <i className="fas fa-bars text-sm" />
