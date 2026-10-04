@@ -47,30 +47,63 @@ export default function Sidebar({ isOpen, onClose, variant = 'app' }) {
     };
 
     return <>
-      {isOpen && <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-300" onClick={onClose} />}
-      <aside className={`fixed left-0 top-0 z-50 hidden h-full w-64 flex-col bg-linear-to-b from-slate-900 via-slate-800 to-slate-900 shadow-2xl transition-transform duration-300 ease-in-out lg:flex ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-          <div className="flex items-center gap-3">
-            <img src={import.meta.env.BASE_URL + 'img/Icon.webp'} alt="INSAN-J" className="h-9 w-9 rounded-lg object-contain" />
-            <div><h2 className="text-base font-bold leading-none tracking-tight text-white">INSAN-J</h2><p className="mt-1 text-[10px] uppercase tracking-wider text-slate-400">Sanitasi RS</p></div>
+      {isOpen && (
+        <button
+          type="button"
+          aria-label="Tutup menu"
+          className="fixed inset-0 z-40 cursor-default bg-slate-950/45 backdrop-blur-[3px] transition-opacity duration-300"
+          onClick={onClose}
+        />
+      )}
+
+      <aside
+        aria-label="Navigasi landing page"
+        className={`fixed left-3 top-3 z-50 flex h-[calc(100%-1.5rem)] w-[18rem] flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-900/90 shadow-[0_24px_60px_rgba(2,6,23,0.42)] backdrop-blur-2xl transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hidden lg:flex ${isOpen ? 'translate-x-0' : '-translate-x-[calc(100%+1rem)]'}`}
+      >
+        <div className="absolute inset-x-8 top-0 h-16 rounded-full bg-cyan-400/10 blur-2xl" />
+
+        <div className="relative flex items-center justify-between border-b border-white/10 px-5 py-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <img src={import.meta.env.BASE_URL + 'img/Icon.webp'} alt="INSAN-J" className="h-10 w-10 shrink-0 rounded-xl object-contain ring-1 ring-white/10" />
+            <div className="min-w-0">
+              <h2 className="truncate text-sm font-extrabold tracking-wide text-white">INSAN-J</h2>
+              <p className="mt-0.5 truncate text-[10px] text-slate-400">Informasi Sanitasi Johannes</p>
+            </div>
           </div>
-          <button type="button" onClick={onClose} className="rounded-md p-1 text-slate-400 transition-colors hover:bg-white/10 hover:text-white" aria-label="Tutup menu"><i className="fas fa-times text-lg" /></button>
+          <button type="button" onClick={onClose} className="ml-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400 transition-all hover:bg-white/10 hover:text-white active:scale-95" aria-label="Tutup menu">
+            <i className="fas fa-xmark text-sm" />
+          </button>
         </div>
-        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-3">
-          <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-widest text-slate-500">Menu</p>
+
+        <nav className="relative flex-1 space-y-2 overflow-y-auto px-3 py-5">
+          <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">Navigasi</p>
           {[
-            { id: 'tentang', label: 'Tentang', icon: 'fas fa-circle-info' },
-            { id: 'galery', label: 'Galery', icon: 'fas fa-images' },
+            { id: 'tentang', label: 'Tentang', icon: 'fas fa-circle-info', description: 'Mengenal INSAN-J' },
+            { id: 'galery', label: 'Galery', icon: 'fas fa-images', description: 'Dokumentasi kegiatan' },
           ].map(item => (
-            <button key={item.id} type="button" onClick={() => goTo(item.id)} className="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-300 transition-all duration-200 hover:bg-white/5 hover:text-white">
-              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-white/5 text-slate-400 transition-colors group-hover:bg-blue-500/15 group-hover:text-blue-400"><i className={`${item.icon} text-[11px]`} /></span>
-              <span className="min-w-0 flex-1 truncate">{item.label}</span>
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => goTo(item.id)}
+              className="group flex w-full items-center gap-3 rounded-2xl border border-transparent px-3 py-3 text-left transition-all duration-200 hover:border-white/10 hover:bg-white/[0.06] active:scale-[0.98]"
+            >
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400 transition-all duration-200 group-hover:border-cyan-300/20 group-hover:bg-cyan-300/10 group-hover:text-cyan-300">
+                <i className={`${item.icon} text-sm`} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-slate-200 group-hover:text-white">{item.label}</span>
+                <span className="mt-0.5 block truncate text-[10px] text-slate-500 group-hover:text-slate-400">{item.description}</span>
+              </span>
+              <i className="fas fa-chevron-right text-[9px] text-slate-600 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-slate-400" />
             </button>
           ))}
         </nav>
-        <div className="border-t border-white/10 px-4 py-4"><p className="px-2 text-[10px] leading-5 text-slate-500">Informasi Sanitasi Johannes</p></div>
+
+        <div className="relative border-t border-white/10 px-5 py-4">
+          <p className="text-[10px] leading-5 text-slate-500">Unit Sanitasi RSUD Prof. Dr. W.Z. Johannes Kupang</p>
+        </div>
       </aside>
-    </>;
+    </>; 
   }
 
 
