@@ -59,7 +59,7 @@ export default function Sidebar({ isOpen, onClose, variant = 'app' }) {
 
       <aside
         aria-label="Navigasi landing page"
-        className={`fixed left-3 top-3 z-50 flex h-[calc(100%-1.5rem)] w-[18rem] flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-900/90 shadow-[0_24px_60px_rgba(2,6,23,0.42)] backdrop-blur-2xl transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hidden lg:flex ${isOpen ? 'translate-x-0' : '-translate-x-[calc(100%+1rem)]'}`}
+        className={`fixed left-3 top-3 z-50 flex h-[calc(100%-1.5rem)] w-[18rem] flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-900/90 shadow-[0_24px_60px_rgba(2,6,23,0.42)] backdrop-blur-2xl transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hidden md:flex ${isOpen ? 'translate-x-0' : '-translate-x-[calc(100%+1rem)]'}`}
       >
         <div className="absolute inset-x-8 top-0 h-16 rounded-full bg-cyan-400/10 blur-2xl" />
 
