@@ -29,6 +29,58 @@ const NavItem = ({ item, onClick }) => (
   </NavLink>
 );
 
+export default function BottomNavigation({ variant = 'app' }) {
+  const location = useLocation();
+
+  if (variant === 'landing') {
+    const [activeIndex, setActiveIndex] = useState(0);
+
+    useEffect(() => {
+      const sections = ['tentang', 'galery'].map(id => document.getElementById(id)).filter(Boolean);
+      if (!sections.length || !('IntersectionObserver' in window)) return undefined;
+
+      const observer = new IntersectionObserver(
+        entries => {
+          const visible = entries.filter(entry => entry.isIntersecting)
+            .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+          if (visible) {
+            const index = ['tentang', 'galery'].indexOf(visible.target.id);
+            if (index >= 0) setActiveIndex(index);
+          }
+        },
+        { rootMargin: '-20% 0px -55% 0px', threshold: [0.15, 0.35, 0.6] }
+      );
+
+      sections.forEach(section => observer.observe(section));
+      return () => observer.disconnect();
+    }, []);
+
+    const goTo = (id, index) => {
+      setActiveIndex(index);
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    return (
+      <nav className="fixed inset-x-2 bottom-2 z-40 md:hidden print:hidden" aria-label="Navigasi landing page">
+        <div className="relative mx-auto flex h-[4.75rem] max-w-lg items-stretch overflow-hidden rounded-[1.65rem] border border-white/80 bg-linear-to-b from-white/95 to-slate-100/95 px-1.5 pb-[env(safe-area-inset-bottom)] shadow-[0_12px_30px_rgba(15,23,42,0.22),0_3px_0_#cbd5e1,inset_0_1px_0_white] backdrop-blur-xl">
+          <div className="pointer-events-none absolute inset-x-8 top-0 h-5 rounded-full bg-white/80 blur-md" />
+          <span aria-hidden="true" className="pointer-events-none absolute left-1.5 top-3 flex h-9 w-1/2 items-center justify-center transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none" style={{ transform: `translateX(${activeIndex * 100}%)` }}>
+            <span className="h-9 w-12 -translate-y-0.5 rounded-xl border border-white bg-linear-to-b from-white to-blue-50 shadow-[0_5px_10px_rgba(37,99,235,0.18),inset_0_1px_0_white]" />
+          </span>
+          {[
+            { id: 'tentang', label: 'Tentang', icon: 'fas fa-circle-info' },
+            { id: 'galery', label: 'Galery', icon: 'fas fa-images' },
+          ].map((item, index) => (
+            <button key={item.id} type="button" onClick={() => goTo(item.id, index)} className={`group relative z-10 flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-bold transition-all duration-200 ${activeIndex === index ? 'text-blue-600' : 'text-slate-500'}`}>
+              <span className={`flex h-9 w-12 items-center justify-center rounded-xl transition-all duration-200 ${activeIndex === index ? '-translate-y-0.5' : 'group-active:translate-y-0.5'}`}><i className={`${item.icon} text-base`} /></span>
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
+    );
+  }
+
 export default function BottomNavigation() {
   const location = useLocation();
   const user = getCurrentUser();
