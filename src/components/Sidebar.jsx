@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { getCurrentUser } from '../lib/api';
+import { LANDING_NAV_ITEMS } from './landingNavigation';
 
 const isPathActive = (pathname, to) => pathname === to || pathname.startsWith(`${to}/`);
 
@@ -77,10 +78,7 @@ export default function Sidebar({ isOpen, onClose, variant = 'app' }) {
 
         <nav className="relative flex-1 space-y-2 overflow-y-auto px-3 py-5">
           <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">Navigasi</p>
-          {[
-            { id: 'tentang', label: 'Tentang', icon: 'fas fa-circle-info', description: 'Mengenal INSAN-J' },
-            { id: 'galery', label: 'Galery', icon: 'fas fa-images', description: 'Dokumentasi kegiatan' },
-          ].map(item => (
+          {LANDING_NAV_ITEMS.map(item => (
             <button
               key={item.id}
               type="button"
