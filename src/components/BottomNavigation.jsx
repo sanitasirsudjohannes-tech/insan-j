@@ -65,7 +65,10 @@ export default function BottomNavigation({ variant = 'app' }) {
   if (variant === 'landing') {
     const goTo = (id, index) => {
       setLandingActiveIndex(index);
-      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const target = document.getElementById(id);
+      if (!target) return;
+      const top = target.getBoundingClientRect().top + window.scrollY - 12;
+      window.scrollTo({ top, behavior: 'smooth' });
     };
 
     return (
