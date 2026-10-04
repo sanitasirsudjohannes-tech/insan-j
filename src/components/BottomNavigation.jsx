@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { getCurrentUser } from '../lib/api';
+import { LANDING_NAV_ITEMS } from './landingNavigation';
 
 // AppLayout dibuat ulang pada setiap perpindahan route. Simpan posisi terakhir
 // agar indikator tetap dapat beranimasi dari menu lama setelah mount kembali.
@@ -34,8 +35,7 @@ export default function BottomNavigation({ variant = 'app' }) {
   const [landingActiveIndex, setLandingActiveIndex] = useState(0);
 
   useEffect(() => {
-    if (variant !== 'landing') return undefined;
-    const sections = ['tentang', 'galery'].map(id => document.getElementById(id)).filter(Boolean);
+    if (variant !== 'landing') return undefined;    const sections = LANDING_NAV_ITEMS.map(item => document.getElementById(item.id)).filter(Boolean);
     if (!sections.length || !('IntersectionObserver' in window)) return undefined;
 
     const observer = new IntersectionObserver(
@@ -43,7 +43,7 @@ export default function BottomNavigation({ variant = 'app' }) {
         const visible = entries.filter(entry => entry.isIntersecting)
           .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
         if (visible) {
-          const index = ['tentang', 'galery'].indexOf(visible.target.id);
+          const index = LANDING_NAV_ITEMS.findIndex(item => item.id === visible.target.id);
           if (index >= 0) setLandingActiveIndex(index);
         }
       },
@@ -61,22 +61,19 @@ export default function BottomNavigation({ variant = 'app' }) {
     };
 
     return (
-      <nav className="fixed inset-x-2 bottom-2 z-40 md:hidden print:hidden" aria-label="Navigasi landing page">
-        <div className="relative mx-auto flex h-[4.75rem] max-w-lg items-stretch overflow-hidden rounded-[1.65rem] border border-white/20 bg-slate-900/60 px-1.5 pb-[env(safe-area-inset-bottom)] shadow-[0_12px_35px_rgba(2,6,23,0.35)] backdrop-blur-2xl supports-[backdrop-filter]:bg-slate-900/45">
+      <nav className="fixed inset-x-2 bottom-2 z-40 lg:hidden print:hidden" aria-label="Navigasi landing page">
+        <div className="relative mx-auto flex h-[4.75rem] max-w-2xl items-stretch overflow-hidden rounded-[1.65rem] border border-white/20 bg-slate-900/60 px-1.5 pb-[env(safe-area-inset-bottom)] shadow-[0_12px_35px_rgba(2,6,23,0.35)] backdrop-blur-2xl supports-[backdrop-filter]:bg-slate-900/45">
           <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-white/[0.10] via-white/[0.04] to-transparent" />
           <div className="pointer-events-none absolute inset-x-8 top-0 h-8 rounded-full bg-cyan-300/10 blur-xl" />
           <div className="pointer-events-none absolute inset-x-5 bottom-0 h-px bg-white/10" />
 
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute left-1.5 top-3 flex h-9 w-1/2 items-center justify-center rounded-xl border border-white/15 bg-white/10 shadow-[0_4px_18px_rgba(8,47,73,0.22),inset_0_1px_0_rgba(255,255,255,0.16)] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
-            style={{ transform: `translateX(${landingActiveIndex * 100}%)` }}
+            className="pointer-events-none absolute left-1.5 top-3 flex h-9 items-center justify-center rounded-xl border border-white/15 bg-white/10 shadow-[0_4px_18px_rgba(8,47,73,0.22),inset_0_1px_0_rgba(255,255,255,0.16)] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+            style={{ width: `calc((100% - 0.75rem) / ${LANDING_NAV_ITEMS.length})`, transform: `translateX(${landingActiveIndex * 100}%)` }}
           />
 
-          {[
-            { id: 'tentang', label: 'Tentang', icon: 'fas fa-circle-info' },
-            { id: 'galery', label: 'Galery', icon: 'fas fa-images' },
-          ].map((item, index) => (
+          {LANDING_NAV_ITEMS.map((item, index) => (
             <button
               key={item.id}
               type="button"
