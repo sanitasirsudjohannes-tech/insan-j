@@ -73,7 +73,7 @@ export default function Sidebar({ isOpen, onClose, variant = 'app' }) {
     </>;
   }
 
-({ isOpen, onClose }) {
+
   const location = useLocation();
   const user = getCurrentUser();
   const role = user?.role?.toLowerCase();
