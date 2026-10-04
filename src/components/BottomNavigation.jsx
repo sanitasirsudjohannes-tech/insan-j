@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { getCurrentUser } from '../lib/api';
 import { LANDING_NAV_ITEMS } from './landingNavigation';
@@ -33,11 +33,15 @@ const NavItem = ({ item, onClick }) => (
 export default function BottomNavigation({ variant = 'app' }) {
   const location = useLocation();
   const [landingActiveIndex, setLandingActiveIndex] = useState(0);
+  const landingProgrammaticScrollRef = useRef(false);
+  const landingScrollReleaseTimerRef = useRef(null);
 
   useEffect(() => {
     if (variant !== 'landing') return undefined;
 
     const updateActiveSection = () => {
+      if (landingProgrammaticScrollRef.current) return;
+
       const sections = LANDING_NAV_ITEMS
         .map(item => ({ ...item, node: document.getElementById(item.id) }))
         .filter(item => item.node);
@@ -59,16 +63,29 @@ export default function BottomNavigation({ variant = 'app' }) {
     return () => {
       window.removeEventListener('scroll', updateActiveSection);
       window.removeEventListener('resize', updateActiveSection);
+      if (landingScrollReleaseTimerRef.current) {
+        window.clearTimeout(landingScrollReleaseTimerRef.current);
+      }
     };
   }, [variant]);
 
   if (variant === 'landing') {
     const goTo = (id, index) => {
+      landingProgrammaticScrollRef.current = true;
+      if (landingScrollReleaseTimerRef.current) {
+        window.clearTimeout(landingScrollReleaseTimerRef.current);
+      }
       setLandingActiveIndex(index);
       const target = document.getElementById(id);
       if (!target) return;
       const top = target.getBoundingClientRect().top + window.scrollY - 12;
       window.scrollTo({ top, behavior: 'smooth' });
+
+      // Jangan biarkan listener scroll mengembalikan indikator ke section lama
+      // selama smooth-scroll berlangsung. Lepaskan lock setelah scroll berhenti.
+      landingScrollReleaseTimerRef.current = window.setTimeout(() => {
+        landingProgrammaticScrollRef.current = false;
+      }, 650);
     };
 
     return (
