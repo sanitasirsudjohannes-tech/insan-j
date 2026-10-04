@@ -172,9 +172,6 @@ export default function LandingPage() {
               <Link to="/login" className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-slate-900 shadow-xl transition hover:-translate-y-0.5 hover:bg-cyan-50">
                 Masuk ke Aplikasi <i className="fas fa-arrow-right text-xs" />
               </Link>
-              <button type="button" onClick={() => scrollTo('modul')} className="inline-flex items-center justify-center rounded-xl border border-white/15 bg-white/5 px-6 py-3.5 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/10">
-                Lihat Modul
-              </button>
             </div>
           </div>
 
