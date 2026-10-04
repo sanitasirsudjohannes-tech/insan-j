@@ -81,7 +81,7 @@ export default function BottomNavigation({ variant = 'app' }) {
     );
   }
 
-() {
+
   const location = useLocation();
   const user = getCurrentUser();
   const role = user?.role?.trim().toLowerCase();
