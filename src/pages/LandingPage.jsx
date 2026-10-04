@@ -90,6 +90,7 @@ export default function LandingPage() {
 
   const videoCarouselRef = useRef(null);
   const [activeVideo, setActiveVideo] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const carousel = videoCarouselRef.current;
@@ -128,7 +129,7 @@ export default function LandingPage() {
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-slate-950 text-white">
-      <Sidebar variant="landing" isOpen={true} onClose={() => {}} />
+      <Sidebar variant="landing" isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <BottomNavigation variant="landing" />
       {/* Hero */}
       <section className="relative isolate min-h-[92vh] overflow-hidden bg-linear-to-br from-slate-950 via-blue-950 to-emerald-950">
@@ -144,6 +145,9 @@ export default function LandingPage() {
             </div>
           </button>
 
+          <button type="button" onClick={() => setSidebarOpen(true)} className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold backdrop-blur transition hover:bg-white/20" aria-label="Buka menu">
+            <i className="fas fa-bars mr-2 text-xs" />Menu
+          </button>
           <Link to="/login" className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold backdrop-blur transition hover:bg-white/20">
             Masuk
           </Link>
