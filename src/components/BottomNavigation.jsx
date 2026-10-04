@@ -33,29 +33,30 @@ export default function BottomNavigation({ variant = 'app' }) {
   const location = useLocation();
   const [landingActiveIndex, setLandingActiveIndex] = useState(0);
 
+  useEffect(() => {
+    if (variant !== 'landing') return undefined;
+    const sections = ['tentang', 'galery'].map(id => document.getElementById(id)).filter(Boolean);
+    if (!sections.length || !('IntersectionObserver' in window)) return undefined;
+
+    const observer = new IntersectionObserver(
+      entries => {
+        const visible = entries.filter(entry => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (visible) {
+          const index = ['tentang', 'galery'].indexOf(visible.target.id);
+          if (index >= 0) setLandingActiveIndex(index);
+        }
+      },
+      { rootMargin: '-20% 0px -55% 0px', threshold: [0.15, 0.35, 0.6] }
+    );
+
+    sections.forEach(section => observer.observe(section));
+    return () => observer.disconnect();
+  }, [variant]);
+
   if (variant === 'landing') {
-    useEffect(() => {
-      const sections = ['tentang', 'galery'].map(id => document.getElementById(id)).filter(Boolean);
-      if (!sections.length || !('IntersectionObserver' in window)) return undefined;
-
-      const observer = new IntersectionObserver(
-        entries => {
-          const visible = entries.filter(entry => entry.isIntersecting)
-            .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-          if (visible) {
-            const index = ['tentang', 'galery'].indexOf(visible.target.id);
-            if (index >= 0) setLandingActiveIndex(index);
-          }
-        },
-        { rootMargin: '-20% 0px -55% 0px', threshold: [0.15, 0.35, 0.6] }
-      );
-
-      sections.forEach(section => observer.observe(section));
-      return () => observer.disconnect();
-    }, []);
-
     const goTo = (id, index) => {
-      setActiveIndex(index);
+      setLandingActiveIndex(index);
       document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
