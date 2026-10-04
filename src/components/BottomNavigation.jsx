@@ -62,17 +62,30 @@ export default function BottomNavigation({ variant = 'app' }) {
 
     return (
       <nav className="fixed inset-x-2 bottom-2 z-40 md:hidden print:hidden" aria-label="Navigasi landing page">
-        <div className="relative mx-auto flex h-[4.75rem] max-w-lg items-stretch overflow-hidden rounded-[1.65rem] border border-white/80 bg-linear-to-b from-white/95 to-slate-100/95 px-1.5 pb-[env(safe-area-inset-bottom)] shadow-[0_12px_30px_rgba(15,23,42,0.22),0_3px_0_#cbd5e1,inset_0_1px_0_white] backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-x-8 top-0 h-5 rounded-full bg-white/80 blur-md" />
-          <span aria-hidden="true" className="pointer-events-none absolute left-1.5 top-3 flex h-9 w-1/2 items-center justify-center transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none" style={{ transform: `translateX(${landingActiveIndex * 100}%)` }}>
-            <span className="h-9 w-12 -translate-y-0.5 rounded-xl border border-white bg-linear-to-b from-white to-blue-50 shadow-[0_5px_10px_rgba(37,99,235,0.18),inset_0_1px_0_white]" />
-          </span>
+        <div className="relative mx-auto flex h-[4.75rem] max-w-lg items-stretch overflow-hidden rounded-[1.65rem] border border-white/20 bg-slate-900/60 px-1.5 pb-[env(safe-area-inset-bottom)] shadow-[0_12px_35px_rgba(2,6,23,0.35)] backdrop-blur-2xl supports-[backdrop-filter]:bg-slate-900/45">
+          <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-white/[0.10] via-white/[0.04] to-transparent" />
+          <div className="pointer-events-none absolute inset-x-8 top-0 h-8 rounded-full bg-cyan-300/10 blur-xl" />
+          <div className="pointer-events-none absolute inset-x-5 bottom-0 h-px bg-white/10" />
+
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1.5 top-3 flex h-9 w-1/2 items-center justify-center rounded-xl border border-white/15 bg-white/10 shadow-[0_4px_18px_rgba(8,47,73,0.22),inset_0_1px_0_rgba(255,255,255,0.16)] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+            style={{ transform: `translateX(${landingActiveIndex * 100}%)` }}
+          />
+
           {[
             { id: 'tentang', label: 'Tentang', icon: 'fas fa-circle-info' },
             { id: 'galery', label: 'Galery', icon: 'fas fa-images' },
           ].map((item, index) => (
-            <button key={item.id} type="button" onClick={() => goTo(item.id, index)} className={`group relative z-10 flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-bold transition-all duration-200 ${landingActiveIndex === index ? 'text-blue-600' : 'text-slate-500'}`}>
-              <span className={`flex h-9 w-12 items-center justify-center rounded-xl transition-all duration-200 ${landingActiveIndex === index ? '-translate-y-0.5' : 'group-active:translate-y-0.5'}`}><i className={`${item.icon} text-base`} /></span>
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => goTo(item.id, index)}
+              className={`group relative z-10 flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-bold transition-all duration-200 ${landingActiveIndex === index ? 'text-cyan-300' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              <span className={`flex h-9 w-12 items-center justify-center rounded-xl transition-all duration-200 ${landingActiveIndex === index ? '-translate-y-0.5' : 'group-active:translate-y-0.5'}`}>
+                <i className={`${item.icon} text-base drop-shadow-sm`} />
+              </span>
               <span>{item.label}</span>
             </button>
           ))}
