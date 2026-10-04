@@ -98,7 +98,7 @@ export default function BottomNavigation({ variant = 'app' }) {
           <span
             aria-hidden="true"
             className="pointer-events-none absolute left-1.5 top-3 flex h-9 items-center justify-center rounded-xl border border-white/15 bg-white/10 shadow-[0_4px_18px_rgba(8,47,73,0.22),inset_0_1px_0_rgba(255,255,255,0.16)] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
-            style={{ width: `calc(((100% - 0.75rem) / ${LANDING_NAV_ITEMS.length}) * 0.62)`, left: `calc(1.5px + ${landingActiveIndex} * ((100% - 0.75rem) / ${LANDING_NAV_ITEMS.length}) + (((100% - 0.75rem) / ${LANDING_NAV_ITEMS.length}) * 0.19))`, transform: 'none' }}
+            style={{ width: `calc(((100% - 0.75rem) / ${LANDING_NAV_ITEMS.length}) * 0.62)`, marginLeft: `calc(((100% - 0.75rem) / ${LANDING_NAV_ITEMS.length}) * 0.19)`, transform: `translateX(${landingActiveIndex * 100}%)` }}
           />
 
           {LANDING_NAV_ITEMS.map((item, index) => (
