@@ -38,6 +38,7 @@ function MenuGroup({ group, pathname, isOpen, onToggle, onClose }) {
 
 export default function Sidebar({ isOpen, onClose, variant = 'app' }) {
   const location = useLocation();
+  const [landingOpen, setLandingOpen] = useState(false);
 
   if (variant === 'landing') {
     const goTo = id => {
