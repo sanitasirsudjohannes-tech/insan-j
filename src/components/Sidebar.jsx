@@ -74,7 +74,6 @@ export default function Sidebar({ isOpen, onClose, variant = 'app' }) {
   }
 
 
-  const location = useLocation();
   const user = getCurrentUser();
   const role = user?.role?.toLowerCase();
   const isAdmin = role === 'admin';
