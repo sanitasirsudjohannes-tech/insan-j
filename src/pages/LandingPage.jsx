@@ -131,8 +131,6 @@ export default function LandingPage() {
     <main className="min-h-screen overflow-x-hidden bg-slate-950 text-white">
       <Sidebar variant="landing" isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <BottomNavigation variant="landing" />
-      <Sidebar variant="landing" isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <BottomNavigation variant="landing" />
       {/* Hero */}
       <section className="relative isolate min-h-[92vh] overflow-hidden bg-linear-to-br from-slate-950 via-blue-950 to-emerald-950">
         <LoginBackdrop />
