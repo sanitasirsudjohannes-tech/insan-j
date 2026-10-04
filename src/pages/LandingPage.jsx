@@ -137,17 +137,25 @@ export default function LandingPage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(34,211,238,0.16),transparent_34%),radial-gradient(circle_at_20%_80%,rgba(16,185,129,0.12),transparent_32%)]" />
 
         <nav className="relative z-20 mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-5 sm:px-8 lg:px-10">
-          <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-3 text-left">
-            <img src={import.meta.env.BASE_URL + 'img/Icon.webp'} alt="INSAN-J" className="h-10 w-10 rounded-xl object-contain" />
-            <div>
-              <div className="text-sm font-extrabold tracking-wide">INSAN-J</div>
-              <div className="text-[10px] text-slate-300">Informasi Sanitasi Johannes</div>
-            </div>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/10 text-slate-200 backdrop-blur transition hover:bg-white/20 hover:text-white lg:inline-flex"
+              aria-label="Buka menu"
+            >
+              <i className="fas fa-bars text-sm" />
+            </button>
 
-          <button type="button" onClick={() => setSidebarOpen(true)} className="hidden rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold backdrop-blur transition hover:bg-white/20 lg:inline-flex" aria-label="Buka menu">
-            <i className="fas fa-bars mr-2 text-xs" />Menu
-          </button>
+            <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-3 text-left">
+              <img src={import.meta.env.BASE_URL + 'img/Icon.webp'} alt="INSAN-J" className="h-10 w-10 rounded-xl object-contain" />
+              <div>
+                <div className="text-sm font-extrabold tracking-wide">INSAN-J</div>
+                <div className="text-[10px] text-slate-300">Informasi Sanitasi Johannes</div>
+              </div>
+            </button>
+          </div>
+
           <Link to="/login" className="rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-semibold backdrop-blur transition hover:bg-white/20">
             Masuk
           </Link>
