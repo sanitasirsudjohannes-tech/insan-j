@@ -61,7 +61,7 @@ export default function BottomNavigation({ variant = 'app' }) {
     };
 
     return (
-      <nav className="fixed inset-x-2 bottom-2 z-40 lg:hidden print:hidden" aria-label="Navigasi landing page">
+      <nav className="fixed inset-x-2 bottom-2 z-40 md:hidden print:hidden" aria-label="Navigasi landing page">
         <div className="relative mx-auto flex h-[4.75rem] max-w-2xl items-stretch overflow-hidden rounded-[1.65rem] border border-white/20 bg-slate-900/60 px-1.5 pb-[env(safe-area-inset-bottom)] shadow-[0_12px_35px_rgba(2,6,23,0.35)] backdrop-blur-2xl supports-[backdrop-filter]:bg-slate-900/45">
           <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-white/[0.10] via-white/[0.04] to-transparent" />
           <div className="pointer-events-none absolute inset-x-8 top-0 h-8 rounded-full bg-cyan-300/10 blur-xl" />
