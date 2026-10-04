@@ -72,7 +72,7 @@ export default function BottomNavigation({ variant = 'app' }) {
             { id: 'galery', label: 'Galery', icon: 'fas fa-images' },
           ].map((item, index) => (
             <button key={item.id} type="button" onClick={() => goTo(item.id, index)} className={`group relative z-10 flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-bold transition-all duration-200 ${landingActiveIndex === index ? 'text-blue-600' : 'text-slate-500'}`}>
-              <span className={`flex h-9 w-12 items-center justify-center rounded-xl transition-all duration-200 ${activeIndex === index ? '-translate-y-0.5' : 'group-active:translate-y-0.5'}`}><i className={`${item.icon} text-base`} /></span>
+              <span className={`flex h-9 w-12 items-center justify-center rounded-xl transition-all duration-200 ${landingActiveIndex === index ? '-translate-y-0.5' : 'group-active:translate-y-0.5'}`}><i className={`${item.icon} text-base`} /></span>
               <span>{item.label}</span>
             </button>
           ))}
