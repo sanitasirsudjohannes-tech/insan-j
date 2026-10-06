@@ -12,6 +12,7 @@ export default function GalleryManager() {
   const [newItemType, setNewItemType] = useState('youtube'); // 'youtube' | 'image'
   const [newYoutubeId, setNewYoutubeId] = useState('');
   const [newImageFiles, setNewImageFiles] = useState([]);
+  const [fileInputKey, setFileInputKey] = useState(0);
   const [newImageUrl, setNewImageUrl] = useState('');
   const [imageInputType, setImageInputType] = useState('file'); // 'file' | 'url'
   const [editingId, setEditingId] = useState(null);
@@ -80,6 +81,16 @@ export default function GalleryManager() {
     }
     // scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const resetSelectedImages = () => {
+    setNewImageFiles([]);
+    setUploadInfo(null);
+    setFileInputKey((key) => key + 1);
+  };
+
+  const removeSelectedImage = (index) => {
+    setNewImageFiles((files) => files.filter((_, fileIndex) => fileIndex !== index));
   };
 
   const cancelEdit = () => {
@@ -217,12 +228,50 @@ export default function GalleryManager() {
                 </div>
                 {imageInputType === 'file' ? (
                   <input 
+                    key={fileInputKey}
                     type="file" 
                     accept="image/*"
                     multiple={!editingId}
-                    onChange={e => setNewImageFiles(Array.from(e.target.files || []))} 
+                    onChange={e => {
+                      setNewImageFiles(Array.from(e.target.files || []));
+                      setUploadInfo(null);
+                    }} 
                     className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                   />
+                  {newImageFiles.length > 0 && (
+                    <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <p className="text-xs font-semibold text-slate-700">
+                          {newImageFiles.length} foto siap di-upload
+                        </p>
+                        <button
+                          type="button"
+                          onClick={resetSelectedImages}
+                          disabled={saving}
+                          className="text-xs font-medium text-red-500 hover:text-red-600 disabled:opacity-50"
+                        >
+                          Hapus semua pilihan
+                        </button>
+                      </div>
+                      <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                        {newImageFiles.map((file, index) => (
+                          <div key={`${file.name}-${file.size}-${index}`} className="flex items-center gap-2 text-xs text-slate-500">
+                            <span className="flex-1 min-w-0 truncate" title={file.name}>{file.name}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeSelectedImage(index)}
+                              disabled={saving}
+                              className="shrink-0 px-2 py-1 rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-50"
+                              aria-label={`Hapus ${file.name} dari pilihan`}
+                              title="Hapus dari pilihan"
+                            >
+                              Hapus
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 ) : (
                   <input 
                     type="url" 
