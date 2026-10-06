@@ -1,5 +1,5 @@
 import { supabase } from '../../../lib/supabase';
-import { getSetting, setSetting } from '../../../lib/api';
+import { getSetting } from '../../../lib/api';
 import { optimizeImageForUpload } from '../../../lib/image/imageOptimizer';
 
 const DEFAULT_GALLERY = [
@@ -13,7 +13,19 @@ export const getGalleryItems = async () => {
 };
 
 export const saveGalleryItems = async (items) => {
-  await setSetting('landing_gallery', items);
+  // Gallery harus gagal secara eksplisit jika DB tidak menerima perubahan.
+  // Jangan mengandalkan setSetting() karena fungsi tersebut sengaja fallback
+  // ke localStorage untuk setting umum aplikasi.
+  const { error } = await supabase
+    .from('app_settings')
+    .upsert({ key: 'landing_gallery', value: items }, { onConflict: 'key' });
+  if (error) throw error;
+
+  try {
+    localStorage.setItem('insan_j_setting_landing_gallery', JSON.stringify(items));
+  } catch (error) {
+    console.warn('Galeri tersimpan di database, tetapi cache lokal gagal diperbarui:', error);
+  }
 };
 
 export const uploadGalleryImage = async (file) => {
@@ -22,7 +34,8 @@ export const uploadGalleryImage = async (file) => {
     quality: 0.8,
   });
 
-  const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.webp`;
+  const uniqueId = typeof crypto?.randomUUID === 'function' ? crypto.randomUUID() : `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+  const fileName = `${Date.now()}_${uniqueId}.webp`;
   const filePath = `gallery/${fileName}`;
   const bucketName = 'landing_assets';
 
