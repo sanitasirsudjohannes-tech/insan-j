@@ -12,6 +12,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const Akun = lazy(() => import('./pages/Akun'));
 const Riwayat = lazy(() => import('./pages/Riwayat'));
 const KelolaAdmin = lazy(loadAdminPage);
+const KelolaLandingPage = lazy(() => import('./pages/KelolaLandingPage'));
 const Inspeksi = lazy(() => import('./pages/Inspeksi'));
 const LimbahDihasilkan = lazy(() => import('./pages/LimbahDihasilkan'));
 const PengangkutanLimbah = lazy(() => import('./pages/PengangkutanLimbah'));
@@ -64,6 +65,12 @@ function App() {
           <Route path="/kelola-admin" element={
             <RoleGate requiredRole="admin">
               <KelolaAdmin />
+            </RoleGate>
+          } />
+
+          <Route path="/kelola-landing" element={
+            <RoleGate requiredRole="admin">
+              <KelolaLandingPage />
             </RoleGate>
           } />
 

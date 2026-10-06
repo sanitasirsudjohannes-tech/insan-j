@@ -149,6 +149,7 @@ export default function BottomNavigation({ variant = 'app' }) {
         ],
         moreItems: [
           { to: '/kelola-admin', label: 'Kelola Pengguna', icon: 'fas fa-users-gear', description: 'Akun, ruangan, dan lokasi air bersih' },
+          { to: '/kelola-landing', label: 'Pengaturan Landing', icon: 'fas fa-globe', description: 'Atur konten halaman depan' },
           { to: '/akun', label: 'Pengaturan Akun', icon: 'fas fa-user-gear', description: 'Profil dan keamanan akun' },
         ],
       };

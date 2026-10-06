@@ -1,0 +1,187 @@
+import { useState, useEffect } from 'react';
+import { getGalleryItems, saveGalleryItems, uploadGalleryImage } from './landingSettingsService';
+
+export default function GalleryManager() {
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  
+  const [newItemType, setNewItemType] = useState('youtube'); // 'youtube' | 'image'
+  const [newYoutubeId, setNewYoutubeId] = useState('');
+  const [newImageFile, setNewImageFile] = useState(null);
+
+  useEffect(() => {
+    fetchItems();
+  }, []);
+
+  const fetchItems = async () => {
+    setLoading(true);
+    try {
+      const data = await getGalleryItems();
+      setItems(data);
+    } catch (error) {
+      console.error(error);
+      alert('Gagal memuat galeri');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async (updatedItems) => {
+    setSaving(true);
+    try {
+      await saveGalleryItems(updatedItems);
+      setItems(updatedItems);
+      alert('Berhasil menyimpan perubahan');
+    } catch (error) {
+      console.error(error);
+      alert('Gagal menyimpan perubahan');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemove = (id) => {
+    if (!window.confirm('Hapus item ini dari galeri?')) return;
+    const updated = items.filter(item => item.id !== id);
+    handleSave(updated);
+  };
+
+  const handleAdd = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      let url = '';
+      if (newItemType === 'youtube') {
+        if (!newYoutubeId) throw new Error('ID Youtube harus diisi');
+        // Extract ID if URL is given
+        let finalId = newYoutubeId;
+        const match = newYoutubeId.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&]{11})/);
+        if (match && match[1]) {
+            finalId = match[1];
+        }
+        url = finalId;
+      } else {
+        if (!newImageFile) throw new Error('File gambar harus dipilih');
+        url = await uploadGalleryImage(newImageFile);
+      }
+
+      const newItem = {
+        id: Date.now().toString(),
+        type: newItemType,
+        url,
+      };
+
+      const updated = [...items, newItem];
+      await saveGalleryItems(updated);
+      setItems(updated);
+      
+      // Reset form
+      setNewYoutubeId('');
+      setNewImageFile(null);
+    } catch (error) {
+      console.error(error);
+      alert(error.message || 'Terjadi kesalahan saat menambahkan');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <div className="p-6 text-center text-slate-500 animate-pulse">Memuat...</div>;
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+      <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+        <div>
+          <h2 className="text-lg font-bold text-slate-800">Manajemen Galeri</h2>
+          <p className="text-xs text-slate-500 mt-1">Atur foto dan video yang tampil di halaman depan.</p>
+        </div>
+      </div>
+
+      <div className="p-5">
+        <form onSubmit={handleAdd} className="mb-8 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
+          <h3 className="font-semibold text-sm text-slate-700 mb-3">Tambah Item Baru</h3>
+          
+          <div className="flex gap-4 mb-4">
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <input type="radio" checked={newItemType === 'youtube'} onChange={() => setNewItemType('youtube')} className="text-blue-600" />
+              Video YouTube
+            </label>
+            <label className="flex items-center gap-2 text-sm text-slate-600">
+              <input type="radio" checked={newItemType === 'image'} onChange={() => setNewItemType('image')} className="text-blue-600" />
+              Foto / Gambar
+            </label>
+          </div>
+
+          <div className="flex gap-3 items-end">
+            {newItemType === 'youtube' ? (
+              <div className="flex-1">
+                <label className="block text-xs text-slate-500 mb-1">ID Video atau URL YouTube</label>
+                <input 
+                  type="text" 
+                  value={newYoutubeId} 
+                  onChange={e => setNewYoutubeId(e.target.value)} 
+                  placeholder="Contoh: dQw4w9WgXcQ atau https://youtube.com/watch?v=..."
+                  className="w-full rounded-xl border-slate-200 text-sm focus:border-blue-500 focus:ring-blue-500"
+                />
+              </div>
+            ) : (
+              <div className="flex-1">
+                <label className="block text-xs text-slate-500 mb-1">Pilih File Gambar</label>
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  onChange={e => setNewImageFile(e.target.files[0])} 
+                  className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+              </div>
+            )}
+            <button 
+              type="submit" 
+              disabled={saving}
+              className="px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {saving ? 'Menyimpan...' : 'Tambahkan'}
+            </button>
+          </div>
+          {newItemType === 'image' && (
+              <p className="text-[10px] text-slate-400 mt-2">
+                  *Pastikan bucket Supabase bernama 'landing_assets' sudah dibuat dengan akses public.
+              </p>
+          )}
+        </form>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {items.map((item, index) => (
+            <div key={item.id} className="relative group rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
+              <div className="absolute top-2 left-2 z-10 bg-black/60 text-white text-[10px] px-2 py-1 rounded-lg backdrop-blur-sm">
+                #{index + 1} - {item.type.toUpperCase()}
+              </div>
+              <button 
+                onClick={() => handleRemove(item.id)}
+                className="absolute top-2 right-2 z-10 w-8 h-8 flex items-center justify-center bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                title="Hapus"
+              >
+                <i className="fas fa-trash-alt text-xs" />
+              </button>
+
+              <div className="aspect-video bg-slate-200 flex items-center justify-center">
+                {item.type === 'youtube' ? (
+                  <img src={`https://img.youtube.com/vi/${item.url}/mqdefault.jpg`} alt="Thumbnail" className="w-full h-full object-cover opacity-80" />
+                ) : (
+                  <img src={item.url} alt="Galeri" className="w-full h-full object-cover" />
+                )}
+              </div>
+            </div>
+          ))}
+          
+          {items.length === 0 && (
+            <div className="col-span-full py-10 text-center text-slate-500 text-sm">
+              Belum ada item di galeri.
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

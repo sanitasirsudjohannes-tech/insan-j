@@ -122,6 +122,7 @@ export default function Sidebar({ isOpen, onClose, variant = 'app' }) {
     { to: '/asisten-laporan', label: 'Asisten Laporan', icon: 'fas fa-wand-magic-sparkles' },
     { to: '/riwayat', label: 'Riwayat Inspeksi', icon: 'fas fa-history' },
     { to: '/kelola-admin', label: 'Kelola Pengguna', icon: 'fas fa-users-cog', adminOnly: true },
+    { to: '/kelola-landing', label: 'Pengaturan Landing Page', icon: 'fas fa-globe', adminOnly: true },
     { to: '/akun', label: 'Setting Akun', icon: 'fas fa-cog' },
   ] : [
     { to: '/dashboard', label: 'Dashboard', icon: 'fas fa-th-large' },
