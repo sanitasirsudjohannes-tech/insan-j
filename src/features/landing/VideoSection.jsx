@@ -93,7 +93,7 @@ export default function VideoSection() {
                 <div className="relative -mx-5 px-5 sm:mx-0 sm:px-0">
                   <div
                     ref={photoCarouselRef}
-                    className="flex snap-x snap-mandatory gap-3 overflow-x-auto px-[10vw] pb-8 pt-6 scrollbar-none [perspective:1200px] [&::-webkit-scrollbar]:hidden sm:px-[20vw] md:px-[28vw] lg:px-[32vw]"
+                    className="flex snap-x snap-mandatory gap-0 overflow-x-auto px-[10vw] pb-8 pt-6 scrollbar-none [perspective:1200px] [&::-webkit-scrollbar]:hidden sm:px-[20vw] md:px-[28vw] lg:px-[32vw]"
                   >
                     {photos.map((photo, index) => {
                       const distance = index - activePhoto;
@@ -106,7 +106,7 @@ export default function VideoSection() {
                       return (
                         <article
                           key={photo.id}
-                          className="w-[68vw] shrink-0 snap-center cursor-pointer transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:w-[42vw] md:w-[30vw] lg:w-[25vw]"
+                          className="first:ml-0 -ml-[8vw] w-[68vw] shrink-0 snap-center cursor-pointer transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:-ml-[5vw] sm:w-[42vw] md:-ml-[3vw] md:w-[30vw] lg:-ml-[2.5vw] lg:w-[25vw]"
                           style={{
                             transform: `perspective(1200px) rotateY(${rotateY}deg) scale(${scale})`,
                             transformOrigin: 'center center',
