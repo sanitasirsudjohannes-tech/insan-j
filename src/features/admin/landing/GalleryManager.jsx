@@ -6,6 +6,7 @@ export default function GalleryManager() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadInfo, setUploadInfo] = useState(null);
   
   const [newItemType, setNewItemType] = useState('youtube'); // 'youtube' | 'image'
   const [newYoutubeId, setNewYoutubeId] = useState('');
@@ -90,6 +91,7 @@ export default function GalleryManager() {
   const handleAdd = async (e) => {
     e.preventDefault();
     setSaving(true);
+    setUploadInfo(null);
     try {
       let url = '';
       if (newItemType === 'youtube') {
@@ -104,7 +106,9 @@ export default function GalleryManager() {
       } else {
         if (imageInputType === 'file') {
           if (!newImageFile) throw new Error('File gambar harus dipilih');
+          const originalSize = newImageFile.size;
           url = await uploadGalleryImage(newImageFile);
+          setUploadInfo({ originalSize, message: 'Foto berhasil dioptimalkan ke WebP sebelum disimpan.' });
         } else {
           if (!newImageUrl) throw new Error('URL Gambar harus diisi');
           url = newImageUrl;
@@ -220,7 +224,12 @@ export default function GalleryManager() {
           </div>
           {newItemType === 'image' && imageInputType === 'file' && (
               <p className="text-[10px] text-slate-400 mt-2">
-                  *Pastikan bucket Supabase bernama 'landing_assets' sudah dibuat dan public.
+                  *Foto akan otomatis di-resize maksimal 1600 px dan dikompresi ke WebP sebelum disimpan.
+              </p>
+          )}
+          {uploadInfo && (
+              <p className="text-[10px] text-emerald-600 mt-2">
+                  {uploadInfo.message} Ukuran asli: {(uploadInfo.originalSize / 1024 / 1024).toFixed(2)} MB.
               </p>
           )}
         </form>
