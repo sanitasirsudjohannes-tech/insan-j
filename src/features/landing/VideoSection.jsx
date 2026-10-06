@@ -106,7 +106,7 @@ export default function VideoSection() {
                       return (
                         <article
                           key={photo.id}
-                          className="first:ml-0 -ml-[8vw] w-[68vw] shrink-0 snap-center cursor-pointer transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:-ml-[5vw] sm:w-[42vw] md:-ml-[3vw] md:w-[30vw] lg:-ml-[2.5vw] lg:w-[25vw]"
+                          className="first:ml-0 -ml-[34vw] w-[68vw] shrink-0 snap-center cursor-pointer transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:-ml-[21vw] sm:w-[42vw] md:-ml-[15vw] md:w-[30vw] lg:-ml-[12.5vw] lg:w-[25vw]"
                           style={{
                             transform: `perspective(1200px) rotateY(${rotateY}deg) scale(${scale})`,
                             transformOrigin: 'center center',
