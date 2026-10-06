@@ -9,6 +9,9 @@ export default function GalleryManager() {
   const [newItemType, setNewItemType] = useState('youtube'); // 'youtube' | 'image'
   const [newYoutubeId, setNewYoutubeId] = useState('');
   const [newImageFile, setNewImageFile] = useState(null);
+  const [newImageUrl, setNewImageUrl] = useState('');
+  const [imageInputType, setImageInputType] = useState('file'); // 'file' | 'url'
+  const [editingId, setEditingId] = useState(null);
 
   useEffect(() => {
     fetchItems();
@@ -47,6 +50,27 @@ export default function GalleryManager() {
     handleSave(updated);
   };
 
+  const handleEdit = (item) => {
+    setEditingId(item.id);
+    setNewItemType(item.type);
+    if (item.type === 'youtube') {
+      setNewYoutubeId(item.url);
+    } else {
+      setImageInputType('url');
+      setNewImageUrl(item.url);
+      setNewImageFile(null);
+    }
+    // scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setNewYoutubeId('');
+    setNewImageUrl('');
+    setNewImageFile(null);
+  };
+
   const handleAdd = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -62,23 +86,32 @@ export default function GalleryManager() {
         }
         url = finalId;
       } else {
-        if (!newImageFile) throw new Error('File gambar harus dipilih');
-        url = await uploadGalleryImage(newImageFile);
+        if (imageInputType === 'file') {
+          if (!newImageFile) throw new Error('File gambar harus dipilih');
+          url = await uploadGalleryImage(newImageFile);
+        } else {
+          if (!newImageUrl) throw new Error('URL Gambar harus diisi');
+          url = newImageUrl;
+        }
       }
 
-      const newItem = {
-        id: Date.now().toString(),
-        type: newItemType,
-        url,
-      };
-
-      const updated = [...items, newItem];
+      let updated = [];
+      if (editingId) {
+        updated = items.map(item => item.id === editingId ? { ...item, type: newItemType, url } : item);
+      } else {
+        const newItem = {
+          id: Date.now().toString(),
+          type: newItemType,
+          url,
+        };
+        updated = [...items, newItem];
+      }
+      
       await saveGalleryItems(updated);
       setItems(updated);
       
       // Reset form
-      setNewYoutubeId('');
-      setNewImageFile(null);
+      cancelEdit();
     } catch (error) {
       console.error(error);
       alert(error.message || 'Terjadi kesalahan saat menambahkan');
@@ -99,8 +132,11 @@ export default function GalleryManager() {
       </div>
 
       <div className="p-5">
-        <form onSubmit={handleAdd} className="mb-8 bg-blue-50/50 p-4 rounded-xl border border-blue-100">
-          <h3 className="font-semibold text-sm text-slate-700 mb-3">Tambah Item Baru</h3>
+        <form onSubmit={handleAdd} className="mb-8 bg-blue-50/50 p-4 rounded-xl border border-blue-100 transition-all">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="font-semibold text-sm text-slate-700">{editingId ? 'Edit Item Galeri' : 'Tambah Item Baru'}</h3>
+            {editingId && <button type="button" onClick={cancelEdit} className="text-xs text-slate-500 hover:text-slate-700 underline">Batal Edit</button>}
+          </div>
           
           <div className="flex gap-4 mb-4">
             <label className="flex items-center gap-2 text-sm text-slate-600">
@@ -127,13 +163,30 @@ export default function GalleryManager() {
               </div>
             ) : (
               <div className="flex-1">
-                <label className="block text-xs text-slate-500 mb-1">Pilih File Gambar</label>
-                <input 
-                  type="file" 
-                  accept="image/*"
-                  onChange={e => setNewImageFile(e.target.files[0])} 
-                  className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                />
+                <div className="flex items-center gap-4 mb-2">
+                  <label className="text-xs text-slate-500 flex items-center gap-1">
+                    <input type="radio" checked={imageInputType === 'file'} onChange={() => setImageInputType('file')} /> Upload File
+                  </label>
+                  <label className="text-xs text-slate-500 flex items-center gap-1">
+                    <input type="radio" checked={imageInputType === 'url'} onChange={() => setImageInputType('url')} /> Link URL Gambar
+                  </label>
+                </div>
+                {imageInputType === 'file' ? (
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    onChange={e => setNewImageFile(e.target.files[0])} 
+                    className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  />
+                ) : (
+                  <input 
+                    type="url" 
+                    value={newImageUrl} 
+                    onChange={e => setNewImageUrl(e.target.value)} 
+                    placeholder="https://contoh.com/gambar.jpg"
+                    className="w-full rounded-xl border-slate-200 text-sm focus:border-blue-500 focus:ring-blue-500"
+                  />
+                )}
               </div>
             )}
             <button 
@@ -141,12 +194,12 @@ export default function GalleryManager() {
               disabled={saving}
               className="px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
-              {saving ? 'Menyimpan...' : 'Tambahkan'}
+              {saving ? 'Menyimpan...' : (editingId ? 'Simpan' : 'Tambahkan')}
             </button>
           </div>
-          {newItemType === 'image' && (
+          {newItemType === 'image' && imageInputType === 'file' && (
               <p className="text-[10px] text-slate-400 mt-2">
-                  *Pastikan bucket Supabase bernama 'landing_assets' sudah dibuat dengan akses public.
+                  *Pastikan bucket Supabase bernama 'landing_assets' sudah dibuat dan public.
               </p>
           )}
         </form>
@@ -157,13 +210,22 @@ export default function GalleryManager() {
               <div className="absolute top-2 left-2 z-10 bg-black/60 text-white text-[10px] px-2 py-1 rounded-lg backdrop-blur-sm">
                 #{index + 1} - {item.type.toUpperCase()}
               </div>
-              <button 
-                onClick={() => handleRemove(item.id)}
-                className="absolute top-2 right-2 z-10 w-8 h-8 flex items-center justify-center bg-red-500 text-white rounded-lg opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                title="Hapus"
-              >
-                <i className="fas fa-trash-alt text-xs" />
-              </button>
+              <div className="absolute top-2 right-2 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button 
+                  onClick={() => handleEdit(item)}
+                  className="w-8 h-8 flex items-center justify-center bg-blue-500 text-white rounded-lg shadow-lg"
+                  title="Edit"
+                >
+                  <i className="fas fa-edit text-xs" />
+                </button>
+                <button 
+                  onClick={() => handleRemove(item.id)}
+                  className="w-8 h-8 flex items-center justify-center bg-red-500 text-white rounded-lg shadow-lg"
+                  title="Hapus"
+                >
+                  <i className="fas fa-trash-alt text-xs" />
+                </button>
+              </div>
 
               <div className="aspect-video bg-slate-200 flex items-center justify-center">
                 {item.type === 'youtube' ? (

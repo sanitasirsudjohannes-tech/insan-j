@@ -29,6 +29,9 @@ export const uploadGalleryImage = async (file) => {
     .upload(filePath, file);
 
   if (uploadError) {
+    if (uploadError.message.includes('Bucket not found') || uploadError.message.includes('NoSuchBucket')) {
+      throw new Error(`Bucket '${bucketName}' belum dibuat di Supabase Storage. Harap buat bucket tersebut terlebih dahulu (dan set ke Public).`);
+    }
     throw uploadError;
   }
 
