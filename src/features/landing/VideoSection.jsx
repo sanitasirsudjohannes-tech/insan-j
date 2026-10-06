@@ -3,7 +3,9 @@ import { getGalleryItems } from '../admin/landing/landingSettingsService';
 
 export default function VideoSection() {
   const photoCarouselRef = useRef(null);
+  const videoCarouselRef = useRef(null);
   const [activePhoto, setActivePhoto] = useState(0);
+  const [activeVideo, setActiveVideo] = useState(0);
   const [items, setItems] = useState([]);
 
   useEffect(() => {
@@ -16,38 +18,44 @@ export default function VideoSection() {
   const photos = items.filter(item => item.type === 'image');
   const videos = items.filter(item => item.type === 'youtube');
 
-  useEffect(() => {
-    const carousel = photoCarouselRef.current;
-    if (!carousel || photos.length === 0) return undefined;
+  // Helper: track closest-to-center card in a carousel
+  const useCarouselTracker = (ref, deps, setter) => {
+    useEffect(() => {
+      const carousel = ref.current;
+      if (!carousel || deps.length === 0) return undefined;
 
-    const updateActivePhoto = () => {
-      const cards = Array.from(carousel.children);
-      if (!cards.length) return;
+      const update = () => {
+        const cards = Array.from(carousel.children);
+        if (!cards.length) return;
 
-      const center = carousel.scrollLeft + carousel.clientWidth / 2;
-      let closestIndex = 0;
-      let closestDistance = Infinity;
+        const center = carousel.scrollLeft + carousel.clientWidth / 2;
+        let closestIndex = 0;
+        let closestDistance = Infinity;
 
-      cards.forEach((card, index) => {
-        const cardCenter = card.offsetLeft + card.offsetWidth / 2;
-        const distance = Math.abs(cardCenter - center);
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          closestIndex = index;
-        }
-      });
+        cards.forEach((card, index) => {
+          const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+          const distance = Math.abs(cardCenter - center);
+          if (distance < closestDistance) {
+            closestDistance = distance;
+            closestIndex = index;
+          }
+        });
 
-      setActivePhoto(closestIndex);
-    };
+        setter(closestIndex);
+      };
 
-    updateActivePhoto();
-    carousel.addEventListener('scroll', updateActivePhoto, { passive: true });
-    window.addEventListener('resize', updateActivePhoto);
-    return () => {
-      carousel.removeEventListener('scroll', updateActivePhoto);
-      window.removeEventListener('resize', updateActivePhoto);
-    };
-  }, [photos]);
+      update();
+      carousel.addEventListener('scroll', update, { passive: true });
+      window.addEventListener('resize', update);
+      return () => {
+        carousel.removeEventListener('scroll', update);
+        window.removeEventListener('resize', update);
+      };
+    }, [deps]);
+  };
+
+  useCarouselTracker(photoCarouselRef, photos, setActivePhoto);
+  useCarouselTracker(videoCarouselRef, videos, setActiveVideo);
 
   const scrollToPhoto = (index) => {
     if (!photoCarouselRef.current) return;
@@ -131,25 +139,39 @@ export default function VideoSection() {
                   </span>
                   Video Dokumentasi
                 </h3>
+                <span className="text-xs text-slate-500 md:hidden">Geser →</span>
               </div>
               
-              <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                {videos.map(video => (
-                  <article key={video.id}>
-                    <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 shadow-xl group hover:border-blue-500/30 transition-colors duration-300">
-                      <div className="relative aspect-video overflow-hidden bg-slate-950">
-                        <iframe
-                          className="h-full w-full"
-                          src={`https://www.youtube-nocookie.com/embed/${video.url}?rel=0`}
-                          title={`Video kegiatan sanitasi`}
-                          loading="lazy"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                          allowFullScreen
-                        />
+              <div className="relative -mx-5 px-5 sm:mx-0 sm:px-0">
+                <div ref={videoCarouselRef} className="flex snap-x snap-mandatory gap-4 overflow-x-auto pb-8 scrollbar-none [&::-webkit-scrollbar]:hidden md:grid md:grid-cols-2 md:overflow-visible lg:grid-cols-3 md:gap-6 md:pb-0">
+                  {videos.map(video => (
+                    <article key={video.id} className="w-[86vw] shrink-0 snap-center sm:w-[75vw] md:w-auto">
+                      <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 shadow-xl group hover:border-blue-500/30 transition-colors duration-300">
+                        <div className="relative aspect-video overflow-hidden bg-slate-950">
+                          <iframe
+                            className="h-full w-full"
+                            src={`https://www.youtube-nocookie.com/embed/${video.url}?rel=0`}
+                            title={`Video kegiatan sanitasi`}
+                            loading="lazy"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            allowFullScreen
+                          />
+                        </div>
                       </div>
-                    </div>
-                  </article>
-                ))}
+                    </article>
+                  ))}
+                </div>
+
+                <div className="absolute bottom-0 left-0 right-0 flex justify-center gap-2 md:hidden" aria-hidden="true">
+                  {videos.map((video, index) => (
+                    <span
+                      key={video.id}
+                      className={`h-1.5 rounded-full transition-all duration-300 ${
+                        index === activeVideo ? 'w-8 bg-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.5)]' : 'w-2 bg-white/20'
+                      }`}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           )}
