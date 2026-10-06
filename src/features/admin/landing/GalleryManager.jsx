@@ -93,6 +93,7 @@ export default function GalleryManager() {
     e.preventDefault();
     setSaving(true);
     setUploadInfo(null);
+    let uploadedImageUrls = [];
     try {
       let url = '';
       if (newItemType === 'youtube') {
@@ -109,16 +110,12 @@ export default function GalleryManager() {
           if (!newImageFiles.length) throw new Error('Minimal satu file gambar harus dipilih');
           const originalSize = newImageFiles.reduce((total, file) => total + file.size, 0);
           const uploadedUrls = [];
-          try {
-            // Upload satu per satu agar browser/mobile tidak dibebani banyak proses
-            // canvas + network request sekaligus. Metadata disimpan satu kali di akhir.
-            for (const file of newImageFiles) {
-              uploadedUrls.push(await uploadGalleryImage(file));
-            }
-          } catch (uploadError) {
-            await Promise.all(uploadedUrls.map(uploadedUrl => deleteGalleryImage(uploadedUrl)));
-            throw uploadError;
+          // Upload satu per satu agar browser/mobile tidak dibebani banyak proses
+          // canvas + network request sekaligus. Metadata disimpan satu kali di akhir.
+          for (const file of newImageFiles) {
+            uploadedUrls.push(await uploadGalleryImage(file));
           }
+          uploadedImageUrls = uploadedUrls;
           url = uploadedUrls;
           setUploadInfo({ originalSize, message: `${uploadedUrls.length} foto berhasil dioptimalkan ke WebP sebelum disimpan.` });
         } else {
@@ -153,6 +150,9 @@ export default function GalleryManager() {
       // Reset form
       cancelEdit();
     } catch (error) {
+      if (uploadedImageUrls.length) {
+        await Promise.all(uploadedImageUrls.map(uploadedUrl => deleteGalleryImage(uploadedUrl)));
+      }
       console.error(error);
       MySwal.fire('Gagal', error.message || 'Terjadi kesalahan saat menambahkan.', 'error');
     } finally {
