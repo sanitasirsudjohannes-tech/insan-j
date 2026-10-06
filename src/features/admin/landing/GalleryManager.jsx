@@ -11,7 +11,7 @@ export default function GalleryManager() {
   
   const [newItemType, setNewItemType] = useState('youtube'); // 'youtube' | 'image'
   const [newYoutubeId, setNewYoutubeId] = useState('');
-  const [newImageFile, setNewImageFile] = useState(null);
+  const [newImageFiles, setNewImageFiles] = useState([]);
   const [newImageUrl, setNewImageUrl] = useState('');
   const [imageInputType, setImageInputType] = useState('file'); // 'file' | 'url'
   const [editingId, setEditingId] = useState(null);
@@ -76,7 +76,7 @@ export default function GalleryManager() {
     } else {
       setImageInputType('url');
       setNewImageUrl(item.url);
-      setNewImageFile(null);
+      setNewImageFiles([]);
     }
     // scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -86,7 +86,7 @@ export default function GalleryManager() {
     setEditingId(null);
     setNewYoutubeId('');
     setNewImageUrl('');
-    setNewImageFile(null);
+    setNewImageFiles([]);
   };
 
   const handleAdd = async (e) => {
@@ -106,10 +106,21 @@ export default function GalleryManager() {
         url = finalId;
       } else {
         if (imageInputType === 'file') {
-          if (!newImageFile) throw new Error('File gambar harus dipilih');
-          const originalSize = newImageFile.size;
-          url = await uploadGalleryImage(newImageFile);
-          setUploadInfo({ originalSize, message: 'Foto berhasil dioptimalkan ke WebP sebelum disimpan.' });
+          if (!newImageFiles.length) throw new Error('Minimal satu file gambar harus dipilih');
+          const originalSize = newImageFiles.reduce((total, file) => total + file.size, 0);
+          const uploadedUrls = [];
+          try {
+            // Upload satu per satu agar browser/mobile tidak dibebani banyak proses
+            // canvas + network request sekaligus. Metadata disimpan satu kali di akhir.
+            for (const file of newImageFiles) {
+              uploadedUrls.push(await uploadGalleryImage(file));
+            }
+          } catch (uploadError) {
+            await Promise.all(uploadedUrls.map(uploadedUrl => deleteGalleryImage(uploadedUrl)));
+            throw uploadError;
+          }
+          url = uploadedUrls;
+          setUploadInfo({ originalSize, message: `${uploadedUrls.length} foto berhasil dioptimalkan ke WebP sebelum disimpan.` });
         } else {
           if (!newImageUrl) throw new Error('URL Gambar harus diisi');
           url = newImageUrl;
@@ -125,12 +136,15 @@ export default function GalleryManager() {
         }
         updated = items.map(item => item.id === editingId ? { ...item, type: newItemType, url } : item);
       } else {
-        const newItem = {
-          id: Date.now().toString(),
-          type: newItemType,
-          url,
-        };
-        updated = [...items, newItem];
+        const urls = Array.isArray(url) ? url : [url];
+        updated = [
+          ...items,
+          ...urls.map((itemUrl, index) => ({
+            id: `${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+            type: newItemType,
+            url: itemUrl,
+          })),
+        ];
       }
       
       await saveGalleryItems(updated);
@@ -205,7 +219,8 @@ export default function GalleryManager() {
                   <input 
                     type="file" 
                     accept="image/*"
-                    onChange={e => setNewImageFile(e.target.files[0])} 
+                    multiple={!editingId}
+                    onChange={e => setNewImageFiles(Array.from(e.target.files || []))} 
                     className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                   />
                 ) : (
@@ -229,7 +244,7 @@ export default function GalleryManager() {
           </div>
           {newItemType === 'image' && imageInputType === 'file' && (
               <p className="text-[10px] text-slate-400 mt-2">
-                  *Foto akan otomatis di-resize maksimal 1600 px dan dikompresi ke WebP sebelum disimpan.
+                  *Pilih satu atau beberapa foto. Foto akan otomatis di-resize maksimal 1600 px dan dikompresi ke WebP sebelum disimpan.
               </p>
           )}
           {uploadInfo && (
