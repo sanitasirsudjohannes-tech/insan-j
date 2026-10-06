@@ -41,3 +41,15 @@ export const uploadGalleryImage = async (file) => {
 
   return data.publicUrl;
 };
+
+export const deleteGalleryImage = async (url) => {
+  if (!url || typeof url !== 'string' || !url.includes('/landing_assets/')) return;
+  try {
+    const filePath = url.split('/landing_assets/')[1];
+    if (filePath) {
+      await supabase.storage.from('landing_assets').remove([filePath]);
+    }
+  } catch (error) {
+    console.error('Gagal menghapus file dari storage:', error);
+  }
+};

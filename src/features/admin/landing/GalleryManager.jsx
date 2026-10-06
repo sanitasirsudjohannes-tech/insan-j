@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { getGalleryItems, saveGalleryItems, uploadGalleryImage } from './landingSettingsService';
+import { getGalleryItems, saveGalleryItems, uploadGalleryImage, deleteGalleryImage } from './landingSettingsService';
+import MySwal from '../presentation/adminAlert';
 
 export default function GalleryManager() {
   const [items, setItems] = useState([]);
@@ -24,7 +25,7 @@ export default function GalleryManager() {
       setItems(data);
     } catch (error) {
       console.error(error);
-      alert('Gagal memuat galeri');
+      MySwal.fire('Gagal Memuat', 'Galeri tidak dapat dimuat. Periksa koneksi Anda.', 'error');
     } finally {
       setLoading(false);
     }
@@ -35,17 +36,32 @@ export default function GalleryManager() {
     try {
       await saveGalleryItems(updatedItems);
       setItems(updatedItems);
-      alert('Berhasil menyimpan perubahan');
+      MySwal.fire({ icon: 'success', title: 'Tersimpan', text: 'Perubahan galeri berhasil disimpan.', timer: 1500, showConfirmButton: false });
     } catch (error) {
       console.error(error);
-      alert('Gagal menyimpan perubahan');
+      MySwal.fire('Gagal Menyimpan', 'Perubahan tidak dapat disimpan. Coba lagi.', 'error');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleRemove = (id) => {
-    if (!window.confirm('Hapus item ini dari galeri?')) return;
+  const handleRemove = async (id) => {
+    const { isConfirmed } = await MySwal.fire({
+      title: 'Hapus Item?',
+      text: 'Item ini akan dihapus dari galeri landing page.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#ef4444',
+      confirmButtonText: 'Ya, Hapus',
+      cancelButtonText: 'Batal',
+    });
+    if (!isConfirmed) return;
+    
+    const itemToRemove = items.find(item => item.id === id);
+    if (itemToRemove && itemToRemove.type === 'image') {
+      await deleteGalleryImage(itemToRemove.url);
+    }
+    
     const updated = items.filter(item => item.id !== id);
     handleSave(updated);
   };
@@ -97,6 +113,11 @@ export default function GalleryManager() {
 
       let updated = [];
       if (editingId) {
+        const itemToEdit = items.find(item => item.id === editingId);
+        // Hapus file lama di storage jika URL berubah atau tipe diubah ke youtube
+        if (itemToEdit && itemToEdit.type === 'image' && itemToEdit.url !== url) {
+          await deleteGalleryImage(itemToEdit.url);
+        }
         updated = items.map(item => item.id === editingId ? { ...item, type: newItemType, url } : item);
       } else {
         const newItem = {
@@ -114,7 +135,7 @@ export default function GalleryManager() {
       cancelEdit();
     } catch (error) {
       console.error(error);
-      alert(error.message || 'Terjadi kesalahan saat menambahkan');
+      MySwal.fire('Gagal', error.message || 'Terjadi kesalahan saat menambahkan.', 'error');
     } finally {
       setSaving(false);
     }
