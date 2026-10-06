@@ -7,6 +7,7 @@ export default function GalleryManager() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadInfo, setUploadInfo] = useState(null);
+  const [galleryFilter, setGalleryFilter] = useState('all'); // 'all' | 'image' | 'youtube'
   
   const [newItemType, setNewItemType] = useState('youtube'); // 'youtube' | 'image'
   const [newYoutubeId, setNewYoutubeId] = useState('');
@@ -147,6 +148,10 @@ export default function GalleryManager() {
 
   if (loading) return <div className="p-6 text-center text-slate-500 animate-pulse">Memuat...</div>;
 
+  const filteredItems = galleryFilter === 'all' ? items : items.filter((item) => item.type === galleryFilter);
+  const photoCount = items.filter((item) => item.type === 'image').length;
+  const videoCount = items.filter((item) => item.type === 'youtube').length;
+
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
       <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
@@ -234,42 +239,51 @@ export default function GalleryManager() {
           )}
         </form>
 
+        <div className="mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-700">Konten Tersimpan</h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">Pisahkan tampilan foto dan video agar lebih mudah dikelola.</p>
+          </div>
+          <select
+            value={galleryFilter}
+            onChange={(e) => setGalleryFilter(e.target.value)}
+            className="w-full sm:w-auto rounded-xl border-slate-200 text-sm text-slate-700 focus:border-blue-500 focus:ring-blue-500 bg-white"
+            aria-label="Filter konten galeri"
+          >
+            <option value="all">Semua Konten ({items.length})</option>
+            <option value="image">Foto ({photoCount})</option>
+            <option value="youtube">Video YouTube ({videoCount})</option>
+          </select>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {items.map((item, index) => (
+          {filteredItems.map((item) => (
             <div key={item.id} className="relative group rounded-xl border border-slate-200 overflow-hidden bg-slate-50">
               <div className="absolute top-2 left-2 z-10 bg-black/60 text-white text-[10px] px-2 py-1 rounded-lg backdrop-blur-sm">
-                #{index + 1} - {item.type.toUpperCase()}
+                {item.type === 'youtube' ? 'VIDEO YOUTUBE' : 'FOTO'}
               </div>
-              <div className="absolute top-2 right-2 z-10 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button 
-                  onClick={() => handleEdit(item)}
-                  className="w-8 h-8 flex items-center justify-center bg-blue-500 text-white rounded-lg shadow-lg"
-                  title="Edit"
-                >
+              <div className="absolute top-2 right-2 z-20 flex gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                <button type="button" onClick={() => handleEdit(item)} className="w-9 h-9 md:w-8 md:h-8 flex items-center justify-center bg-blue-500 text-white rounded-lg shadow-lg active:scale-95 transition-transform" title="Edit" aria-label="Edit item">
                   <i className="fas fa-edit text-xs" />
                 </button>
-                <button 
-                  onClick={() => handleRemove(item.id)}
-                  className="w-8 h-8 flex items-center justify-center bg-red-500 text-white rounded-lg shadow-lg"
-                  title="Hapus"
-                >
+                <button type="button" onClick={() => handleRemove(item.id)} className="w-9 h-9 md:w-8 md:h-8 flex items-center justify-center bg-red-500 text-white rounded-lg shadow-lg active:scale-95 transition-transform" title="Hapus" aria-label="Hapus item">
                   <i className="fas fa-trash-alt text-xs" />
                 </button>
               </div>
 
               <div className="aspect-video bg-slate-200 flex items-center justify-center">
                 {item.type === 'youtube' ? (
-                  <img src={`https://img.youtube.com/vi/${item.url}/mqdefault.jpg`} alt="Thumbnail" className="w-full h-full object-cover opacity-80" />
+                  <img src={"https://img.youtube.com/vi/" + item.url + "/mqdefault.jpg"} alt="Thumbnail video" className="w-full h-full object-cover opacity-80" />
                 ) : (
                   <img src={item.url} alt="Galeri" className="w-full h-full object-cover" />
                 )}
               </div>
             </div>
           ))}
-          
-          {items.length === 0 && (
+
+          {filteredItems.length === 0 && (
             <div className="col-span-full py-10 text-center text-slate-500 text-sm">
-              Belum ada item di galeri.
+              {galleryFilter === 'image' ? 'Belum ada foto di galeri.' : galleryFilter === 'youtube' ? 'Belum ada video YouTube di galeri.' : 'Belum ada item di galeri.'}
             </div>
           )}
         </div>
