@@ -207,7 +207,7 @@ export default function GalleryManager() {
             </label>
           </div>
 
-          <div className="flex gap-3 items-end">
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
             {newItemType === 'youtube' ? (
               <div className="flex-1">
                 <label className="block text-xs text-slate-500 mb-1">ID Video atau URL YouTube</label>
@@ -220,7 +220,7 @@ export default function GalleryManager() {
                 />
               </div>
             ) : (
-              <div className="flex-1">
+              <div className="w-full sm:flex-1">
                 <div className="flex items-center gap-4 mb-2">
                   <label className="text-xs text-slate-500 flex items-center gap-1">
                     <input type="radio" checked={imageInputType === 'file'} onChange={() => setImageInputType('file')} /> Upload File
@@ -282,7 +282,7 @@ export default function GalleryManager() {
             <button 
               type="submit" 
               disabled={saving}
-              className="px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="w-full sm:w-auto shrink-0 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
               {saving ? 'Menyimpan...' : (editingId ? 'Simpan' : 'Tambahkan')}
             </button>
