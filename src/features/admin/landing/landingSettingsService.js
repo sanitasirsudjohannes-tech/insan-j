@@ -1,5 +1,6 @@
 import { supabase } from '../../../lib/supabase';
 import { getSetting, setSetting } from '../../../lib/api';
+import { optimizeImageForUpload } from '../../../lib/image/imageOptimizer';
 
 const DEFAULT_GALLERY = [
   { id: '1', type: 'youtube', url: 'md9iaur645M' },
@@ -16,17 +17,22 @@ export const saveGalleryItems = async (items) => {
 };
 
 export const uploadGalleryImage = async (file) => {
-  const fileExt = file.name.split('.').pop();
-  const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-  const filePath = `gallery/${fileName}`;
+  const optimizedFile = await optimizeImageForUpload(file, {
+    maxDimension: 1600,
+    quality: 0.8,
+  });
 
-  // Menggunakan bucket 'public_assets' yang diasumsikan tersedia
-  // Anda dapat mengubahnya menjadi bucket yang sesuai jika sudah dibuat
-  const bucketName = 'landing_assets'; 
-  
+  const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.webp`;
+  const filePath = `gallery/${fileName}`;
+  const bucketName = 'landing_assets';
+
   const { error: uploadError } = await supabase.storage
     .from(bucketName)
-    .upload(filePath, file);
+    .upload(filePath, optimizedFile, {
+      contentType: 'image/webp',
+      cacheControl: '31536000',
+      upsert: false,
+    });
 
   if (uploadError) {
     if (uploadError.message.includes('Bucket not found') || uploadError.message.includes('NoSuchBucket')) {
