@@ -19,7 +19,7 @@ export default function AboutSection() {
 
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {highlights.map(([icon, title, text]) => (
-            <div key={title} data-landing-reveal className="translate-y-4 rounded-2xl border border-white/10 bg-white/[0.04] p-5 opacity-0 transition-all duration-700 hover:-translate-y-1 hover:bg-white/[0.07]">
+            <div key={title} data-landing-reveal className="translate-y-4 rounded-2xl border border-white/10 bg-white/4 p-5 opacity-0 transition-all duration-700 hover:-translate-y-1 hover:bg-white/[0.07]">
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300">
                 <i className={`fas ${icon}`} />
               </div>

@@ -57,8 +57,8 @@ export default function HeroSection({ setSidebarOpen }) {
         {/* Visual ringkasan aplikasi */}
         <div data-landing-reveal className="relative hidden translate-y-4 opacity-0 transition-all duration-700 lg:block">
           <div className="absolute -inset-8 rounded-[2.5rem] bg-cyan-300/5 blur-3xl" />
-          <div className="relative rounded-[2rem] border border-white/15 bg-slate-950/65 p-4 shadow-2xl backdrop-blur-xl">
-            <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.06] p-5">
+          <div className="relative rounded-4xl border border-white/15 bg-slate-950/65 p-4 shadow-2xl backdrop-blur-xl">
+            <div className="rounded-[1.4rem] border border-white/10 bg-white/6 p-5">
               <div className="flex items-center justify-between border-b border-white/10 pb-4">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-300">Dashboard</p>
@@ -75,14 +75,14 @@ export default function HeroSection({ setSidebarOpen }) {
                   ['Air Bersih', 'Diperiksa'],
                   ['Rekap', 'Tersedia'],
                 ].map(([title, value]) => (
-                  <div key={title} className="rounded-xl border border-white/10 bg-white/[0.045] p-4">
+                  <div key={title} className="rounded-xl border border-white/10 bg-white/4.5 p-4">
                     <div className="h-1.5 w-8 rounded-full bg-cyan-300/70" />
                     <p className="mt-3 text-xs text-slate-400">{title}</p>
                     <p className="mt-1 text-sm font-bold">{value}</p>
                   </div>
                 ))}
               </div>
-              <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.045] p-4">
+              <div className="mt-3 rounded-xl border border-white/10 bg-white/4.5 p-4">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold">Alur data sanitasi</p>
                   <i className="fas fa-chart-line text-xs text-cyan-300" />

@@ -90,8 +90,8 @@ export default function BottomNavigation({ variant = 'app' }) {
 
     return (
       <nav className="fixed inset-x-2 bottom-2 z-40 md:hidden print:hidden" aria-label="Navigasi landing page">
-        <div className="relative mx-auto flex h-[4.75rem] max-w-2xl items-stretch overflow-hidden rounded-[1.65rem] border border-white/20 bg-slate-900/60 px-1.5 pb-[env(safe-area-inset-bottom)] shadow-[0_12px_35px_rgba(2,6,23,0.35)] backdrop-blur-2xl supports-[backdrop-filter]:bg-slate-900/45">
-          <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-white/[0.10] via-white/[0.04] to-transparent" />
+        <div className="relative mx-auto flex h-19 max-w-2xl items-stretch overflow-hidden rounded-[1.65rem] border border-white/20 bg-slate-900/60 px-1.5 pb-[env(safe-area-inset-bottom)] shadow-[0_12px_35px_rgba(2,6,23,0.35)] backdrop-blur-2xl supports-backdrop-filter:bg-slate-900/45">
+          <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-white/10 via-white/4 to-transparent" />
           <div className="pointer-events-none absolute inset-x-8 top-0 h-8 rounded-full bg-cyan-300/10 blur-xl" />
           <div className="pointer-events-none absolute inset-x-5 bottom-0 h-px bg-white/10" />
 
@@ -245,7 +245,7 @@ export default function BottomNavigation({ variant = 'app' }) {
 
       <nav className="fixed inset-x-2 bottom-2 z-40 rounded-[1.65rem] border border-white/80 bg-linear-to-b from-white/95 to-slate-100/95 pb-[env(safe-area-inset-bottom)] shadow-[0_12px_30px_rgba(15,23,42,0.22),0_3px_0_#cbd5e1,inset_0_1px_0_white] backdrop-blur-xl" aria-label="Navigasi utama seluler">
         <div className="pointer-events-none absolute inset-x-8 top-0 h-5 rounded-full bg-white/80 blur-md" />
-        <div className="relative mx-auto flex h-[4.75rem] max-w-lg items-stretch px-1.5">
+        <div className="relative mx-auto flex h-19 max-w-lg items-stretch px-1.5">
           <span
             aria-hidden="true"
             className="pointer-events-none absolute left-1.5 top-3 flex h-9 items-center justify-center transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"

@@ -52,7 +52,7 @@ export default function VideoSection() {
         </div>
 
         <div className="relative mt-10">
-          <div ref={videoCarouselRef} className="flex snap-x snap-mandatory gap-5 overflow-x-auto pb-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:grid md:grid-cols-3 md:overflow-visible">
+          <div ref={videoCarouselRef} className="flex snap-x snap-mandatory gap-5 overflow-x-auto pb-5 scrollbar-none [&::-webkit-scrollbar]:hidden md:grid md:grid-cols-3 md:overflow-visible">
             {videos.map(video => (
               <article key={video.id} className="w-[86vw] shrink-0 snap-center sm:w-[70vw] md:w-auto">
                 <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/80 shadow-xl">

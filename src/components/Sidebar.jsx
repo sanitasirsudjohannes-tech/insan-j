@@ -52,14 +52,14 @@ export default function Sidebar({ isOpen, onClose, variant = 'app' }) {
         <button
           type="button"
           aria-label="Tutup menu"
-          className="fixed inset-0 z-[70] cursor-default bg-slate-950/45 backdrop-blur-[3px] transition-opacity duration-300"
+          className="fixed inset-0 z-70 cursor-default bg-slate-950/45 backdrop-blur-[3px] transition-opacity duration-300"
           onClick={onClose}
         />
       )}
 
       <aside
         aria-label="Navigasi landing page"
-        className={`fixed left-3 top-3 z-[80] flex h-[calc(100%-1.5rem)] w-[18rem] flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-900/90 shadow-[0_24px_60px_rgba(2,6,23,0.42)] backdrop-blur-2xl transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hidden md:flex ${isOpen ? 'translate-x-0' : '-translate-x-[calc(100%+1rem)]'}`}
+        className={`fixed left-3 top-3 z-80 hidden h-[calc(100%-1.5rem)] w-[18rem] flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-900/90 shadow-[0_24px_60px_rgba(2,6,23,0.42)] backdrop-blur-2xl transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] md:flex ${isOpen ? 'translate-x-0' : '-translate-x-[calc(100%+1rem)]'}`}
       >
         <div className="absolute inset-x-8 top-0 h-16 rounded-full bg-cyan-400/10 blur-2xl" />
 
@@ -83,7 +83,7 @@ export default function Sidebar({ isOpen, onClose, variant = 'app' }) {
               key={item.id}
               type="button"
               onClick={() => goTo(item.id)}
-              className="group flex w-full items-center gap-3 rounded-2xl border border-transparent px-3 py-3 text-left transition-all duration-200 hover:border-white/10 hover:bg-white/[0.06] active:scale-[0.98]"
+              className="group flex w-full items-center gap-3 rounded-2xl border border-transparent px-3 py-3 text-left transition-all duration-200 hover:border-white/10 hover:bg-white/6 active:scale-[0.98]"
             >
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-slate-400 transition-all duration-200 group-hover:border-cyan-300/20 group-hover:bg-cyan-300/10 group-hover:text-cyan-300">
                 <i className={`${item.icon} text-sm`} />

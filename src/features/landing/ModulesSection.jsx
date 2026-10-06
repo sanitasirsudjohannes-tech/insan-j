@@ -49,7 +49,7 @@ export default function ModulesSection() {
 
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {modules.map(module => (
-            <article key={module.title} data-landing-reveal className="group translate-y-4 rounded-2xl border border-white/10 bg-white/[0.04] p-6 opacity-0 transition-all duration-700 hover:-translate-y-1 hover:border-cyan-300/20 hover:bg-white/[0.07]">
+            <article key={module.title} data-landing-reveal className="group translate-y-4 rounded-2xl border border-white/10 bg-white/4 p-6 opacity-0 transition-all duration-700 hover:-translate-y-1 hover:border-cyan-300/20 hover:bg-white/[0.07]">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-cyan-400/10 text-cyan-300 transition group-hover:bg-cyan-400/15">
                   <i className={`fas ${module.icon}`} />
