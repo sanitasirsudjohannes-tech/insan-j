@@ -242,25 +242,32 @@ export default function GalleryManager() {
                       <span className="text-xs text-slate-400">{newImageFiles.length ? `${newImageFiles.length} foto dipilih` : 'Belum ada foto dipilih'}</span>
                     </div>
                     {newImageFiles.length > 0 && (
-                      <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3">
-                        <div className="flex items-center justify-between gap-3 mb-2">
-                          <p className="text-xs font-semibold text-slate-700">Foto yang akan di-upload</p>
-                          <span className="text-[10px] text-slate-400">{newImageFiles.length} file</span>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-52 overflow-y-auto">
-                          {newImageFiles.map((file, index) => (
-                            <div key={`${file.name}-${file.size}-${index}`} className="relative rounded-lg overflow-hidden border border-slate-200 bg-slate-50">
-                              <img src={URL.createObjectURL(file)} alt={file.name} className="w-full aspect-video object-cover" onLoad={(e) => URL.revokeObjectURL(e.currentTarget.src)} />
-                              <div className="absolute inset-x-0 bottom-0 bg-black/60 p-1.5 flex items-center gap-1">
-                                <span className="flex-1 min-w-0 truncate text-[10px] text-white">{file.name}</span>
-                                <button type="button" onClick={() => removeSelectedImage(index)} disabled={saving} className="shrink-0 w-6 h-6 rounded-md bg-red-500 text-white text-xs flex items-center justify-center hover:bg-red-600 disabled:opacity-50" aria-label={`Hapus ${file.name} dari pilihan`}>×</button>
-                              </div>
+                      <div className="mt-3 rounded-xl border border-blue-200 bg-white overflow-hidden">
+                        <div className="px-3 py-2.5 bg-blue-50/70 border-b border-blue-100">
+                          <div className="flex items-center justify-between gap-2">
+                            <div><p className="text-sm font-bold text-slate-800">Antrean Upload</p><p className="text-[11px] text-slate-500 mt-0.5">Foto belum di-upload</p></div>
+                            <div className="min-w-12 h-10 px-2 rounded-xl bg-blue-600 text-white flex flex-col items-center justify-center leading-none shadow-sm">
+                              <span className="text-base font-bold">{newImageFiles.length}</span><span className="text-[8px] uppercase tracking-wide opacity-90">foto</span>
                             </div>
-                          ))}
+                          </div>
+                        </div>
+                        <div className="p-2 max-h-64 overflow-y-auto">
+                          <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                            {newImageFiles.map((file, index) => (
+                              <div key={`${file.name}-${file.size}-${index}`} className="relative aspect-square rounded-lg overflow-hidden border border-slate-200 bg-slate-50">
+                                <img src={URL.createObjectURL(file)} alt={file.name} className="w-full h-full object-cover" onLoad={(e) => URL.revokeObjectURL(e.currentTarget.src)} />
+                                <button type="button" onClick={() => removeSelectedImage(index)} disabled={saving} className="absolute top-1 right-1 w-7 h-7 rounded-full bg-red-500/95 text-white text-sm font-bold flex items-center justify-center shadow-md disabled:opacity-50" aria-label={`Hapus ${file.name} dari pilihan`} title="Hapus dari antrean">×</button>
+                                <div className="absolute bottom-0 inset-x-0 px-1 py-1 bg-black/60"><span className="block truncate text-[9px] text-white">{file.name}</span></div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="px-3 py-2 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-2">
+                          <span className="text-[10px] text-slate-500">{newImageFiles.length} foto menunggu di-upload</span>
+                          <button type="button" onClick={resetSelectedImages} disabled={saving} className="text-xs font-semibold text-red-500 hover:text-red-600 disabled:opacity-50">Reset semua</button>
                         </div>
                       </div>
-                    )}
-                  </div>
+                    )}                </div>
                 ) : (
                   <input 
                     type="url" 
