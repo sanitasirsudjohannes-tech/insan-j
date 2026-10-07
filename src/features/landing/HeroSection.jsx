@@ -1,7 +1,11 @@
 import { Link } from 'react-router-dom';
 import LoginBackdrop from '../login/LoginBackdrop';
+import { useLandingContent } from './useLandingContent';
 
 export default function HeroSection({ setSidebarOpen }) {
+  const { content, loading } = useLandingContent();
+  const heroData = content.hero;
+
   return (
     <section className="relative isolate min-h-[92vh] overflow-hidden bg-linear-to-br from-slate-950 via-blue-950 to-emerald-950">
       <LoginBackdrop />
@@ -34,24 +38,35 @@ export default function HeroSection({ setSidebarOpen }) {
 
       <div className="relative z-10 mx-auto grid min-h-[calc(92vh-80px)] w-full max-w-7xl items-center gap-12 px-5 py-16 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:px-10 lg:py-20">
         <div data-landing-reveal className="translate-y-4 opacity-0 transition-all duration-700">
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5 text-xs font-semibold text-cyan-100 backdrop-blur">
-            <span className="h-1.5 w-1.5 rounded-full bg-cyan-300" />
-            Sistem Informasi Sanitasi RSUD Johannes
-          </div>
-          <h1 className="text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl lg:text-7xl">
-            INSAN-J
-            <span className="mt-2 block bg-linear-to-r from-cyan-300 via-white to-emerald-300 bg-clip-text text-transparent">
-              Informasi Sanitasi Johannes
-            </span>
-          </h1>
-          <p className="mt-6 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-            Sistem informasi untuk mendukung pekerjaan sanitasi rumah sakit — mulai dari pencatatan limbah, inspeksi sanitasi, pemeriksaan lingkungan, hingga rekapitulasi data.
-          </p>
-          <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <Link to="/login" className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-slate-900 shadow-xl transition hover:-translate-y-0.5 hover:bg-cyan-50">
-              Masuk ke Aplikasi <i className="fas fa-arrow-right text-xs" />
-            </Link>
-          </div>
+          {loading ? (
+            <div className="animate-pulse space-y-6">
+              <div className="h-6 w-48 rounded-full bg-cyan-300/20" />
+              <div className="h-20 w-3/4 rounded-xl bg-white/10" />
+              <div className="h-24 w-full rounded-xl bg-white/5" />
+              <div className="h-12 w-40 rounded-xl bg-white/20" />
+            </div>
+          ) : (
+            <>
+              <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1.5 text-xs font-semibold text-cyan-100 backdrop-blur">
+                <span className="h-1.5 w-1.5 rounded-full bg-cyan-300" />
+                {heroData.badge}
+              </div>
+              <h1 className="text-4xl font-black leading-[1.05] tracking-tight sm:text-5xl lg:text-7xl">
+                {heroData.title}
+                <span className="mt-2 block bg-linear-to-r from-cyan-300 via-white to-emerald-300 bg-clip-text text-transparent">
+                  {heroData.subtitle}
+                </span>
+              </h1>
+              <p className="mt-6 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg whitespace-pre-wrap">
+                {heroData.description}
+              </p>
+              <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+                <Link to="/login" className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-6 py-3.5 text-sm font-bold text-slate-900 shadow-xl transition hover:-translate-y-0.5 hover:bg-cyan-50">
+                  {heroData.buttonText} <i className="fas fa-arrow-right text-xs" />
+                </Link>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Visual ringkasan aplikasi */}

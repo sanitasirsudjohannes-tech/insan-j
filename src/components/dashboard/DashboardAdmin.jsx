@@ -8,7 +8,7 @@ import useAdminOverview from './admin/useAdminOverview';
 import { ChartLegend, DataSourceStatus } from './admin/AdminMeta';
 import styles from './admin/AdminOverview.module.css';
 
-const number = value => value == null ? '—' : Number(value).toLocaleString('id-ID', { maximumFractionDigits: 2 });
+const number = value => value == null ? '—' : Math.round(Number(value)).toLocaleString('id-ID');
 const date = value => value ? new Date(value.slice(0, 10) + 'T00:00:00+08:00').toLocaleDateString('id-ID', { timeZone: 'Asia/Makassar', day: 'numeric', month: 'long', year: 'numeric' }) : 'Belum tersedia';
 const monthLabel = value => new Date(value + '-01T00:00:00+08:00').toLocaleDateString('id-ID', { timeZone: 'Asia/Makassar', month: 'long', year: 'numeric' });
 const timestamp = value => value ? new Date(value).toLocaleString('id-ID', { timeZone: 'Asia/Makassar', dateStyle: 'medium', timeStyle: 'short' }) + ' WITA' : '—';

@@ -8,6 +8,7 @@ import VideoSection from '../features/landing/VideoSection';
 import WorkflowSection from '../features/landing/WorkflowSection';
 import CTASection from '../features/landing/CTASection';
 import LandingFooter from '../features/landing/LandingFooter';
+import { LandingContentProvider } from '../features/landing/useLandingContent';
 
 export default function LandingPage() {
   const observerRef = useRef(null);
@@ -37,17 +38,19 @@ export default function LandingPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-slate-950 text-white">
-      <Sidebar variant="landing" isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <BottomNavigation variant="landing" />
-      
-      <HeroSection setSidebarOpen={setSidebarOpen} />
-      <AboutSection />
-      <ModulesSection />
-      <VideoSection />
-      <WorkflowSection />
-      <CTASection />
-      <LandingFooter />
-    </main>
+    <LandingContentProvider>
+      <main className="min-h-screen overflow-x-hidden bg-slate-950 text-white">
+        <Sidebar variant="landing" isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+        <BottomNavigation variant="landing" />
+        
+        <HeroSection setSidebarOpen={setSidebarOpen} />
+        <AboutSection />
+        <ModulesSection />
+        <VideoSection />
+        <WorkflowSection />
+        <CTASection />
+        <LandingFooter />
+      </main>
+    </LandingContentProvider>
   );
 }

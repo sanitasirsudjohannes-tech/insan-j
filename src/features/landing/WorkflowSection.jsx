@@ -5,14 +5,19 @@ const workflow = [
   ['04', 'Rekap & laporkan', 'Data yang terkumpul menjadi dasar rekapitulasi dan kebutuhan pelaporan.'],
 ];
 
+import { useLandingContent } from './useLandingContent';
+
 export default function WorkflowSection() {
+  const { content } = useLandingContent();
+  const { badge, title, description } = content.workflow;
+
   return (
     <section id="alur" className="bg-slate-950 px-5 py-20 sm:px-8 lg:px-10">
       <div className="mx-auto max-w-7xl">
         <div data-landing-reveal className="max-w-3xl translate-y-4 opacity-0 transition-all duration-700">
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-cyan-300">Alur kerja</p>
-          <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Dari kegiatan lapangan menjadi informasi</h2>
-          <p className="mt-4 text-sm leading-6 text-slate-400">INSAN-J dirancang mengikuti alur sederhana agar data dapat bergerak dari pencatatan sampai kebutuhan pelaporan.</p>
+          <p className="text-xs font-bold uppercase tracking-[0.25em] text-cyan-300">{badge}</p>
+          <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">{title}</h2>
+          <p className="mt-4 text-sm leading-6 text-slate-400 whitespace-pre-wrap">{description}</p>
         </div>
 
         <div className="mt-10 grid gap-4 md:grid-cols-4">

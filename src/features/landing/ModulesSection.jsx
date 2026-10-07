@@ -37,14 +37,19 @@ const modules = [
   },
 ];
 
+import { useLandingContent } from './useLandingContent';
+
 export default function ModulesSection() {
+  const { content } = useLandingContent();
+  const { badge, title, description } = content.modules;
+
   return (
     <section id="modul" className="bg-slate-900/70 px-5 py-20 sm:px-8 lg:px-10">
       <div className="mx-auto max-w-7xl">
         <div data-landing-reveal className="max-w-3xl translate-y-4 opacity-0 transition-all duration-700">
-          <p className="text-xs font-bold uppercase tracking-[0.25em] text-emerald-300">Modul INSAN-J</p>
-          <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Satu aplikasi untuk berbagai kegiatan sanitasi</h2>
-          <p className="mt-4 text-sm leading-6 text-slate-400">Modul ditampilkan sesuai kebutuhan dan hak akses pengguna.</p>
+          <p className="text-xs font-bold uppercase tracking-[0.25em] text-emerald-300">{badge}</p>
+          <h2 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">{title}</h2>
+          <p className="mt-4 text-sm leading-6 text-slate-400 whitespace-pre-wrap">{description}</p>
         </div>
 
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
