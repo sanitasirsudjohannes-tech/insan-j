@@ -38,7 +38,7 @@ function reportTable(model) {
   ];
 }
 
-export async function buildDocxBlob(draft, chartImages = [], tableModels = []) {
+export async function buildDocxBlob(draft, chartImages = [], tableModels = [], appendixTitle = 'LAMPIRAN TABEL DATA PEMERIKSAAN') {
   const resultTables = tableModels.filter(model => model.placement === 'results');
   const appendixTables = tableModels.filter(model => model.placement !== 'results');
   const paragraphs = [];
@@ -49,7 +49,7 @@ export async function buildDocxBlob(draft, chartImages = [], tableModels = []) {
     paragraphs.push(reportParagraph(line, index));
   });
   if (appendixTables.length) {
-    paragraphs.push(new Paragraph({ children: [new PageBreak()] }), new Paragraph({ alignment: AlignmentType.CENTER, heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: 'LAMPIRAN TABEL DATA PEMERIKSAAN', bold: true, size: 28, font: 'Arial' })] }));
+    paragraphs.push(new Paragraph({ children: [new PageBreak()] }), new Paragraph({ alignment: AlignmentType.CENTER, heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: appendixTitle, bold: true, size: 28, font: 'Arial' })] }));
     appendixTables.forEach(model => paragraphs.push(...reportTable(model)));
   }
   if (chartImages.length) {

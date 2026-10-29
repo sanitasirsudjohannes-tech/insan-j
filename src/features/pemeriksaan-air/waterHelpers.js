@@ -24,7 +24,14 @@ export const createCleanWaterParameters = () => CLEAN_WATER_PARAMETERS.map(param
 const cleanParameterKey = value => String(value || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 const readNumber = value => {
-  const text = String(value ?? '').trim().replace(',', '.');
+  let text = String(value ?? '').trim().replace(/[\s\u00a0]/g, '');
+  if (text.includes(',')) {
+    const decimalAt = text.lastIndexOf(',');
+    const integer = text.slice(0, decimalAt).replace(/[.,]/g, '');
+    text = `${integer}.${text.slice(decimalAt + 1)}`;
+  } else if (/^\d{1,3}(?:\.\d{3}){2,}$/.test(text)) {
+    text = text.replace(/\./g, '');
+  }
   return /^\d+(?:\.\d+)?$/.test(text) ? Number(text) : null;
 };
 

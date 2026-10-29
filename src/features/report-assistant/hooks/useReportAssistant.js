@@ -107,6 +107,7 @@ export function useReportAssistant() {
     if (key === 'period') setChartData(null);
   };
   const updateFact = (key, value) => {
+    if (form.facts[key] !== value) setChartData(null);
     setForm(current => ({
       ...current,
       facts: { ...current.facts, [key]: value },
@@ -126,6 +127,7 @@ export function useReportAssistant() {
       analytics: null,
     }));
     setErrors({});
+    setWaterDatesRefresh(0);
     setChartData(null);
     setDraft('');
     setStatus('');
@@ -140,14 +142,15 @@ export function useReportAssistant() {
       return;
     }
     setRecapLoading(true);
-    setDraft('');
-    setChartData(null);
+    setErrors({});
     try {
       const recap = form.reportType === 'medical_waste'
         ? await fetchMedicalWasteRecap(recapPeriod.start, recapPeriod.end)
         : await fetchWaterReportRecap(recapPeriod.start, recapPeriod.end, form.reportType);
       if (form.reportType !== 'medical_waste' && !recap.analytics.totalExaminations) {
         setForm(current => ({ ...current, facts: {}, analytics: null }));
+        setChartData(null);
+        setDraft('');
         setStatus('Tidak ada hasil pemeriksaan pada tanggal ini. Pilih tanggal lain atau isi data pemeriksaan terlebih dahulu.');
         return;
       }
@@ -156,11 +159,13 @@ export function useReportAssistant() {
         : recap.facts;
       setForm(current => ({ ...current, facts: { ...current.facts, ...facts }, analytics: recap.analytics }));
       setChartData(form.reportType === 'medical_waste' ? recap.charts : null);
+      setDraft('');
       const incompleteWastewater = form.reportType === 'wastewater'
         && (!recap.analytics.inletCount || !recap.analytics.outletCount);
       setStatus(incompleteWastewater
         ? 'Rekap berhasil diambil, tetapi data inlet atau outlet belum lengkap. Lengkapi pemeriksaan sebelum membuat laporan.'
         : 'Rekap berhasil diambil. Periksa hasil dan status parameter sebelum membuat laporan.');
+      setRecapLoading(false);
       await Swal.fire({
         icon: 'success',
         title: 'Data Rekap Diambil',

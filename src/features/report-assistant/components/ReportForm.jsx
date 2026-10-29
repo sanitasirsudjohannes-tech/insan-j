@@ -37,7 +37,7 @@ export default function ReportForm({ form, errors, handleTypeChange, updateForm,
                   className={`mt-2 w-full rounded-xl border bg-white px-3 py-3 font-normal outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-slate-100 ${errors.periodStart ? 'border-red-400' : 'border-slate-300'}`}
                 >
                   {waterDatesLoading ? (
-                    <option value="">Memuat tanggal pemeriksaan...</option>
+                    <option value={form.period.start || ''}>Memuat tanggal pemeriksaan...</option>
                   ) : availableWaterDates.length === 0 ? (
                     <option value="">Belum ada pemeriksaan</option>
                   ) : (

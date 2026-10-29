@@ -28,3 +28,15 @@ test('renderer grafik tidak memuat pembuat Word', () => {
   const source = readFileSync(new URL('../src/features/report-assistant/exporters/reportChartRenderer.js', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /from ['"]docx['"]/);
 });
+
+test('edit fakta membuang grafik rekap agar tabel dan grafik tidak berbeda dari narasi', () => {
+  const source = readFileSync(new URL('../src/features/report-assistant/hooks/useReportAssistant.js', import.meta.url), 'utf8');
+  const updateFact = source.slice(source.indexOf('const updateFact'), source.indexOf('const handleTypeChange'));
+  assert.match(updateFact, /setChartData\(null\)/);
+});
+
+test('ganti jenis laporan mengembalikan cache tanggal pemeriksaan', () => {
+  const source = readFileSync(new URL('../src/features/report-assistant/hooks/useReportAssistant.js', import.meta.url), 'utf8');
+  const handleTypeChange = source.slice(source.indexOf('const handleTypeChange'), source.indexOf('const handleRecap'));
+  assert.match(handleTypeChange, /setWaterDatesRefresh\(0\)/);
+});

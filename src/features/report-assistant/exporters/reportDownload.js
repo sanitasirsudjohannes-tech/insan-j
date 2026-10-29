@@ -13,7 +13,10 @@ async function createWordFile(draft, reportType, chartImages = [], facts = {}, c
     : ['wastewater', 'clean_water'].includes(reportType)
       ? buildWaterTableModels(reportType, analytics || {})
       : [];
-  const blob = await buildDocxBlob(draft, chartImages, tables);
+  const appendixTitle = reportType === 'medical_waste'
+    ? 'LAMPIRAN TABEL REKAPITULASI LIMBAH MEDIS'
+    : 'LAMPIRAN TABEL DATA PEMERIKSAAN';
+  const blob = await buildDocxBlob(draft, chartImages, tables, appendixTitle);
   return new File([blob], filename, {
     type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
   });
