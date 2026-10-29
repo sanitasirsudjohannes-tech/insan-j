@@ -45,7 +45,10 @@ export default function Login() {
 
   const handleLogin = async event => {
     event.preventDefault();
-    if (!username || !password) {
+    // Normalisasi username: hapus spasi & pastikan huruf kecil
+    // agar keyboard mobile (auto-capitalize/auto-spasi) tidak menyebabkan login gagal.
+    const normalizedUsername = username.trim().toLowerCase();
+    if (!normalizedUsername || !password) {
       MySwal.fire({
         icon: 'error',
         title: 'Oops...',
@@ -60,11 +63,11 @@ export default function Login() {
 
     try {
       const { data: emailRpc, error: rpcError } = await supabase.rpc('get_user_email_by_username', {
-        p_username: username,
+        p_username: normalizedUsername,
       });
       const loginEmail = !rpcError && emailRpc
         ? emailRpc
-        : (username.includes('@') ? username : `${username}@rs.com`);
+        : (normalizedUsername.includes('@') ? normalizedUsername : `${normalizedUsername}@rs.com`);
 
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: loginEmail,

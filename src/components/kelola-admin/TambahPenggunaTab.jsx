@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { generateSecureTemporaryPassword } from '../../lib/adminSecurity';
 
 const INITIAL_FORM = {
   nama: '',
@@ -14,6 +15,12 @@ export default function TambahPenggunaTab({ onSubmit, submitting }) {
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((current) => ({ ...current, [name]: value }));
+  };
+
+  const handleGeneratePassword = () => {
+    const generated = generateSecureTemporaryPassword();
+    setForm((current) => ({ ...current, password: generated }));
+    setShowPassword(true);
   };
 
   const handleSubmit = async (event) => {
@@ -102,18 +109,35 @@ export default function TambahPenggunaTab({ onSubmit, submitting }) {
                 required
                 minLength={12}
                 autoComplete="new-password"
-                className="w-full rounded-xl border border-gray-300 px-4 py-3 pr-11 text-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
+                className="w-full rounded-xl border border-gray-300 px-4 py-3 pr-20 text-sm outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
                 placeholder="Minimal 12 karakter"
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword((current) => !current)}
-                aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition hover:text-indigo-600"
-              >
-                <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`} />
-              </button>
+              <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={handleGeneratePassword}
+                  title="Generate password aman secara otomatis"
+                  aria-label="Generate password otomatis"
+                  className="rounded-lg px-1.5 py-1 text-xs font-bold text-indigo-500 transition hover:bg-indigo-50 hover:text-indigo-700"
+                >
+                  <i className="fas fa-wand-magic-sparkles" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((current) => !current)}
+                  aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
+                  className="rounded-lg px-1.5 py-1 text-gray-400 transition hover:text-indigo-600"
+                >
+                  <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`} />
+                </button>
+              </div>
             </div>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-gray-500">
+              <i className="fas fa-shield-halved mr-1 text-indigo-400" />
+              Wajib min. 12 karakter, mengandung huruf besar, huruf kecil, angka, dan simbol. Gunakan
+              {' '}<button type="button" onClick={handleGeneratePassword} className="font-bold text-indigo-600 underline decoration-dotted hover:text-indigo-800">generate otomatis</button>
+              {' '}jika perlu.
+            </p>
           </div>
         </div>
 
