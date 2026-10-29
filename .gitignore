@@ -30,12 +30,7 @@ dist-ssr
 
 # Environment variables - berisi credentials rahasia
 # JANGAN pernah commit file ini ke Git!
-.env
-.env.local
-.env.*.local
-.env.development.local
-.env.test.local
-.env.production.local
+.env*
 
 # File .env.example BOLEH di-commit (berisi template kosong)
 !.env.example
@@ -44,4 +39,3 @@ dist-ssr
 .vercel
 
 # Temporary files
-

@@ -116,7 +116,7 @@ export default function ProtectedRoute() {
     return <SessionError onRetry={() => setRetryKey(value => value + 1)} onLogin={returnToLogin} />;
   }
   if (status === 'unauthenticated' || !user) {
-    return <Navigate to="/" state={{ from: location }} replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   return <SessionContext.Provider key={user.id} value={{ user, status, adminVerified, retrySession: () => setRetryKey(value => value + 1) }}><Suspense fallback={<div role="status" className="flex min-h-screen flex-col items-center justify-center bg-gray-50"><div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-blue-500 border-t-transparent" /><p className="text-xs font-bold tracking-widest text-gray-500">MENGAMBIL DATA...</p></div>}><Outlet /></Suspense></SessionContext.Provider>;

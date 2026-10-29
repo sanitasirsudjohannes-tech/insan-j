@@ -1,0 +1,134 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { answerWasteQuestion } from '../../lib/wasteQuestionService';
+
+import { getCurrentUser } from '../../lib/api';
+import WasteChatAnswer from './WasteChatAnswer';
+
+const CATEGORIES = [
+  { label: 'Hari ini', icon: 'fa-calendar-day', items: ['Berapa ruangan yang input hari ini?', 'Berapa timbulan limbah hari ini?', 'Siapa petugas input hari ini?', 'Apa yang perlu diperiksa hari ini?'] },
+  { label: 'Bandingkan', icon: 'fa-code-compare', items: ['Bandingkan jumlah ruangan kemarin dan hari ini', 'Bandingkan timbulan bulan ini dengan sebelumnya', 'Ruangan mana yang menyumbang kenaikan terbesar bulan ini?', 'Berapa selisih timbulan jika hanya menghitung ruangan yang tercatat pada kedua tanggal kemarin dan hari ini?'] },
+  { label: 'Cari data', icon: 'fa-magnifying-glass', items: ['Kapan pengangkutan terakhir?', 'Ruangan dengan timbulan terbesar bulan ini', 'Tampilkan jumlah ruangan yang diinput setiap hari bulan ini', 'Berapa timbulan sejak pengangkutan terakhir bulan ini?'] },
+  { label: 'Periksa data', icon: 'fa-clipboard-check', items: ['Apakah ada data yang perlu diperiksa bulan ini?', 'Apakah ada tanggal yang belum diinput bulan ini?', 'Apakah ada data ganda hari ini?', 'Apakah ada catatan tanpa nama petugas bulan ini?', 'Apakah ada data bertanggal setelah hari ini?', 'Apakah ada berat yang berbeda dari kebiasaan ruangan bulan ini?'] },
+  { label: 'Air Bersih', icon: 'fa-droplet', items: ['Tampilkan hasil pemeriksaan air bersih terakhir', 'Lokasi air bersih yang tidak memenuhi pada pemeriksaan terakhir', 'Hasil Total coliform air bersih terakhir', 'Daftar tanggal pemeriksaan air bersih'] },
+  { label: 'IPAL', icon: 'fa-water', items: ['Tampilkan hasil pemeriksaan IPAL terakhir', 'Bandingkan inlet dan outlet IPAL terakhir', 'Parameter IPAL yang tidak memenuhi pada pemeriksaan terakhir', 'Apakah data inlet dan outlet IPAL terakhir lengkap?'] },
+];
+
+const STORAGE_KEY = 'insan_j_data_chat';
+const getStorageKey = () => {
+  const userId = getCurrentUser()?.id;
+  return userId ? `${STORAGE_KEY}:${userId}` : null;
+};
+const initialMessage = { role: 'assistant', text: 'Tanyakan data limbah atau pemeriksaan air. Jawaban dihitung langsung dari data INSAN-J menggunakan template yang tersedia.' };
+
+function loadMessages(storageKey) {
+  if (!storageKey) return [initialMessage];
+  try { const saved = JSON.parse(sessionStorage.getItem(storageKey)); return Array.isArray(saved) && saved.length && saved.every(item => item && ['user', 'assistant'].includes(item.role) && typeof item.text === 'string') ? saved : [initialMessage]; } catch { return [initialMessage]; }
+}
+
+function compactMessages(messages) {
+  return messages.slice(-30).map(message => {
+    const compact = { ...message };
+    delete compact.reportPayload;
+    compact.visualization = message.visualization?.items?.length ? { ...message.visualization, items: message.visualization.items.slice(0, 8) } : null;
+    compact.table = message.table?.rows?.length ? { ...message.table, rows: message.table.rows.slice(0, 40) } : null;
+    return compact;
+  });
+}
+
+function AccountWasteDataChat({ className = '', hideHeader = false, onBusyChange = null, onNavigateRequest = null }) {
+  const navigate = useNavigate();
+  const storageKeyRef = useRef(getStorageKey());
+  const [messages, setMessages] = useState(() => loadMessages(storageKeyRef.current));
+  const messagesRef = useRef(messages);
+  const favoriteKey = storageKeyRef.current ? `${storageKeyRef.current}:favorites` : null;
+  const [favorites, setFavorites] = useState(() => {
+    if (!favoriteKey) return [];
+    try { const saved = JSON.parse(localStorage.getItem(favoriteKey) || '[]'); return Array.isArray(saved) ? saved.filter(item => typeof item === 'string').slice(0, 8) : []; } catch { return []; }
+  });
+  const toggleFavorite = text => {
+    if (!favoriteKey || !text) return;
+    setFavorites(current => {
+      const next = current.includes(text) ? current.filter(item => item !== text) : [...current, text].slice(-8);
+      try { localStorage.setItem(favoriteKey, JSON.stringify(next)); } catch { /* Favorit tetap tersedia selama sesi ini. */ }
+      return next;
+    });
+  };
+  const [question, setQuestion] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [category, setCategory] = useState(null);
+  const inputRef = useRef(null);
+  const busyRef = useRef(false);
+  const editQuestion = text => { setQuestion(text || ''); inputRef.current?.focus(); };
+  const endRef = useRef(null);
+  const persistMessages = useCallback(nextMessages => {
+    messagesRef.current = nextMessages;
+    try { if (storageKeyRef.current) sessionStorage.setItem(storageKeyRef.current, JSON.stringify(compactMessages(nextMessages))); }
+    catch (error) { console.warn('Riwayat chat lokal tidak dapat disimpan.', { reason: error?.name }); }
+  }, []);
+  const appendMessage = useCallback(message => {
+    const nextMessages = [...messagesRef.current, message];
+    persistMessages(nextMessages);
+    setMessages(nextMessages);
+  }, [persistMessages]);
+  const showSuggestions = messages.length === 1
+    && messages[0]?.role === initialMessage.role
+    && messages[0]?.text === initialMessage.text;
+  useEffect(() => {
+    persistMessages(messages);
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, persistMessages]);
+
+  const ask = async value => {
+    const text = String(value || question).trim();
+    if (!text || busyRef.current) return;
+    busyRef.current = true;
+    onBusyChange?.(true);
+    setQuestion('');
+    const context = [...messagesRef.current].reverse().find(message => message.role === 'assistant' && message.context)?.context || null;
+    appendMessage({ role: 'user', text });
+    setLoading(true);
+    try {
+      const answer = await answerWasteQuestion(text, { context });
+      appendMessage({ role: 'assistant', question: text, favoriteQuestion: answer.favoriteQuestion, text: answer.text, period: answer.period, context: answer.context, cards: answer.cards, table: answer.table, visualization: answer.visualization, warnings: answer.warnings, followUps: answer.followUps, source: answer.source, sourceLink: answer.sourceLink, sourceLinks: answer.sourceLinks, understanding: answer.understanding, dataStatus: answer.dataStatus, reportPayload: answer.reportPayload, actions: answer.actions, clarification: answer.clarification });
+    } catch {
+      appendMessage({ role: 'assistant', text: 'Data belum dapat diambil. Periksa koneksi dan status sinkronisasi, lalu coba kembali.', error: true });
+    } finally { busyRef.current = false; setLoading(false); onBusyChange?.(false); }
+  };
+
+  const sendToReport = message => {
+    const payload = message.reportPayload;
+    if (!payload) return;
+    sessionStorage.setItem('insan_j_ai_report_draft', JSON.stringify({
+      form: { reportType: 'medical_waste', period: payload.period, facts: payload.facts, analytics: payload.analytics, constraints: '', actions: '', additionalNotes: `Ringkasan dari Tanya INSAN-J:\n${message.text}` },
+      draft: '', chartData: payload.chartData,
+    }));
+    if (onNavigateRequest) onNavigateRequest('/asisten-laporan');
+    else navigate('/asisten-laporan');
+  };
+
+  return (
+    <section className={`flex min-h-0 flex-1 flex-col bg-white ${className}`}>
+      <div className={`flex items-start justify-between gap-3 ${hideHeader ? 'mb-2 justify-end' : 'mb-4'}`}>
+        {!hideHeader && <div><h2 className="font-black text-slate-800"><i className="fas fa-comments mr-2 text-blue-600" />Tanya INSAN-J</h2><p className="mt-1 text-xs text-slate-500">Jawaban dihitung dari data yang tersinkron. Percakapan tidak disimpan ke database.</p></div>}
+        <button type="button" disabled={loading} onClick={() => { persistMessages([initialMessage]); setMessages([initialMessage]); setQuestion(''); setCategory(null); }} className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-bold text-slate-600">Percakapan baru</button>
+      </div>
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto rounded-2xl bg-slate-50 p-3" role="log" aria-label="Percakapan Tanya INSAN-J" aria-live="polite" aria-busy={loading}>
+        {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}><div className={`min-w-0 max-w-full rounded-2xl px-4 py-3 text-sm leading-relaxed ${message.role === 'user' ? 'whitespace-pre-line bg-blue-600 text-white' : message.error ? 'border border-red-200 bg-red-50 text-red-700' : 'border border-slate-200 bg-white text-slate-700'}`}>{message.role === 'assistant' ? <WasteChatAnswer message={message} onFavorite={toggleFavorite} isFavorite={favorites.includes(message.favoriteQuestion)} onAsk={ask} busy={loading} onEdit={editQuestion} onReport={sendToReport} onNavigate={to => onNavigateRequest ? onNavigateRequest(to) : navigate(to)} /> : message.text}</div></div>)}
+        {loading && <div className="flex justify-start"><div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500"><i className="fas fa-spinner fa-spin mr-2" />Menghitung data…</div></div>}
+        <div ref={endRef} />
+      </div>
+      {showSuggestions && <div className="mt-3 space-y-2">
+        <p className="text-xs font-semibold text-slate-500">Data apa yang ingin diperiksa?</p>
+        <div className="grid grid-cols-2 gap-2">{CATEGORIES.map(item => <button key={item.label} type="button" disabled={loading} aria-pressed={category === item.label} onClick={() => setCategory(category === item.label ? null : item.label)} className={`flex min-h-11 items-center disabled:cursor-wait disabled:opacity-50 gap-2 rounded-xl border px-3 py-2 text-left text-xs font-bold ${category === item.label ? 'border-blue-300 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600'}`}><i aria-hidden="true" className={`fas ${item.icon}`} />{item.label}</button>)}</div>
+        {category && <div className="max-h-32 space-y-1 overflow-y-auto">{CATEGORIES.find(item => item.label === category)?.items.map(item => <button key={item} type="button" disabled={loading} onClick={() => ask(item)} className="block w-full rounded-xl bg-blue-50 px-3 py-2 text-left text-xs text-blue-700">{item}<span aria-hidden="true" className="ml-2">→</span></button>)}</div>}
+      </div>}
+      {favorites.length > 0 && <details className="mt-2 text-xs text-slate-600"><summary className="cursor-pointer py-2 font-bold">Pertanyaan favorit ({favorites.length}/8)</summary><div className="max-h-32 overflow-y-auto">{favorites.map(text => <div key={text} className="flex gap-2"><button type="button" disabled={loading} onClick={() => ask(text)} className="flex-1 py-2 text-left text-blue-700">{text}</button><button type="button" onClick={() => toggleFavorite(text)} aria-label={`Hapus favorit ${text}`}>×</button></div>)}</div></details>}
+      <form onSubmit={event => { event.preventDefault(); ask(); }} className="mt-3 flex gap-2"><input ref={inputRef} aria-label="Pertanyaan data INSAN-J" maxLength={1000} value={question} onChange={event => setQuestion(event.target.value)} placeholder="Contoh: bagaimana hasil pemeriksaan IPAL terakhir?" className="min-w-0 flex-1 rounded-2xl border border-slate-300 px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-blue-500" /><button type="submit" disabled={!question.trim() || loading} className="rounded-2xl bg-blue-600 px-4 text-white disabled:opacity-50" aria-label="Kirim pertanyaan"><i aria-hidden="true" className={`fas ${loading ? 'fa-spinner fa-spin' : 'fa-paper-plane'}`} /></button></form>
+    </section>
+  );
+}
+
+export default function WasteDataChat(props) {
+  return <AccountWasteDataChat key={getStorageKey() || "anonymous"} {...props} />;
+}

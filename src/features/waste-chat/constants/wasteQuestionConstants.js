@@ -1,0 +1,27 @@
+import { OPERATIONAL_INTENTS } from '../parsers/operationalIntents.js';
+export const MONTHS = ['januari', 'februari', 'maret', 'april', 'mei', 'juni', 'juli', 'agustus', 'september', 'oktober', 'november', 'desember'];
+export const MONTH_PATTERN = MONTHS.join('|');
+
+export const WASTE_TYPES = [
+  { pattern: /infeksius|infectious/i, key: 'infectiousKg', label: 'limbah infeksius' },
+  { pattern: /jarum(?: suntik)?|benda tajam|spuit|syringe|safety\s*box/i, key: 'sharpsKg', label: 'limbah jarum suntik' },
+  { pattern: /botol(?: obat)?|vial|ampul/i, key: 'bottleKg', label: 'limbah botol obat' },
+  { pattern: /sitotoksik|cytotoxic|sitostatika/i, key: 'cytotoxicKg', label: 'limbah sitotoksik' },
+];
+
+export const ALLOWED_INTENTS = new Set([...OPERATIONAL_INTENTS, 'generated_difference', 'source_records', 'daily_review', 'calculation_help', 'waste_summary', 'analysis', 'remaining', 'opening_balance', 'available_total', 'generated', 'transported', 'transport_dates', 'last_transport', 'transport_gap', 'transport_count', 'average_transport', 'type_dates', 'transport_coverage', 'average', 'dominant_type', 'least_type', 'type_breakdown', 'type_percentages', 'top_rooms', 'bottom_room', 'type_rooms', 'never_type_rooms', 'room_total', 'room_contribution', 'room_type_dates', 'room_type_total', 'peak_day', 'trough_day', 'peak_month', 'peak_week', 'active_days', 'comparison', 'type_total', 'data_completeness', 'missing_rooms', 'room_input_count', 'room_input_comparison', 'duplicate_data', 'data_anomalies']);
+
+export const QUESTION_SUGGESTIONS = [
+  'Rincian data limbah bulan ini',
+  'Timbulan limbah tanggal 8',
+  'Ruangan dengan timbulan terbesar tanggal 8',
+  'Rincian limbah berdasarkan jenis tanggal 8',
+  'Timbulan 7 Juli sampai hari ini',
+  'Berapa sisa limbah bulan ini?',
+  'Bandingkan timbulan bulan ini dengan sebelumnya',
+  'Apakah ada tanggal yang belum diinput bulan ini?',
+  'Berapa ruangan yang input hari ini?',
+  'Bandingkan ruangan yang input kemarin dan hari ini',
+  'Kapan pengangkutan terakhir?',
+  'Apakah ada data yang perlu diperiksa bulan ini?',
+];

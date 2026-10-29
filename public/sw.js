@@ -77,7 +77,7 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    fetch(event.request)
+    fetch(event.request, event.request.mode === 'navigate' ? { cache: 'no-store' } : undefined)
       .then((response) => {
         // Simpan salinan di cache untuk penggunaan offline
         if (response.status === 200) {

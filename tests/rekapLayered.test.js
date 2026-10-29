@@ -23,8 +23,15 @@ test('rekap preserves opening balance across years and months', () => {
     ruanganRows: [{ tanggal: '2026-01-02', infeksius: 100 }, { tanggal: '2026-02-02', infeksius: 25 }],
     angkutRows: [{ tanggal: '2026-01-03', jumlah_kg: 80 }],
   }, '2026', '2');
-  assert.equal(result.tableRows[0].sisaAwal, 70);
-  assert.equal(result.summary.totalTimbulan, 25);
+  assert.equal(result.tableRows.length, 2);
+  assert.equal(result.tableRows[0].yearMonth, '2026-01');
+  assert.equal(result.tableRows[0].sisaAwal, 50);
+  assert.equal(result.tableRows[0].sisaAkhir, 70);
+  assert.equal(result.tableRows[1].yearMonth, '2026-02');
+  assert.equal(result.tableRows[1].sisaAwal, 70);
+  assert.equal(result.tableRows[1].sisaAkhir, 95);
+  assert.equal(result.summary.totalTimbulan, 125);
+  assert.equal(result.summary.totalDiangkut, 80);
   assert.equal(result.summary.sisaAkumulasi, 95);
   assert.ok(!result.availableYears.includes('2025'));
 });

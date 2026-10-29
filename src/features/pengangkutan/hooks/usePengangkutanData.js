@@ -6,6 +6,7 @@ import {
 import { fetchAllSupabaseRows } from '../../../lib/supabasePagination';
 import { supabase } from '../../../lib/supabase';
 import { getMonthRange } from '../services/pengangkutanService';
+import { readDataFilters } from '../../../lib/urlDataFilters';
 import {
   countPengangkutan,
   fetchPengangkutanPage
@@ -26,7 +27,7 @@ export default function usePengangkutanData() {
   const [page, setPage] = useState(1);
   const [totalData, setTotalData] = useState(0);
   const [offlineQueueCount, setOfflineQueueCount] = useState(0);
-  const [filterMonth, setFilterMonth] = useState('');
+  const [filterMonth, setFilterMonth] = useState(() => typeof window === 'undefined' ? '' : readDataFilters(window.location.search).month);
   const fetchIdRef = useRef(0);
 
     const fetchData = useCallback(async () => {

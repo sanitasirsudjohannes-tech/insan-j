@@ -12,6 +12,8 @@ import useAdminSettings from '../features/admin/hooks/useAdminSettings';
 const PenggunaTab = lazy(() => import('../components/kelola-admin/PenggunaTab'));
 const TambahPenggunaTab = lazy(() => import('../components/kelola-admin/TambahPenggunaTab'));
 const RuanganTab = lazy(() => import('../components/kelola-admin/RuanganTab'));
+const LokasiAirBersihTab = lazy(() => import('../components/kelola-admin/LokasiAirBersihTab'));
+const BakuMutuAirTab = lazy(() => import('../components/kelola-admin/BakuMutuAirTab'));
 const PengaturanTab = lazy(() => import('../components/kelola-admin/PengaturanTab'));
 const MaintenancePanel = lazy(() => import('../features/admin/presentation/MaintenancePanel'));
 
@@ -88,6 +90,9 @@ export default function KelolaAdmin() {
             fetchRuangan={fetchRuangan}
           />
         )}
+
+        {activeTab === 'lokasi-air-bersih' && <LokasiAirBersihTab />}
+        {activeTab === 'baku-mutu-air' && <BakuMutuAirTab />}
 
         {/* TAB 4: PENGATURAN */}
         {activeTab === 'pengaturan' && (

@@ -1,7 +1,8 @@
 // These loaders fetch code only. They never read or mutate application data.
 export const loadAdminPage = () => import('../../pages/KelolaAdmin');
 export const loadRekapPage = () => import('../../pages/RekapLimbah');
-const loaders = { '/kelola-admin': loadAdminPage, '/rekap-limbah': loadRekapPage };
+export const loadLandingPage = () => import('../../pages/KelolaLandingPage');
+const loaders = { '/kelola-admin': loadAdminPage, '/rekap-limbah': loadRekapPage, '/kelola-landing': loadLandingPage };
 const pending = new Map();
 export function prefetchRoute(path) {
   if (typeof navigator !== 'undefined' && (!navigator.onLine || navigator.connection?.saveData)) return;

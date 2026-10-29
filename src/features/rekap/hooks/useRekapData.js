@@ -1,15 +1,20 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
+import { readDataFilters } from '../domain/rekapFilters';
 import { fetchAllRekapData } from '../services/rekapService';
 import { calculateRekapitulasi } from '../domain/rekapCalculations';
 import { fetchRuanganRowsByMonth } from '../../../lib/limbah/rekapRuangan';
 import { calculateRuanganSummary } from '../../../lib/limbah/rekapRuanganCalculations';
 export default function useRekapData() {
+  const { search } = useLocation();
   const currentYearStr = String(new Date().getFullYear());
   const [allData, setAllData] = useState({ padatRows: [], ruanganRows: [], angkutRows: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [selectedYear, setSelectedYear] = useState(currentYearStr);
-  const [selectedMonth, setSelectedMonth] = useState(String(new Date().getMonth() + 1));
+  const initialFilters = readDataFilters(search);
+  const requestedMonth = initialFilters.month || (initialFilters.start && initialFilters.start.slice(0, 7) === initialFilters.end?.slice(0, 7) ? initialFilters.start.slice(0, 7) : '');
+  const [selectedYear, setSelectedYear] = useState(() => requestedMonth?.slice(0, 4) || initialFilters.start?.slice(0, 4) || currentYearStr);
+  const [selectedMonth, setSelectedMonth] = useState(() => requestedMonth ? String(Number(requestedMonth.slice(5, 7))) : String(new Date().getMonth() + 1));
   const [activeTab, setActiveTab] = useState('bulanan');
   const [roomMonth, setRoomMonth] = useState(String(new Date().getMonth() + 1));
   const [roomRows, setRoomRows] = useState([]);
@@ -119,5 +124,5 @@ export default function useRekapData() {
     }
   }, [availableYears, selectedYear]);
 
-  return { loading, error, loadData, allData, selectedYear, setSelectedYear, selectedMonth, setSelectedMonth, activeTab, setActiveTab, roomMonth, setRoomMonth, roomRows, roomLoading, roomError, loadRoomData, availableYears, tableRows, summary, hasAnomaly };
+  return { loading, error, loadData, selectedYear, setSelectedYear, selectedMonth, setSelectedMonth, activeTab, setActiveTab, roomMonth, setRoomMonth, roomRows, roomLoading, roomError, loadRoomData, availableYears, tableRows, summary, hasAnomaly };
 }

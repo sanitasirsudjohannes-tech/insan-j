@@ -1,0 +1,60 @@
+import { detectOperationalIntent } from './operationalIntents.js';
+
+export function detectWasteIntent(text, { type, types, roomName }) {
+  const operational = detectOperationalIntent(text);
+  if (operational) return operational;
+  if (/sisa.*tahun\s+sebelumnya.*(?:dibawa|tahun\s+ini)/i.test(text)) return 'opening_balance';
+  if (/ruang.*(?:sama\s+dengan\s+kemarin|kemarin.*(?:belum|tidak).*hari\s+ini|salah\s+satu\s+tanggal)/i.test(text)) return 'room_input_comparison';
+  if (/apa.*perlu\s+(?:diperiksa|dicek)/i.test(text)) return 'data_anomalies';
+  if (/(?:penyumbang|menyumbang).*(?:kenaikan|penurunan)|selisih.*(?:manual|ruangan|kedua)|komposisi.*berbeda|(?:selisih|perubahan).*berasal/i.test(text)) return 'generated_difference';
+  if (/^(?:halo[,!]?\s*)?(?:apa\s+saja\s+)?(?:(?:yang|yg)\s+)?(?:bisa|dapat)\s+(?:kamu|anda|tanya\s+insan-?j)\s+(?:lakukan|kerjakan|jawab)|^(?:kamu|anda|tanya\s+insan-?j)\s+bisa\s+apa|^(?:bantuan|help|daftar\s+(?:fitur|kemampuan))\??$/i.test(text.trim())) return 'capabilities';
+  if (/(?:banding|perbandingan|dibanding|beda|selisih).*(?:jumlah\s+)?(?:ruang|ruangan)|(?:jumlah\s+)?(?:ruang|ruangan).*(?:banding|perbandingan|dibanding|beda|selisih)|(?:mengapa|kenapa|penyebab).*(?:limbah|timbulan).*(?:beda|berbeda|selisih)/i.test(text)) return 'room_input_comparison';
+  if (/(?:berapa\s+(?:jumlah\s+)?|jumlah\s+|banyaknya\s+|total\s+)(?:ruang|ruangan)\b|(?:ruang|ruangan).*(?:yang\s+)?(?:input|diinput|tercatat|mencatat).*(?:berapa|jumlah|banyaknya|total)/i.test(text)) return 'room_input_count';
+  if (/banding|perbandingan|dibanding|naik|turun|perubahan|selisih|\bvs\.?\b/i.test(text)) return 'comparison';
+  if (/bulan\s+(?:mana|apa).*(?:terbesar|terbanyak|tertinggi|paling)|(?:terbesar|terbanyak|tertinggi|paling).*(?:bulan\s+(?:mana|apa))/i.test(text)) return 'peak_month';
+  if (/(?:minggu|pekan)\s+(?:mana|apa).*(?:terbesar|terbanyak|tertinggi|paling)|(?:terbesar|terbanyak|tertinggi|paling).*(?:minggu|pekan)\s+(?:mana|apa)/i.test(text)) return 'peak_week';
+  if (/data\s+ganda|duplikat|dobel|double|tercatat\s+(?:dua|2)\s+kali/i.test(text)) return 'duplicate_data';
+  if (/(?:ruang|ruangan|unit|bangsal|siapa).*(?:belum|tidak)\s+(?:input|isi|mengisi|mencatat|melakukan\s+pencatatan)|berapa\s+hari.*(?:belum|tidak)\s+(?:input|isi|mengisi|mencatat)/i.test(text)) return 'missing_rooms';
+  if (/(?:tanggal|hari|data).*(?:kosong|terlewat|belum\s+di(?:input|isi|catat)|tidak\s+ada\s+(?:input|data))|kelengkapan\s+data|data\s+(?:belum|tidak)\s+lengkap|seluruh\s+ruangan.*(?:sudah|belum).*(?:input|mencatat|pencatatan)|seluruh\s+(?:nilai|angka).*(?:nol|0)/i.test(text)) return 'data_completeness';
+  if (/(?:kapan|tanggal|tgl|hari).*(?:terakhir).*(?:angkut|pengangkutan|dibawa)|(?:angkut|pengangkutan).*(?:terakhir)/i.test(text)) return 'last_transport';
+  if (/(?:jarak|jeda|berapa\s+hari|sudah\s+berapa\s+lama).*(?:angkut|pengangkutan)|(?:terlalu\s+lama|lama).*(?:belum|tidak).*(?:angkut|dibawa)/i.test(text)) return 'transport_gap';
+  if (/rata[ -]?rata.*(?:setiap|per|sekali)\s+(?:pengangkutan|angkut)|rata[ -]?rata.*(?:pengangkutan|angkut)/i.test(text)) return 'average_transport';
+  if (/(?:berapa\s+kali|jumlah|frekuensi).*(?:pengangkutan|angkut)|(?:pengangkutan|angkut).*berapa\s+kali/i.test(text)) return 'transport_count';
+  if (/data.*(?:aneh|janggal|tidak\s+wajar|bermasalah|perlu\s+(?:dicek|diperiksa|konfirmasi))|(?:angka\s+negatif|nilai\s+negatif|lonjakan|penurunan).*(?:tidak\s+biasa|tajam|drastis|terbesar)?|validasi\s+data/i.test(text)) return 'data_anomalies';
+  if (/analisis|analisa|evaluasi|temuan|tidak\s+biasa|anomali|apakah.*(?:jadwal|pengangkutan).*(?:cukup|sesuai)/i.test(text)) return 'analysis';
+  if (/(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?.*(?:diangkut|pengangkutan|angkut)|(?:diangkut|pengangkutan|angkut).*(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?|(?:daftar\s+|rincian\s+)?(?:tanggal|tgl|hari)\s+(?:pengangkutan|angkut)|(?:daftar\s+|rincian\s+)(?:pengangkutan|angkut).*(?:tanggal|tgl|hari)/i.test(text)) return 'transport_dates';
+  if (type && /(?:per|berdasarkan)\s+(?:ruang|ruangan|unit|bangsal)/i.test(text)) return 'type_rooms';
+  if (roomName && type && /(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?/i.test(text)) return 'room_type_dates';
+  if (type && /(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?.*(?:ada|terdapat|tercatat|timbul|dihasilkan)|(?:ada|terdapat|tercatat|timbul|dihasilkan).*(?:tanggal|tgl|hari)\s+(?:berapa|apa)(?:\s+saja)?/i.test(text)) return 'type_dates';
+  if (type && /(?:ruang(?:an)?|unit|bangsal).*(?:tidak|belum)\s+pernah|(?:tidak|belum)\s+pernah.*(?:ruang|ruangan|unit|bangsal)/i.test(text)) return 'never_type_rooms';
+  if (type && /(?:ruang(?:an)?|unit|bangsal).*(?:yang\s+)?(?:ada|memiliki|menghasilkan|terdapat|punya)|(?:ruang(?:an)?|unit|bangsal)\s+(?:apa|mana)(?:\s+saja)?/i.test(text)) return 'type_rooms';
+  if (/(?:ruang|unit|penghasil).*(?:terkecil|terendah|tersedikit|paling sedikit)|(?:terkecil|terendah|tersedikit|paling sedikit).*(?:ruang|unit|penghasil)/i.test(text)) return 'bottom_room';
+  if (/(?:ruang|unit|penghasil).*(?:terbesar|terbanyak|tertinggi|paling|ranking|urutan)|(?:terbesar|terbanyak|tertinggi|paling).*(?:ruang|unit|penghasil)/i.test(text)) return 'top_rooms';
+  if (roomName && type) return 'room_type_total';
+  if (roomName && /kontribusi|persentase|persen|berapa\s*(?:%|persen)/i.test(text)) return 'room_contribution';
+  if (roomName && /berapa|jumlah|total|timbulan|dihasilkan/i.test(text)) return 'room_total';
+  // Pertanyaan pengguna sering meletakkan kata superlatif sebelum objek,
+  // misalnya "tanggal paling besar timbulannya". Periksa seluruh susunan
+  // tanggal/hari + timbulan/limbah + tingkat sebelum fallback ke total timbulan.
+  const asksDayDimension = /tanggal|tgl\.?|hari|kapan/i.test(text);
+  const asksWasteAmount = /timbulan|limbah|hasil\s+timbang|berat/i.test(text);
+  if (asksDayDimension && asksWasteAmount && /terkecil|tersedikit|terendah|paling\s+(?:sedikit|rendah|kecil)/i.test(text)) return 'trough_day';
+  if (asksDayDimension && asksWasteAmount && /terbesar|terbanyak|tertinggi|paling\s+(?:besar|banyak|tinggi)/i.test(text)) return 'peak_day';
+  if (/berapa\s+hari|jumlah\s+hari|hari.*(?:tercatat|ada data|ada timbulan)/i.test(text)) return 'active_days';
+  if (/jenis.*(?:terkecil|terendah|tersedikit|paling\s+sedikit)/i.test(text)) return 'least_type';
+  if (/(?:persentase|persen|%)\s+(?:masing[ -]?masing|setiap|per)\s+jenis|(?:komposisi|rincian).*persen/i.test(text)) return 'type_percentages';
+  if (/jenis.*(?:dominan|terbesar|tertinggi|terbanyak|paling)|dominan/i.test(text)) return 'dominant_type';
+  if (types.length > 1 || /(?:rincian.*jenis)|(?:rincian|jumlah|timbulan|data).*(?:berdasarkan|per|masing[ -]?masing)\s+jenis|semua jenis|komposisi|jenis\s+limbah/i.test(text)) return 'type_breakdown';
+  if (type) return 'type_total';
+  if (/(?:rincian|ringkasan|rekap|ikhtisar|gambaran|detail|data)\s+(?:data\s+)?limbah|limbah\s+secara\s+keseluruhan/i.test(text)) return 'waste_summary';
+  if (/sisa\s+awal|awal\s+periode/i.test(text)) return 'opening_balance';
+  if (/limbah.*(?:tersedia|dikelola)|total.*(?:tersedia|dikelola)/i.test(text)) return 'available_total';
+  if (/persen.*(?:angkut|pengangkutan)|cakupan.*(?:angkut|pengangkutan)/i.test(text)) return 'transport_coverage';
+  if (/rata[ -]?rata|rerata|rataan|per\s*hari/i.test(text)) return 'average';
+  if (/sisa|tersisa|tersimpan|penumpukan|menumpuk|belum.*(?:angkut|dibawa|dikirim|keluar)/i.test(text)) return 'remaining';
+  if (/diangkut|terangkut|pengangkutan|angkut|dibawa|dikirim|pengiriman|keluar/i.test(text)) return 'transported';
+  if (/\blimbah\b.*(?:tanggal|tgl|hari)|(?:tanggal|tgl|hari).*\blimbah\b/i.test(text)) return 'generated';
+  if (/timbulan|dihasilkan|menghasilkan|produksi|terkumpul|hasil\s+timbang|berat\s+limbah|total limbah|limbah masuk/i.test(text)) return 'generated';
+  if (/berapa\s+(?:jumlah\s+)?limbah\b/i.test(text)) return 'generated';
+  return 'unknown';
+}

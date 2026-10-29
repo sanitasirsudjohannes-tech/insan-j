@@ -2,6 +2,7 @@ import { ITEMS_PER_PAGE } from '../../lib/limbah/constants';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getOfflineQueue } from '../../lib/offlineStorage';
 import { getLocalMonthString } from '../../lib/localDate';
+import { readDataFilters } from '../../lib/urlDataFilters';
 import { getAccumulatedData } from '../../lib/limbah/padatData';
 
 export default function usePadatData() {
@@ -10,7 +11,7 @@ export default function usePadatData() {
   const [page, setPage] = useState(1);
   const [totalData, setTotalData] = useState(0);
   const [offlineQueueCount, setOfflineQueueCount] = useState(0);
-  const [filterMonth, setFilterMonthState] = useState(() => getLocalMonthString());
+  const [filterMonth, setFilterMonthState] = useState(() => typeof window === 'undefined' ? getLocalMonthString() : readDataFilters(window.location.search).month || getLocalMonthString());
   const fetchIdRef = useRef(0);
   const [accumulatedData, setAccumulatedData] = useState([]);
 

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { getCurrentUser } from '../lib/api';
+import { LANDING_NAV_ITEMS } from './landingNavigation';
 
 // AppLayout dibuat ulang pada setiap perpindahan route. Simpan posisi terakhir
 // agar indikator tetap dapat beranimasi dari menu lama setelah mount kembali.
@@ -29,8 +30,97 @@ const NavItem = ({ item, onClick }) => (
   </NavLink>
 );
 
-export default function BottomNavigation() {
+export default function BottomNavigation({ variant = 'app' }) {
   const location = useLocation();
+  const [landingActiveIndex, setLandingActiveIndex] = useState(0);
+  const landingProgrammaticScrollRef = useRef(false);
+  const landingScrollReleaseTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (variant !== 'landing') return undefined;
+
+    const updateActiveSection = () => {
+      if (landingProgrammaticScrollRef.current) return;
+
+      const sections = LANDING_NAV_ITEMS
+        .map(item => ({ ...item, node: document.getElementById(item.id) }))
+        .filter(item => item.node);
+
+      if (!sections.length) return;
+
+      const offset = 96;
+      const current = sections.reduce((active, item, index) => {
+        return item.node.getBoundingClientRect().top <= offset ? index : active;
+      }, -1);
+
+      if (current >= 0) setLandingActiveIndex(current);
+    };
+
+    updateActiveSection();
+    window.addEventListener('scroll', updateActiveSection, { passive: true });
+    window.addEventListener('resize', updateActiveSection);
+
+    return () => {
+      window.removeEventListener('scroll', updateActiveSection);
+      window.removeEventListener('resize', updateActiveSection);
+      if (landingScrollReleaseTimerRef.current) {
+        window.clearTimeout(landingScrollReleaseTimerRef.current);
+      }
+    };
+  }, [variant]);
+
+  if (variant === 'landing') {
+    const goTo = (id, index) => {
+      landingProgrammaticScrollRef.current = true;
+      if (landingScrollReleaseTimerRef.current) {
+        window.clearTimeout(landingScrollReleaseTimerRef.current);
+      }
+      setLandingActiveIndex(index);
+      const target = document.getElementById(id);
+      if (!target) return;
+      const top = target.getBoundingClientRect().top + window.scrollY - 12;
+      window.scrollTo({ top, behavior: 'smooth' });
+
+      // Jangan biarkan listener scroll mengembalikan indikator ke section lama
+      // selama smooth-scroll berlangsung. Lepaskan lock setelah scroll berhenti.
+      landingScrollReleaseTimerRef.current = window.setTimeout(() => {
+        landingProgrammaticScrollRef.current = false;
+      }, 650);
+    };
+
+    return (
+      <nav className="fixed inset-x-2 bottom-2 z-40 md:hidden print:hidden" aria-label="Navigasi landing page">
+        <div className="relative mx-auto flex h-19 max-w-2xl items-stretch overflow-hidden rounded-[1.65rem] border border-white/20 bg-slate-900/60 px-1.5 pb-[env(safe-area-inset-bottom)] shadow-[0_12px_35px_rgba(2,6,23,0.35)] backdrop-blur-2xl supports-backdrop-filter:bg-slate-900/45">
+          <div className="pointer-events-none absolute inset-0 bg-linear-to-b from-white/10 via-white/4 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-8 top-0 h-8 rounded-full bg-cyan-300/10 blur-xl" />
+          <div className="pointer-events-none absolute inset-x-5 bottom-0 h-px bg-white/10" />
+
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute left-1.5 top-3 flex h-9 items-center justify-center rounded-xl border border-white/15 bg-white/10 shadow-[0_4px_18px_rgba(8,47,73,0.22),inset_0_1px_0_rgba(255,255,255,0.16)] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+            style={{ width: `calc(((100% - 0.75rem) / ${LANDING_NAV_ITEMS.length}) * 0.62)`, marginLeft: `calc(((100% - 0.75rem) / ${LANDING_NAV_ITEMS.length}) * 0.19)`, transform: `translateX(calc(${landingActiveIndex} * (100% / 0.62)))` }}
+          />
+
+          {LANDING_NAV_ITEMS.map((item, index) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => goTo(item.id, index)}
+              className={`group relative z-10 flex min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 py-2 text-[10px] font-bold transition-all duration-200 ${landingActiveIndex === index ? 'text-cyan-300' : 'text-slate-400 hover:text-slate-200'}`}
+            >
+              <span className={`flex h-9 w-12 items-center justify-center rounded-xl transition-all duration-200 ${landingActiveIndex === index ? '-translate-y-0.5' : 'group-active:translate-y-0.5'}`}>
+                <i className={`${item.icon} text-base drop-shadow-sm`} />
+              </span>
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
+    );
+  }
+
+
+  
   const user = getCurrentUser();
   const role = user?.role?.trim().toLowerCase();
   const isAdmin = role === 'admin';
@@ -58,7 +148,8 @@ export default function BottomNavigation() {
           { to: '/riwayat', label: 'Riwayat', icon: 'fas fa-clock-rotate-left' },
         ],
         moreItems: [
-          { to: '/kelola-admin', label: 'Kelola Pengguna', icon: 'fas fa-users-gear', description: 'Akun, peran, dan master ruangan' },
+          { to: '/kelola-admin', label: 'Kelola Pengguna', icon: 'fas fa-users-gear', description: 'Akun, ruangan, dan lokasi air bersih' },
+          { to: '/kelola-landing', label: 'Pengaturan Landing', icon: 'fas fa-globe', description: 'Atur konten halaman depan' },
           { to: '/akun', label: 'Pengaturan Akun', icon: 'fas fa-user-gear', description: 'Profil dan keamanan akun' },
         ],
       };
@@ -73,6 +164,7 @@ export default function BottomNavigation() {
       ],
       moreItems: [
         { to: '/inspeksi', label: 'Form Inspeksi', icon: 'fas fa-clipboard-check', description: 'Isi pemeriksaan sanitasi' },
+        { to: '/pemeriksaan-air', label: 'Pemeriksaan Air', icon: 'fas fa-droplet', description: 'Hasil air bersih dan air limbah' },
         { to: '/riwayat', label: 'Riwayat Inspeksi', icon: 'fas fa-clock-rotate-left', description: 'Lihat dan kelola hasil inspeksi' },
         { to: '/akun', label: 'Pengaturan Akun', icon: 'fas fa-user-gear', description: 'Profil dan keamanan akun' },
       ],
@@ -93,7 +185,9 @@ export default function BottomNavigation() {
   const moreIsActive = moreItems.some(item => item.to === location.pathname);
   const totalNavItems = primaryItems.length + (moreItems.length > 0 ? 1 : 0);
   const primaryActiveIndex = primaryItems.findIndex(item => (
-    location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)
+    location.pathname === item.to
+    || location.pathname.startsWith(`${item.to}/`)
+    || (location.pathname === '/asisten-laporan' && item.to === '/rekap-limbah')
   ));
   const activeIndex = moreOpen || moreIsActive
     ? primaryItems.length
@@ -152,7 +246,7 @@ export default function BottomNavigation() {
 
       <nav className="fixed inset-x-2 bottom-2 z-40 rounded-[1.65rem] border border-white/80 bg-linear-to-b from-white/95 to-slate-100/95 pb-[env(safe-area-inset-bottom)] shadow-[0_12px_30px_rgba(15,23,42,0.22),0_3px_0_#cbd5e1,inset_0_1px_0_white] backdrop-blur-xl" aria-label="Navigasi utama seluler">
         <div className="pointer-events-none absolute inset-x-8 top-0 h-5 rounded-full bg-white/80 blur-md" />
-        <div className="relative mx-auto flex h-[4.75rem] max-w-lg items-stretch px-1.5">
+        <div className="relative mx-auto flex h-19 max-w-lg items-stretch px-1.5">
           <span
             aria-hidden="true"
             className="pointer-events-none absolute left-1.5 top-3 flex h-9 items-center justify-center transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"

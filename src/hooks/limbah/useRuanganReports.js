@@ -138,7 +138,8 @@ export default function useRuanganReports({
       }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, `Limbah Ruangan ${mLabel}`);
-      XLSX.writeFile(wb, `Laporan_Limbah_Ruangan_${selR ? selR + '_' : ''}${mLabel.replace(' ', '_')}.xlsx`);
+      const safeSelR = selR ? selR.trim().replace(/[^a-zA-Z0-9]+/g, '_') + '_' : '';
+      XLSX.writeFile(wb, `Laporan_Limbah_Ruangan_${safeSelR}${mLabel.replace(' ', '_')}.xlsx`);
       MySwal.fire({
         icon: 'success',
         title: 'Export Berhasil!',
