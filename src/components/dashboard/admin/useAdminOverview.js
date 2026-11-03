@@ -10,6 +10,7 @@ export default function useAdminOverview(section, month) {
     invalidateAggregationCache();
     setRevision(value => value + 1);
   }, []);
+
   useEffect(() => {
     let timer;
     const schedule = () => {
@@ -28,15 +29,30 @@ export default function useAdminOverview(section, month) {
       window.removeEventListener('offline', schedule);
     };
   }, [refresh]);
+
   useEffect(() => {
     let current = true;
-    setState({ loading: true, data: null, error: '', key });
+    // Pertahankan data untuk filter yang sama saat refresh berjalan.
+    setState(previous => ({
+      loading: true,
+      data: previous.key === key ? previous.data : null,
+      error: '',
+      key,
+    }));
     loadAdminOverview(section, month).then(data => {
       if (current) setState({ loading: false, data, error: '', key });
     }).catch(() => {
-      if (current) setState({ loading: false, data: null, error: 'Data belum dapat dimuat. Periksa koneksi lalu coba lagi.', key });
+      if (current) setState(previous => ({
+        loading: false,
+        data: previous.key === key ? previous.data : null,
+        error: previous.key === key && previous.data
+          ? 'Pembaruan gagal; menampilkan data yang terakhir berhasil dimuat.'
+          : 'Data belum dapat dimuat. Periksa koneksi lalu coba lagi.',
+        key,
+      }));
     });
     return () => { current = false; };
   }, [section, month, revision, key]);
+
   return { ...(state.key === key ? state : { loading: true, data: null, error: '' }), refresh };
 }
