@@ -45,8 +45,6 @@ export default function Login() {
 
   const handleLogin = async event => {
     event.preventDefault();
-    // Normalisasi username: hapus spasi & pastikan huruf kecil
-    // agar keyboard mobile (auto-capitalize/auto-spasi) tidak menyebabkan login gagal.
     const normalizedUsername = username.trim().toLowerCase();
     if (!normalizedUsername || !password) {
       MySwal.fire({
@@ -78,16 +76,20 @@ export default function Login() {
 
       const userData = await loadUserProfile(authData.user.id);
       cacheUser(userData);
-      fetchDaftarRuangan().catch(() => {});
 
-      await MySwal.fire({
-        icon: 'success',
-        title: 'Login Berhasil!',
-        text: `Selamat datang, ${userData.nama}`,
-        timer: 1500,
-        showConfirmButton: false,
-      });
+      // Navigasi tidak lagi menunggu timer SweetAlert 1,5 detik.
+      // Data master ruangan dimuat paralel setelah autentikasi berhasil.
+      fetchDaftarRuangan().catch(() => {});
       navigate('/dashboard', { replace: true });
+      MySwal.fire({
+        toast: true,
+        position: 'top',
+        icon: 'success',
+        title: `Selamat datang, ${userData.nama}`,
+        showConfirmButton: false,
+        timer: 900,
+        timerProgressBar: true,
+      });
     } catch (error) {
       if (authenticated && error?.code === 'profile_not_found') {
         clearCachedUser();
