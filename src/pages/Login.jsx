@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
-import { fetchDaftarRuangan } from '../lib/api';
-import { supabase } from '../lib/supabase';
+import { getLoginErrorMessage } from '../features/login/domain/loginCredentials';
+import {
+  authenticateUser,
+  discardIncompleteLogin,
+} from '../features/login/services/loginService';
 import {
   cacheUser,
-  clearCachedUser,
-  loadUserProfile,
   restoreUserSession,
 } from '../lib/session';
 
@@ -30,25 +31,31 @@ export default function Login() {
     setCheckingSession(true);
     setSessionError(false);
 
-    restoreUserSession().then(result => {
-      if (!active) return;
-      if (['authenticated', 'offline', 'degraded'].includes(result.status) && result.user) {
-        navigate('/dashboard', { replace: true });
-        return;
-      }
-      setSessionError(result.status === 'error');
-      setCheckingSession(false);
-    });
+    restoreUserSession()
+      .then(result => {
+        if (!active) return;
+        if (['authenticated', 'offline', 'degraded'].includes(result.status) && result.user) {
+          navigate('/dashboard', { replace: true });
+          return;
+        }
+        setSessionError(result.status === 'error');
+      })
+      .catch(() => {
+        if (active) setSessionError(true);
+      })
+      .finally(() => {
+        if (active) setCheckingSession(false);
+      });
 
     return () => { active = false; };
   }, [navigate, recoveryAttempt]);
 
   const handleLogin = async event => {
     event.preventDefault();
-    // Normalisasi username: hapus spasi & pastikan huruf kecil
-    // agar keyboard mobile (auto-capitalize/auto-spasi) tidak menyebabkan login gagal.
-    const normalizedUsername = username.trim().toLowerCase();
-    if (!normalizedUsername || !password) {
+    // Pertahankan huruf asli untuk pencarian email karena sebagian akun lama
+    // memiliki username dengan huruf besar, misalnya "Eci".
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername || !password) {
       MySwal.fire({
         icon: 'error',
         title: 'Oops...',
@@ -59,46 +66,47 @@ export default function Login() {
     }
 
     setLoading(true);
-    let authenticated = false;
 
     try {
-      const { data: emailRpc, error: rpcError } = await supabase.rpc('get_user_email_by_username', {
-        p_username: normalizedUsername,
-      });
-      const loginEmail = !rpcError && emailRpc
-        ? emailRpc
-        : (normalizedUsername.includes('@') ? normalizedUsername : `${normalizedUsername}@rs.com`);
-
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: loginEmail,
+      const { user: userData } = await authenticateUser({
+        username: trimmedUsername,
         password,
       });
-      if (authError) throw authError;
-      authenticated = true;
 
-      const userData = await loadUserProfile(authData.user.id);
-      cacheUser(userData);
-      fetchDaftarRuangan().catch(() => {});
+      cacheUser(userData, { verified: true });
 
-      await MySwal.fire({
+      // Toast tidak ditunggu agar dashboard dapat langsung dibuka.
+      MySwal.fire({
+        toast: true,
+        position: 'top-end',
         icon: 'success',
-        title: 'Login Berhasil!',
-        text: `Selamat datang, ${userData.nama}`,
-        timer: 1500,
+        title: `Selamat datang, ${userData.nama}`,
         showConfirmButton: false,
+        timer: 1600,
+        timerProgressBar: true,
       });
+
       navigate('/dashboard', { replace: true });
     } catch (error) {
-      if (authenticated && error?.code === 'profile_not_found') {
-        clearCachedUser();
-        await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+      const wasAuthenticated = error?.authenticated === true;
+
+      if (import.meta.env.DEV) {
+        console.warn('Login gagal', {
+          code: error?.code,
+          status: error?.status,
+          message: error?.message,
+        });
+      }
+
+      if (wasAuthenticated && error?.code === 'profile_not_found') {
+        await discardIncompleteLogin();
         MySwal.fire({
           icon: 'error',
           title: 'Profil Tidak Ditemukan',
           text: 'Akun berhasil dikenali, tetapi profil pengguna belum tersedia. Hubungi admin.',
           confirmButtonColor: '#3b82f6',
         });
-      } else if (authenticated) {
+      } else if (wasAuthenticated) {
         MySwal.fire({
           icon: 'warning',
           title: 'Profil Belum Termuat',
@@ -109,7 +117,7 @@ export default function Login() {
         MySwal.fire({
           icon: 'error',
           title: 'Login Gagal',
-          text: 'Username atau password salah!',
+          text: getLoginErrorMessage(error),
           confirmButtonColor: '#3b82f6',
         });
       }
@@ -147,7 +155,7 @@ export default function Login() {
           <label className="block text-gray-700 text-sm font-semibold" htmlFor="username">
             <span className="mb-2 block"><i className="fas fa-user mr-2 text-blue-500" />Username</span>
             <div className="relative">
-              <input type="text" id="username" required value={username} onChange={event => setUsername(event.target.value)} autoComplete="username" disabled={checkingSession} className="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition disabled:bg-gray-100" placeholder="Masukkan username" />
+              <input type="text" id="username" required value={username} onChange={event => setUsername(event.target.value)} autoComplete="username" className="w-full pl-4 pr-10 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition disabled:bg-gray-100" placeholder="Masukkan username" />
               <i className="fas fa-user absolute right-3 top-3.5 text-gray-400" />
             </div>
           </label>
@@ -155,7 +163,7 @@ export default function Login() {
           <label className="block text-gray-700 text-sm font-semibold" htmlFor="password">
             <span className="mb-2 block"><i className="fas fa-lock mr-2 text-blue-500" />Password</span>
             <div className="password-input-group">
-              <input type={showPassword ? 'text' : 'password'} id="password" required value={password} onChange={event => setPassword(event.target.value)} autoComplete="current-password" disabled={checkingSession} className="w-full pl-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition disabled:bg-gray-100" placeholder="Masukkan password" />
+              <input type={showPassword ? 'text' : 'password'} id="password" required value={password} onChange={event => setPassword(event.target.value)} autoComplete="current-password" className="w-full pl-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition disabled:bg-gray-100" placeholder="Masukkan password" />
               <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'} password-toggle`} onClick={() => setShowPassword(value => !value)} />
             </div>
           </label>

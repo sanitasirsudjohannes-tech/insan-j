@@ -1,20 +1,30 @@
 import { supabase } from './supabase';
+import { withTimeout } from './asyncTimeout';
 
 const CURRENT_USER_KEY = 'currentUser';
-const SESSION_TIMEOUT_MS = 12000;
+const SESSION_TIMEOUT_MS = 10000;
+const PROFILE_TIMEOUT_MS = 8000;
+const RESTORE_DEADLINE_MS = 15000;
+const FRESH_PROFILE_MS = 30_000;
 
-const timeoutError = () => Object.assign(new Error('Pemulihan sesi terlalu lama.'), {
-  code: 'session_timeout',
-});
+// Cache in-memory saja: hilang saat reload, sehingga verifikasi penuh tetap
+// dilakukan ketika aplikasi dibuka kembali. Berguna untuk mencegah pengambilan
+// profil dua kali tepat setelah login dan dashboard baru dimuat.
+let freshProfile = null;
 
-const withTimeout = promise => Promise.race([
-  promise,
-  new Promise((_, reject) => window.setTimeout(() => reject(timeoutError()), SESSION_TIMEOUT_MS)),
-]);
+const timeoutOptions = (message, code = 'session_timeout') => ({ message, code });
 
 export const getCachedUser = () => {
-  const value = localStorage.getItem(CURRENT_USER_KEY) || sessionStorage.getItem(CURRENT_USER_KEY);
+  let value = null;
+  try {
+    value = localStorage.getItem(CURRENT_USER_KEY) || sessionStorage.getItem(CURRENT_USER_KEY);
+  } catch {
+    // Storage dapat diblokir browser. Perlakukan seperti belum ada cache.
+    return null;
+  }
+
   if (!value) return null;
+
   try {
     return JSON.parse(value);
   } catch {
@@ -23,15 +33,40 @@ export const getCachedUser = () => {
   }
 };
 
-export const cacheUser = user => {
+export const cacheUser = (user, { verified = false } = {}) => {
   const value = JSON.stringify(user);
-  localStorage.setItem(CURRENT_USER_KEY, value);
-  sessionStorage.setItem(CURRENT_USER_KEY, value);
+
+  try {
+    localStorage.setItem(CURRENT_USER_KEY, value);
+  } catch {
+    // Kuota penuh atau storage diblokir. Login tetap boleh berlanjut.
+  }
+
+  try {
+    sessionStorage.setItem(CURRENT_USER_KEY, value);
+  } catch {
+    // Cache sessionStorage bersifat opsional.
+  }
+
+  if (verified && user?.id) {
+    freshProfile = { userId: user.id, user, verifiedAt: Date.now() };
+  }
 };
 
 export const clearCachedUser = () => {
-  localStorage.removeItem(CURRENT_USER_KEY);
-  sessionStorage.removeItem(CURRENT_USER_KEY);
+  freshProfile = null;
+
+  try {
+    localStorage.removeItem(CURRENT_USER_KEY);
+  } catch {
+    // Abaikan storage yang diblokir.
+  }
+
+  try {
+    sessionStorage.removeItem(CURRENT_USER_KEY);
+  } catch {
+    // Abaikan storage yang diblokir.
+  }
 };
 
 const isInvalidSessionError = error => {
@@ -46,6 +81,17 @@ const isInvalidSessionError = error => {
 
 const isMissingProfileError = error => error?.code === 'profile_not_found';
 
+const isAdminRole = role => String(role || '').trim().toLowerCase() === 'admin';
+
+const getFreshProfile = userId => {
+  if (!freshProfile || freshProfile.userId !== userId) return null;
+  if (Date.now() - freshProfile.verifiedAt > FRESH_PROFILE_MS) {
+    freshProfile = null;
+    return null;
+  }
+  return freshProfile.user;
+};
+
 export async function loadUserProfile(userId) {
   const { data, error } = await withTimeout(
     supabase
@@ -53,6 +99,8 @@ export async function loadUserProfile(userId) {
       .select('username, nama, role')
       .eq('id', userId)
       .maybeSingle(),
+    PROFILE_TIMEOUT_MS,
+    timeoutOptions('Profil pengguna terlalu lama dimuat.'),
   );
 
   if (error) throw error;
@@ -70,9 +118,10 @@ export async function loadUserProfile(userId) {
   };
 }
 
-export async function restoreUserSession({ isCurrent = () => true } = {}) {
+async function restoreUserSessionInternal(isCurrent) {
   const cancelled = () => ({ status: 'cancelled', user: null });
   if (!isCurrent()) return cancelled();
+
   const cachedUser = getCachedUser();
 
   if (!navigator.onLine) {
@@ -83,13 +132,21 @@ export async function restoreUserSession({ isCurrent = () => true } = {}) {
 
   let session = null;
   try {
-    const current = await withTimeout(supabase.auth.getSession());
+    const current = await withTimeout(
+      supabase.auth.getSession(),
+      SESSION_TIMEOUT_MS,
+      timeoutOptions('Pemeriksaan sesi terlalu lama.'),
+    );
     if (!isCurrent()) return cancelled();
     if (current.error) throw current.error;
     session = current.data?.session || null;
 
     if (!session && cachedUser) {
-      const refreshed = await withTimeout(supabase.auth.refreshSession());
+      const refreshed = await withTimeout(
+        supabase.auth.refreshSession(),
+        SESSION_TIMEOUT_MS,
+        timeoutOptions('Pembaruan sesi terlalu lama.'),
+      );
       if (!isCurrent()) return cancelled();
       if (refreshed.error) throw refreshed.error;
       session = refreshed.data?.session || null;
@@ -100,12 +157,18 @@ export async function restoreUserSession({ isCurrent = () => true } = {}) {
       return { status: 'unauthenticated', user: null };
     }
 
-    const user = await loadUserProfile(session.user.id);
+    const user = getFreshProfile(session.user.id) || await loadUserProfile(session.user.id);
     if (!isCurrent()) return cancelled();
-    // Verify privileged identity once per recovery, shared by protected routes.
+
+    // Verifikasi privileged identity sekali per recovery, dipakai bersama
+    // oleh seluruh protected route.
     let adminVerified = false;
-    if (user.role?.trim().toLowerCase() === 'admin') {
-      const verified = await withTimeout(supabase.auth.getUser());
+    if (isAdminRole(user.role)) {
+      const verified = await withTimeout(
+        supabase.auth.getUser(),
+        SESSION_TIMEOUT_MS,
+        timeoutOptions('Verifikasi administrator terlalu lama.'),
+      );
       if (!isCurrent()) return cancelled();
       if (verified.error) throw verified.error;
       if (verified.data?.user?.id !== session.user.id) {
@@ -113,7 +176,9 @@ export async function restoreUserSession({ isCurrent = () => true } = {}) {
       }
       adminVerified = true;
     }
-    cacheUser(user);
+
+    if (!isCurrent()) return cancelled();
+    cacheUser(user, { verified: true });
     return { status: 'authenticated', user, adminVerified };
   } catch (error) {
     if (!isCurrent()) return cancelled();
@@ -138,6 +203,35 @@ export async function restoreUserSession({ isCurrent = () => true } = {}) {
 
     console.warn('Pemulihan sesi gagal sementara.', {
       reason: error?.code || error?.name || 'temporary_error',
+    });
+    return { status: 'error', user: null, reason: 'temporary_error' };
+  }
+}
+
+export async function restoreUserSession({ isCurrent = () => true } = {}) {
+  let expired = false;
+  const isActive = () => !expired && isCurrent();
+
+  try {
+    return await withTimeout(
+      restoreUserSessionInternal(isActive),
+      RESTORE_DEADLINE_MS,
+      timeoutOptions('Pemulihan sesi terlalu lama.'),
+    );
+  } catch (error) {
+    expired = true;
+    if (!isCurrent()) return { status: 'cancelled', user: null };
+
+    const cachedUser = getCachedUser();
+    if (cachedUser) {
+      console.warn('Pemulihan sesi melewati batas waktu; cache pengguna tetap digunakan.', {
+        reason: error?.code || error?.name || 'session_timeout',
+      });
+      return { status: 'degraded', user: cachedUser, reason: 'temporary_error' };
+    }
+
+    console.warn('Pemulihan sesi gagal sementara.', {
+      reason: error?.code || error?.name || 'session_timeout',
     });
     return { status: 'error', user: null, reason: 'temporary_error' };
   }

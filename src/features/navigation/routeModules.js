@@ -2,7 +2,13 @@
 export const loadAdminPage = () => import('../../pages/KelolaAdmin');
 export const loadRekapPage = () => import('../../pages/RekapLimbah');
 export const loadLandingPage = () => import('../../pages/KelolaLandingPage');
-const loaders = { '/kelola-admin': loadAdminPage, '/rekap-limbah': loadRekapPage, '/kelola-landing': loadLandingPage };
+export const loadPetaPage = () => import('../../pages/PetaFasilitas');
+const loaders = {
+  '/kelola-admin': loadAdminPage,
+  '/rekap-limbah': loadRekapPage,
+  '/kelola-landing': loadLandingPage,
+  '/peta': loadPetaPage,
+};
 const pending = new Map();
 export function prefetchRoute(path) {
   if (typeof navigator !== 'undefined' && (!navigator.onLine || navigator.connection?.saveData)) return;

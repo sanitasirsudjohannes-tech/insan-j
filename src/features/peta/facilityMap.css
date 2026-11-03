@@ -1,0 +1,91 @@
+.leaflet-container {
+  z-index: 0;
+  background: #e2e8f0;
+  font-family: inherit;
+}
+
+.facility-map-marker {
+  background: transparent;
+  border: 0;
+}
+
+.facility-map--placing {
+  cursor: crosshair;
+}
+
+.leaflet-popup-content-wrapper {
+  border-radius: 0.9rem;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+}
+
+.leaflet-popup-content {
+  margin: 0.8rem 1rem;
+}
+
+.facility-map-user-location {
+  background: transparent;
+  border: 0;
+}
+
+.facility-map-user-location__pulse {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: rgba(37, 99, 235, 0.25);
+  animation: facility-location-pulse 2s ease-out infinite;
+}
+
+.facility-map-user-location__dot {
+  position: absolute;
+  inset: 6px;
+  border-radius: 9999px;
+  border: 3px solid #fff;
+  background: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.35), 0 4px 12px rgba(15, 23, 42, 0.35);
+}
+
+@keyframes facility-location-pulse {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.9;
+  }
+  70% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .facility-map-user-location__pulse {
+    animation: none;
+    opacity: 0.35;
+  }
+}
+
+.facility-map--drawing-boundary {
+  cursor: crosshair;
+}
+
+.facility-map-boundary-vertex {
+  background: transparent;
+  border: 0;
+}
+
+.facility-map-boundary-vertex span {
+  display: flex;
+  width: 26px;
+  height: 26px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: 2px solid #4f46e5;
+  background: #fff;
+  color: #4338ca;
+  font-size: 10px;
+  font-weight: 800;
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.3);
+}

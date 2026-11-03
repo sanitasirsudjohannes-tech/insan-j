@@ -431,9 +431,9 @@ test('perbandingan ruangan diurutkan kronologis dan memisahkan catatan manual', 
     diagnostics: { roomInputs: [{ date: parsed.period.start, count: 1, names: ['ICU'], officers: ['Petugas Kemarin'] }] },
   };
   const answer = buildWasteAnswer(parsed, yesterday, today);
-  const earlier = [parsed.comparisonPeriod.start, parsed.period.start].sort()[0];
-  const later = [parsed.comparisonPeriod.start, parsed.period.start].sort()[1];
-  assert.ok(answer.text.indexOf(earlier.split('-').reverse()[0]) < answer.text.indexOf(later.split('-').reverse()[0]));
+  const [earlier, later] = [parsed.comparisonPeriod, parsed.period]
+    .sort((left, right) => left.start.localeCompare(right.start));
+  assert.ok(answer.text.indexOf(earlier.label) < answer.text.indexOf(later.label));
   assert.match(answer.text, /Catatan manual: naik 20 kg/);
   assert.match(answer.text, /Perbedaan terbesar berasal dari catatan limbah manual/);
 });

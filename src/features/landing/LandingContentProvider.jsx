@@ -1,7 +1,6 @@
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect } from 'react';
 import { getLandingContent, DEFAULT_LANDING_CONTENT } from '../admin/landing/landingSettingsService';
-
-const LandingContentContext = createContext(DEFAULT_LANDING_CONTENT);
+import { LandingContentContext } from './LandingContentContext';
 
 export function LandingContentProvider({ children }) {
   const [content, setContent] = useState(DEFAULT_LANDING_CONTENT);
@@ -33,8 +32,4 @@ export function LandingContentProvider({ children }) {
       {children}
     </LandingContentContext.Provider>
   );
-}
-
-export function useLandingContent() {
-  return useContext(LandingContentContext);
 }

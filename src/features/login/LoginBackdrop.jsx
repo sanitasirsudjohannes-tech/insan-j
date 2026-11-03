@@ -10,6 +10,7 @@ export default function LoginBackdrop() {
     let cancelled = false;
     let generation = 0;
     let dispose = () => {};
+    let idleHandle = null;
 
     async function start() {
       const request = ++generation;
@@ -21,16 +22,44 @@ export default function LoginBackdrop() {
         // Keep the CSS gradient when WebGL or the optional chunk is unavailable.
       }
     }
+
+    // Beri kesempatan request login memakai bandwidth lebih dulu. Animasi ini
+    // hanya dekorasi, jadi tidak perlu bersaing dengan autentikasi.
+    function scheduleStart() {
+      if (idleHandle !== null) return;
+      if (typeof window.requestIdleCallback === 'function') {
+        idleHandle = window.requestIdleCallback(() => {
+          idleHandle = null;
+          start();
+        }, { timeout: 2500 });
+      } else {
+        idleHandle = window.setTimeout(() => {
+          idleHandle = null;
+          start();
+        }, 1200);
+      }
+    }
+
+    function cancelScheduledStart() {
+      if (idleHandle === null) return;
+      if (typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(idleHandle);
+      else window.clearTimeout(idleHandle);
+      idleHandle = null;
+    }
+
     function onMotionChange() {
+      cancelScheduledStart();
       dispose();
       dispose = () => {};
-      if (!motion.matches) start();
+      if (!motion.matches) scheduleStart();
     }
-    start();
+
+    scheduleStart();
     motion.addEventListener('change', onMotionChange);
     return () => {
       cancelled = true;
       generation++;
+      cancelScheduledStart();
       motion.removeEventListener('change', onMotionChange);
       dispose();
     };

@@ -39,7 +39,51 @@ function MenuGroup({ group, pathname, isOpen, onToggle, onClose }) {
 
 export default function Sidebar({ isOpen, onClose, variant = 'app' }) {
   const location = useLocation();
-  const [landingOpen, setLandingOpen] = useState(false);
+  const user = getCurrentUser();
+  const role = user?.role?.toLowerCase();
+  const isAdmin = role === 'admin';
+  const isMahasiswa = role === 'mahasiswa';
+
+  const mahasiswaItems = [
+    { to: '/dashboard', label: 'Dashboard', icon: 'fas fa-th-large' },
+    { to: '/peta', label: 'Peta Fasilitas', icon: 'fas fa-map-location-dot' },
+    { to: '/limbah-dihasilkan', label: 'Input Data Limbah', icon: 'fas fa-recycle' },
+    { to: '/akun', label: 'Setting Akun', icon: 'fas fa-cog' },
+  ];
+
+  const menu = isAdmin ? [
+    { to: '/dashboard', label: 'Dashboard', icon: 'fas fa-th-large' },
+    { to: '/peta', label: 'Peta Fasilitas', icon: 'fas fa-map-location-dot' },
+    { to: '/rekap-limbah', label: 'Rekap Limbah', icon: 'fas fa-file-invoice' },
+    { to: '/asisten-laporan', label: 'Asisten Laporan', icon: 'fas fa-wand-magic-sparkles' },
+    { to: '/riwayat', label: 'Riwayat Inspeksi', icon: 'fas fa-history' },
+    { to: '/kelola-admin', label: 'Kelola Pengguna', icon: 'fas fa-users-cog', adminOnly: true },
+    { to: '/kelola-landing', label: 'Pengaturan Landing Page', icon: 'fas fa-globe', adminOnly: true },
+    { to: '/akun', label: 'Setting Akun', icon: 'fas fa-cog' },
+  ] : [
+    { to: '/dashboard', label: 'Dashboard', icon: 'fas fa-th-large' },
+    { to: '/peta', label: 'Peta Fasilitas', icon: 'fas fa-map-location-dot' },
+    {
+      id: 'waste', label: 'Pengelolaan Limbah', icon: 'fas fa-recycle', items: [
+        { to: '/limbah-dihasilkan', label: 'Limbah Dihasilkan', icon: 'fas fa-biohazard' },
+        { to: '/pengangkutan', label: 'Pengangkutan', icon: 'fas fa-truck' },
+        { to: '/rekap-limbah', label: 'Rekap Limbah', icon: 'fas fa-file-invoice' },
+      ]
+    },
+    {
+      id: 'inspection', label: 'Inspeksi Sanitasi', icon: 'fas fa-clipboard-check', items: [
+        { to: '/inspeksi', label: 'Form Inspeksi', icon: 'fas fa-pen-to-square' },
+        { to: '/riwayat', label: 'Riwayat Inspeksi', icon: 'fas fa-history' },
+      ]
+    },
+    { to: '/pemeriksaan-air', label: 'Pemeriksaan Air', icon: 'fas fa-droplet' },
+    { to: '/asisten-laporan', label: 'Asisten Laporan', icon: 'fas fa-wand-magic-sparkles' },
+    { to: '/akun', label: 'Setting Akun', icon: 'fas fa-cog' },
+  ];
+
+  const initialGroups = Object.fromEntries(menu.filter(item => item.items).map(group => [group.id, group.items.some(item => isPathActive(location.pathname, item.to))]));
+  const [openGroups, setOpenGroups] = useState(initialGroups);
+  const toggleGroup = id => setOpenGroups(current => ({ ...current, [id]: !current[id] }));
 
   if (variant === 'landing') {
     const goTo = id => {
@@ -105,48 +149,6 @@ export default function Sidebar({ isOpen, onClose, variant = 'app' }) {
   }
 
 
-  const user = getCurrentUser();
-  const role = user?.role?.toLowerCase();
-  const isAdmin = role === 'admin';
-  const isMahasiswa = role === 'mahasiswa';
-
-  const mahasiswaItems = [
-    { to: '/dashboard', label: 'Dashboard', icon: 'fas fa-th-large' },
-    { to: '/limbah-dihasilkan', label: 'Input Data Limbah', icon: 'fas fa-recycle' },
-    { to: '/akun', label: 'Setting Akun', icon: 'fas fa-cog' },
-  ];
-
-  const menu = isAdmin ? [
-    { to: '/dashboard', label: 'Dashboard', icon: 'fas fa-th-large' },
-    { to: '/rekap-limbah', label: 'Rekap Limbah', icon: 'fas fa-file-invoice' },
-    { to: '/asisten-laporan', label: 'Asisten Laporan', icon: 'fas fa-wand-magic-sparkles' },
-    { to: '/riwayat', label: 'Riwayat Inspeksi', icon: 'fas fa-history' },
-    { to: '/kelola-admin', label: 'Kelola Pengguna', icon: 'fas fa-users-cog', adminOnly: true },
-    { to: '/kelola-landing', label: 'Pengaturan Landing Page', icon: 'fas fa-globe', adminOnly: true },
-    { to: '/akun', label: 'Setting Akun', icon: 'fas fa-cog' },
-  ] : [
-    { to: '/dashboard', label: 'Dashboard', icon: 'fas fa-th-large' },
-    {
-      id: 'waste', label: 'Pengelolaan Limbah', icon: 'fas fa-recycle', items: [
-        { to: '/limbah-dihasilkan', label: 'Limbah Dihasilkan', icon: 'fas fa-biohazard' },
-        { to: '/pengangkutan', label: 'Pengangkutan', icon: 'fas fa-truck' },
-        { to: '/rekap-limbah', label: 'Rekap Limbah', icon: 'fas fa-file-invoice' },
-      ]
-    },
-    {
-      id: 'inspection', label: 'Inspeksi Sanitasi', icon: 'fas fa-clipboard-check', items: [
-        { to: '/inspeksi', label: 'Form Inspeksi', icon: 'fas fa-pen-to-square' },
-        { to: '/riwayat', label: 'Riwayat Inspeksi', icon: 'fas fa-history' },
-      ]
-    },
-    { to: '/pemeriksaan-air', label: 'Pemeriksaan Air', icon: 'fas fa-droplet' },
-    { to: '/asisten-laporan', label: 'Asisten Laporan', icon: 'fas fa-wand-magic-sparkles' },
-    { to: '/akun', label: 'Setting Akun', icon: 'fas fa-cog' },
-  ];
-
-  const initialGroups = Object.fromEntries(menu.filter(item => item.items).map(group => [group.id, group.items.some(item => isPathActive(location.pathname, item.to))]));
-  const [openGroups, setOpenGroups] = useState(initialGroups);
-  const toggleGroup = id => setOpenGroups(current => ({ ...current, [id]: !current[id] }));
 
   return <>
     {isOpen && <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm transition-opacity duration-300" onClick={onClose} />}

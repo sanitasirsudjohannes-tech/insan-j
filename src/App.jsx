@@ -9,6 +9,7 @@ import { getCachedUser } from './lib/session';
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
+const PetaFasilitas = lazy(() => import('./pages/PetaFasilitas'));
 const Akun = lazy(() => import('./pages/Akun'));
 const Riwayat = lazy(() => import('./pages/Riwayat'));
 const KelolaAdmin = lazy(loadAdminPage);
@@ -47,6 +48,12 @@ function App() {
           <Route path="/dashboard" element={
             <RoleGate>
               <Dashboard />
+            </RoleGate>
+          } />
+
+          <Route path="/peta" element={
+            <RoleGate allowedRoles={['admin', 'petugas', 'user', 'mahasiswa']}>
+              <PetaFasilitas />
             </RoleGate>
           } />
 

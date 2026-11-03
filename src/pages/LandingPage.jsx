@@ -8,7 +8,7 @@ import VideoSection from '../features/landing/VideoSection';
 import WorkflowSection from '../features/landing/WorkflowSection';
 import CTASection from '../features/landing/CTASection';
 import LandingFooter from '../features/landing/LandingFooter';
-import { LandingContentProvider } from '../features/landing/useLandingContent';
+import { LandingContentProvider } from '../features/landing/LandingContentProvider';
 
 export default function LandingPage() {
   const observerRef = useRef(null);

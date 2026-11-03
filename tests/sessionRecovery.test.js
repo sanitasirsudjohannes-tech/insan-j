@@ -5,6 +5,7 @@ import vm from 'node:vm';
 
 const source = readFileSync(new URL('../src/lib/session.js', import.meta.url), 'utf8')
   .replace("import { supabase } from './supabase';", '')
+  .replace("import { withTimeout } from './asyncTimeout';", '')
   .replaceAll('export ', '');
 
 function setup({ getSession, getUser, profile = async () => ({ data: { role: 'petugas' } }) }) {
@@ -15,6 +16,8 @@ function setup({ getSession, getUser, profile = async () => ({ data: { role: 'pe
   const context = vm.createContext({
     localStorage: makeStorage(), sessionStorage: makeStorage(),
     navigator: { onLine: true }, window: { setTimeout: () => 0 },
+    // Test ini fokus pada alur keputusan, bukan pada mekanisme timeout.
+    withTimeout: promise => promise,
     console: { warn() {} },
     supabase: {
       auth: { getSession, getUser, signOut: async () => {} },
@@ -23,6 +26,23 @@ function setup({ getSession, getUser, profile = async () => ({ data: { role: 'pe
   });
   return vm.runInContext(source + '\n({ restoreUserSession, cacheUser, clearCachedUser, getCachedUser })', context);
 }
+
+test('profil yang baru diverifikasi dipakai ulang saat navigasi hangat', async () => {
+  let profileCalls = 0;
+  const api = setup({
+    getSession: async () => ({ data: { session: { user: { id: 'user-1' } } } }),
+    profile: async () => {
+      profileCalls += 1;
+      return { data: { username: 'user1', nama: 'User Satu', role: 'petugas' } };
+    },
+  });
+
+  api.cacheUser({ id: 'user-1', username: 'user1', nama: 'User Satu', role: 'petugas' }, { verified: true });
+  const result = await api.restoreUserSession();
+
+  assert.equal(result.status, 'authenticated');
+  assert.equal(profileCalls, 0);
+});
 
 test('late profile response cannot recreate user cache after logout', async () => {
   let completeProfile;

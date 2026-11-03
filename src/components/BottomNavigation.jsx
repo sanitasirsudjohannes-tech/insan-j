@@ -69,6 +69,96 @@ export default function BottomNavigation({ variant = 'app' }) {
     };
   }, [variant]);
 
+  const user = getCurrentUser();
+  const role = user?.role?.trim().toLowerCase();
+  const isAdmin = role === 'admin';
+  const isMahasiswa = role === 'mahasiswa';
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [keyboardOpen, setKeyboardOpen] = useState(false);
+
+  const { primaryItems, moreItems } = useMemo(() => {
+    if (isMahasiswa) {
+      return {
+        primaryItems: [
+          { to: '/dashboard', label: 'Beranda', icon: 'fas fa-house' },
+          { to: '/peta', label: 'Peta', icon: 'fas fa-map-location-dot' },
+          { to: '/limbah-dihasilkan', label: 'Input', icon: 'fas fa-plus' },
+          { to: '/akun', label: 'Akun', icon: 'fas fa-user-gear' },
+        ],
+        moreItems: [],
+      };
+    }
+
+    if (isAdmin) {
+      return {
+        primaryItems: [
+          { to: '/dashboard', label: 'Beranda', icon: 'fas fa-house' },
+          { to: '/rekap-limbah', label: 'Rekap', icon: 'fas fa-file-invoice' },
+          { to: '/riwayat', label: 'Riwayat', icon: 'fas fa-clock-rotate-left' },
+        ],
+        moreItems: [
+          { to: '/peta', label: 'Peta Fasilitas', icon: 'fas fa-map-location-dot', description: 'Sebaran ruangan dan lokasi air bersih' },
+          { to: '/kelola-admin', label: 'Kelola Pengguna', icon: 'fas fa-users-gear', description: 'Akun, ruangan, dan lokasi air bersih' },
+          { to: '/kelola-landing', label: 'Pengaturan Landing', icon: 'fas fa-globe', description: 'Atur konten halaman depan' },
+          { to: '/akun', label: 'Pengaturan Akun', icon: 'fas fa-user-gear', description: 'Profil dan keamanan akun' },
+        ],
+      };
+    }
+
+    return {
+      primaryItems: [
+        { to: '/dashboard', label: 'Beranda', icon: 'fas fa-house' },
+        { to: '/limbah-dihasilkan', label: 'Input', icon: 'fas fa-plus' },
+        { to: '/pengangkutan', label: 'Angkut', icon: 'fas fa-truck' },
+        { to: '/rekap-limbah', label: 'Rekap', icon: 'fas fa-file-invoice' },
+      ],
+      moreItems: [
+        { to: '/peta', label: 'Peta Fasilitas', icon: 'fas fa-map-location-dot', description: 'Sebaran ruangan dan lokasi air bersih' },
+        { to: '/inspeksi', label: 'Form Inspeksi', icon: 'fas fa-clipboard-check', description: 'Isi pemeriksaan sanitasi' },
+        { to: '/pemeriksaan-air', label: 'Pemeriksaan Air', icon: 'fas fa-droplet', description: 'Hasil air bersih dan air limbah' },
+        { to: '/riwayat', label: 'Riwayat Inspeksi', icon: 'fas fa-clock-rotate-left', description: 'Lihat dan kelola hasil inspeksi' },
+        { to: '/akun', label: 'Pengaturan Akun', icon: 'fas fa-user-gear', description: 'Profil dan keamanan akun' },
+      ],
+    };
+  }, [isAdmin, isMahasiswa]);
+
+  useEffect(() => {
+    if (variant !== 'landing') setMoreOpen(false);
+  }, [location.pathname, variant]);
+
+  useEffect(() => {
+    if (variant === 'landing') return undefined;
+    const viewport = window.visualViewport;
+    if (!viewport) return undefined;
+    const initialHeight = viewport.height;
+    const updateKeyboardState = () => setKeyboardOpen(initialHeight - viewport.height > 150);
+    viewport.addEventListener('resize', updateKeyboardState);
+    return () => viewport.removeEventListener('resize', updateKeyboardState);
+  }, [variant]);
+
+  const moreIsActive = moreItems.some(item => item.to === location.pathname);
+  const totalNavItems = primaryItems.length + (moreItems.length > 0 ? 1 : 0);
+  const primaryActiveIndex = primaryItems.findIndex(item => (
+    location.pathname === item.to
+    || location.pathname.startsWith(`${item.to}/`)
+    || (location.pathname === '/asisten-laporan' && item.to === '/rekap-limbah')
+  ));
+  const activeIndex = moreOpen || moreIsActive
+    ? primaryItems.length
+    : Math.max(0, primaryActiveIndex);
+  const [animatedIndex, setAnimatedIndex] = useState(() => lastActiveIndex ?? activeIndex);
+
+  useEffect(() => {
+    if (variant === 'landing') return undefined;
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      setAnimatedIndex(activeIndex);
+      lastActiveIndex = activeIndex;
+    });
+
+    return () => window.cancelAnimationFrame(animationFrame);
+  }, [activeIndex, variant]);
+
   if (variant === 'landing') {
     const goTo = (id, index) => {
       landingProgrammaticScrollRef.current = true;
@@ -118,90 +208,6 @@ export default function BottomNavigation({ variant = 'app' }) {
       </nav>
     );
   }
-
-
-  
-  const user = getCurrentUser();
-  const role = user?.role?.trim().toLowerCase();
-  const isAdmin = role === 'admin';
-  const isMahasiswa = role === 'mahasiswa';
-  const [moreOpen, setMoreOpen] = useState(false);
-  const [keyboardOpen, setKeyboardOpen] = useState(false);
-
-  const { primaryItems, moreItems } = useMemo(() => {
-    if (isMahasiswa) {
-      return {
-        primaryItems: [
-          { to: '/dashboard', label: 'Beranda', icon: 'fas fa-house' },
-          { to: '/limbah-dihasilkan', label: 'Input', icon: 'fas fa-plus' },
-          { to: '/akun', label: 'Akun', icon: 'fas fa-user-gear' },
-        ],
-        moreItems: [],
-      };
-    }
-
-    if (isAdmin) {
-      return {
-        primaryItems: [
-          { to: '/dashboard', label: 'Beranda', icon: 'fas fa-house' },
-          { to: '/rekap-limbah', label: 'Rekap', icon: 'fas fa-file-invoice' },
-          { to: '/riwayat', label: 'Riwayat', icon: 'fas fa-clock-rotate-left' },
-        ],
-        moreItems: [
-          { to: '/kelola-admin', label: 'Kelola Pengguna', icon: 'fas fa-users-gear', description: 'Akun, ruangan, dan lokasi air bersih' },
-          { to: '/kelola-landing', label: 'Pengaturan Landing', icon: 'fas fa-globe', description: 'Atur konten halaman depan' },
-          { to: '/akun', label: 'Pengaturan Akun', icon: 'fas fa-user-gear', description: 'Profil dan keamanan akun' },
-        ],
-      };
-    }
-
-    return {
-      primaryItems: [
-        { to: '/dashboard', label: 'Beranda', icon: 'fas fa-house' },
-        { to: '/limbah-dihasilkan', label: 'Input', icon: 'fas fa-plus' },
-        { to: '/pengangkutan', label: 'Angkut', icon: 'fas fa-truck' },
-        { to: '/rekap-limbah', label: 'Rekap', icon: 'fas fa-file-invoice' },
-      ],
-      moreItems: [
-        { to: '/inspeksi', label: 'Form Inspeksi', icon: 'fas fa-clipboard-check', description: 'Isi pemeriksaan sanitasi' },
-        { to: '/pemeriksaan-air', label: 'Pemeriksaan Air', icon: 'fas fa-droplet', description: 'Hasil air bersih dan air limbah' },
-        { to: '/riwayat', label: 'Riwayat Inspeksi', icon: 'fas fa-clock-rotate-left', description: 'Lihat dan kelola hasil inspeksi' },
-        { to: '/akun', label: 'Pengaturan Akun', icon: 'fas fa-user-gear', description: 'Profil dan keamanan akun' },
-      ],
-    };
-  }, [isAdmin, isMahasiswa]);
-
-  useEffect(() => setMoreOpen(false), [location.pathname]);
-
-  useEffect(() => {
-    const viewport = window.visualViewport;
-    if (!viewport) return undefined;
-    const initialHeight = viewport.height;
-    const updateKeyboardState = () => setKeyboardOpen(initialHeight - viewport.height > 150);
-    viewport.addEventListener('resize', updateKeyboardState);
-    return () => viewport.removeEventListener('resize', updateKeyboardState);
-  }, []);
-
-  const moreIsActive = moreItems.some(item => item.to === location.pathname);
-  const totalNavItems = primaryItems.length + (moreItems.length > 0 ? 1 : 0);
-  const primaryActiveIndex = primaryItems.findIndex(item => (
-    location.pathname === item.to
-    || location.pathname.startsWith(`${item.to}/`)
-    || (location.pathname === '/asisten-laporan' && item.to === '/rekap-limbah')
-  ));
-  const activeIndex = moreOpen || moreIsActive
-    ? primaryItems.length
-    : Math.max(0, primaryActiveIndex);
-  const [animatedIndex, setAnimatedIndex] = useState(() => lastActiveIndex ?? activeIndex);
-
-  useEffect(() => {
-    const animationFrame = window.requestAnimationFrame(() => {
-      setAnimatedIndex(activeIndex);
-      lastActiveIndex = activeIndex;
-    });
-
-    return () => window.cancelAnimationFrame(animationFrame);
-  }, [activeIndex]);
 
   if (keyboardOpen) return null;
 
