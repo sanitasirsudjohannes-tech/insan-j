@@ -53,6 +53,12 @@ export function groupFacilitiesByCategory(facilities = []) {
   return groups;
 }
 
+export function filterVisibleFacilities(facilities = [], visibleCategories = {}, selectedKey = null) {
+  return facilities.filter(facility =>
+    selectedKey === facility.key || visibleCategories?.[facility.category] === true,
+  );
+}
+
 export function filterFacilities(facilities, { query = '', category = 'all' } = {}) {
   const needle = query.trim().toLowerCase();
   return facilities.filter(facility => {

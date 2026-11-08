@@ -4,6 +4,23 @@ export const MAP_MIN_ZOOM = 15;
 export const MAP_MAX_ZOOM = 19;
 export const MAP_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 export const MAP_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+export const MAP_BASE_LAYERS = Object.freeze([
+  {
+    id: 'street',
+    label: 'Peta',
+    url: MAP_TILE_URL,
+    attribution: MAP_ATTRIBUTION,
+    maxZoom: MAP_MAX_ZOOM,
+  },
+  {
+    id: 'satellite',
+    label: 'Satelit',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+    maxZoom: MAP_MAX_ZOOM,
+  },
+]);
+export const DEFAULT_MAP_BASE_LAYER = 'street';
 
 export const HOSPITAL_BOUNDARY_LABEL = 'Batas Rumah Sakit';
 export const HOSPITAL_BOUNDARY_COLOR = '#4f46e5';

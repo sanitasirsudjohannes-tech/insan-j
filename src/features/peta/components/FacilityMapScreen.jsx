@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 import { useSession } from '../../session/SessionContext';
-import { computeFacilityStats, filterFacilities } from '../domain/facilityMapModel';
+import { DEFAULT_VISIBLE_CATEGORIES } from '../constants/facilityCategories';
+import { computeFacilityStats, filterFacilities, filterVisibleFacilities } from '../domain/facilityMapModel';
 import useFacilityMapData from '../hooks/useFacilityMapData';
 import useFacilityMapEditor from '../hooks/useFacilityMapEditor';
 import useHospitalBoundary from '../hooks/useHospitalBoundary';
@@ -20,6 +21,7 @@ export default function FacilityMapScreen() {
   const isAdmin = user?.role?.trim().toLowerCase() === 'admin';
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('all');
+  const [visibleCategories, setVisibleCategories] = useState(() => ({ ...DEFAULT_VISIBLE_CATEGORIES }));
 
   const data = useFacilityMapData();
   const editor = useFacilityMapEditor({
@@ -31,6 +33,10 @@ export default function FacilityMapScreen() {
     boundary: boundaryData.boundary,
     onSaved: boundaryData.refresh,
   });
+
+  const toggleCategoryVisibility = useCallback(categoryItem => {
+    setVisibleCategories(current => ({ ...current, [categoryItem]: !current[categoryItem] }));
+  }, []);
 
   const visibleFacilities = useMemo(
     () => data.facilities.filter(facility => isAdmin || (facility.isActive && facility.hasCoordinates)),
@@ -45,11 +51,12 @@ export default function FacilityMapScreen() {
 
   const mapFacilities = useMemo(() => {
     const selected = editor.selectedFacility;
-    if (!selected || filteredFacilities.some(facility => facility.key === selected.key)) {
-      return filteredFacilities;
+    const visible = filterVisibleFacilities(filteredFacilities, visibleCategories, selected?.key);
+    if (!selected || visible.some(facility => facility.key === selected.key)) {
+      return visible;
     }
-    return [...filteredFacilities, selected];
-  }, [editor.selectedFacility, filteredFacilities]);
+    return [...visible, selected];
+  }, [editor.selectedFacility, filteredFacilities, visibleCategories]);
 
   const confirmDiscardDraft = useCallback(async () => {
     if (!editor.editing || !editor.hasChanges) return true;
@@ -174,7 +181,7 @@ export default function FacilityMapScreen() {
           </div>
           <span className="inline-flex w-fit items-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold backdrop-blur">
             <i className="fas fa-map-location-dot" aria-hidden="true" />
-            OpenStreetMap
+            Peta & Satelit
           </span>
         </div>
       </section>
@@ -222,11 +229,13 @@ export default function FacilityMapScreen() {
       <FacilityEditorPanel editor={editor} onFinish={finishEditing} />
       <HospitalBoundaryPanel editor={boundaryEditor} onFinish={finishBoundaryEditing} />
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
+      <div className="grid gap-4 h-[62vh] min-h-[380px] lg:h-[calc(100vh-26rem)] lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
         <FacilityMapSidebar
           facilities={filteredFacilities}
           category={category}
           selectedKey={editor.selectedKey}
+          visibleCategories={visibleCategories}
+          onToggleCategoryVisibility={toggleCategoryVisibility}
           isAdmin={isAdmin}
           busy={editor.saving}
           onSelect={handleSelectFacility}
@@ -234,13 +243,14 @@ export default function FacilityMapScreen() {
           onDelete={handleDeleteFacilityCoordinates}
         />
 
-        <section className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
+        <section className="relative h-full min-h-0 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm">
           {data.loading && data.facilities.length === 0 ? (
             <FacilityMapLoadingState />
           ) : (
             <FacilityMapCanvas
               facilities={mapFacilities}
               selectedKey={editor.selectedKey}
+              showEmptyMarkerHint={!mapFacilities.some(facility => facility.hasCoordinates)}
               draft={editor.draft}
               editing={editor.editing}
               onSelect={handleSelectFacility}
@@ -251,7 +261,7 @@ export default function FacilityMapScreen() {
               boundaryEditing={boundaryEditor.editing}
               onBoundaryMapClick={boundaryEditor.addPoint}
               onBoundaryVertexDragEnd={boundaryEditor.updatePoint}
-              className="h-[62vh] min-h-[380px] lg:h-[calc(100vh-26rem)]"
+              className="h-full"
             />
           )}
           <div className="pointer-events-none absolute bottom-5 left-5 z-10 hidden sm:block">

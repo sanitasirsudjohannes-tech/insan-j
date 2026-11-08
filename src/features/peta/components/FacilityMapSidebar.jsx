@@ -8,6 +8,8 @@ export default function FacilityMapSidebar({
   facilities,
   category = 'all',
   selectedKey,
+  visibleCategories = {},
+  onToggleCategoryVisibility,
   isAdmin,
   busy,
   onSelect,
@@ -31,34 +33,36 @@ export default function FacilityMapSidebar({
   };
 
   const groups = groupFacilitiesByCategory(facilities);
-  const visibleCategories = category === FACILITY_CATEGORY.ROOM || category === FACILITY_CATEGORY.CLEAN_WATER
+  const displayedCategories = category === FACILITY_CATEGORY.ROOM || category === FACILITY_CATEGORY.CLEAN_WATER
     ? [category]
     : [FACILITY_CATEGORY.ROOM, FACILITY_CATEGORY.CLEAN_WATER];
 
   return (
-    <aside className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <aside className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
         <div>
           <h2 className="text-sm font-black text-slate-800">Daftar Fasilitas</h2>
-          <p className="mt-0.5 text-[11px] text-slate-500">{isAdmin ? 'Klik kategori untuk menambah, mengedit, atau menghapus titik.' : 'Klik kategori untuk melihat fasilitas dan menyorot titik.'}</p>
+          <p className="mt-0.5 text-[11px] text-slate-500">{isAdmin ? 'Klik kategori untuk menambah, mengedit, atau menghapus titik. Ikon mata mengatur penanda di peta.' : 'Klik kategori untuk melihat fasilitas dan menyorot titik. Ikon mata mengatur penanda di peta.'}</p>
         </div>
         <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">
           {facilities.length}
         </span>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-3 max-h-[26rem] lg:max-h-[calc(100vh-25rem)]">
+      <div className="min-h-0 flex-1 overflow-y-auto p-3">
         {facilities.length === 0
           ? <EmptyState compact icon="fas fa-map-location-dot" title="Tidak ada fasilitas" description="Ubah kata kunci atau filter kategori untuk melihat fasilitas lain." />
           : (
             <div className="space-y-3">
-              {visibleCategories.map(categoryItem => (
+              {displayedCategories.map(categoryItem => (
                 <FacilityCategorySection
                   key={categoryItem}
                   category={categoryItem}
                   facilities={groups[categoryItem]}
                   open={Boolean(openCategories[categoryItem])}
                   onToggle={() => toggleCategory(categoryItem)}
+                  visible={Boolean(visibleCategories[categoryItem])}
+                  onToggleVisibility={() => onToggleCategoryVisibility?.(categoryItem)}
                   selectedKey={selectedKey}
                   isAdmin={isAdmin}
                   busy={busy}

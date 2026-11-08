@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react';
 import L from 'leaflet';
 import {
-  MAP_ATTRIBUTION,
+  DEFAULT_MAP_BASE_LAYER,
+  MAP_BASE_LAYERS,
   MAP_DEFAULT_CENTER,
   MAP_DEFAULT_ZOOM,
   MAP_MAX_ZOOM,
   MAP_MIN_ZOOM,
-  MAP_TILE_URL,
 } from '../constants/mapConfig';
 
-export default function useLeafletMap(containerRef) {
+export default function useLeafletMap(containerRef, initialLayerId = DEFAULT_MAP_BASE_LAYER) {
   const [map, setMap] = useState(null);
+  const [layerId, setLayerId] = useState(initialLayerId);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -25,10 +26,6 @@ export default function useLeafletMap(containerRef) {
     });
 
     instance.zoomControl.setPosition('bottomright');
-    L.tileLayer(MAP_TILE_URL, {
-      maxZoom: MAP_MAX_ZOOM,
-      attribution: MAP_ATTRIBUTION,
-    }).addTo(instance);
 
     const invalidateSize = () => instance.invalidateSize();
     const animationFrame = window.requestAnimationFrame(invalidateSize);
@@ -49,5 +46,15 @@ export default function useLeafletMap(containerRef) {
     };
   }, [containerRef]);
 
-  return map;
+  useEffect(() => {
+    if (!map) return undefined;
+    const layer = MAP_BASE_LAYERS.find(item => item.id === layerId) || MAP_BASE_LAYERS[0];
+    const tileLayer = L.tileLayer(layer.url, {
+      maxZoom: layer.maxZoom,
+      attribution: layer.attribution,
+    }).addTo(map);
+    return () => tileLayer.remove();
+  }, [layerId, map]);
+
+  return { map, layerId, setLayerId };
 }

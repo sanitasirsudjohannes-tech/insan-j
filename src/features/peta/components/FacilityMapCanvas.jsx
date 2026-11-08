@@ -4,6 +4,7 @@ import '../facilityMap.css';
 import useCurrentLocation from '../hooks/useCurrentLocation';
 import useFacilityMarkers from '../hooks/useFacilityMarkers';
 import useHospitalBoundaryPolygon from '../hooks/useHospitalBoundaryPolygon';
+import { MAP_BASE_LAYERS } from '../constants/mapConfig';
 import useLeafletMap from '../hooks/useLeafletMap';
 
 export default function FacilityMapCanvas({
@@ -19,10 +20,11 @@ export default function FacilityMapCanvas({
   boundaryEditing = false,
   onBoundaryMapClick,
   onBoundaryVertexDragEnd,
+  showEmptyMarkerHint = false,
   className = '',
 }) {
   const containerRef = useRef(null);
-  const map = useLeafletMap(containerRef);
+  const { map, layerId, setLayerId } = useLeafletMap(containerRef);
   const { locating, position, locate } = useCurrentLocation(map);
 
   useFacilityMarkers({
@@ -56,6 +58,24 @@ export default function FacilityMapCanvas({
         role="application"
         aria-label="Peta interaktif fasilitas RSUD"
       />
+      <div className="absolute left-3 top-3 z-20 flex gap-1 rounded-xl border border-white/80 bg-white/95 p-1 shadow-lg backdrop-blur">
+        {MAP_BASE_LAYERS.map(layer => (
+          <button
+            key={layer.id}
+            type="button"
+            onClick={() => setLayerId(layer.id)}
+            aria-pressed={layerId === layer.id}
+            className={`rounded-lg px-2.5 py-1.5 text-xs font-bold transition ${layerId === layer.id ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+          >
+            {layer.label}
+          </button>
+        ))}
+      </div>
+      {showEmptyMarkerHint && (
+        <div className="pointer-events-none absolute left-1/2 top-4 z-10 -translate-x-1/2 rounded-full bg-slate-900/80 px-4 py-2 text-xs font-bold text-white shadow-lg">
+          Aktifkan ikon mata pada kategori untuk menampilkan penanda
+        </div>
+      )}
       <button
         type="button"
         onClick={locate}

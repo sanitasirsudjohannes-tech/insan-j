@@ -1,10 +1,10 @@
 import L from 'leaflet';
 
 export function createFacilityMarkerIcon({ color, icon, selected = false }) {
-  const size = selected ? 36 : 28;
+  const size = selected ? 30 : 24;
   return L.divIcon({
     className: 'facility-map-marker',
-    html: `<span style="display:flex;width:${size}px;height:${size}px;align-items:center;justify-content:center;border-radius:9999px;background:${color};border:3px solid #fff;box-shadow:0 3px 10px rgba(15,23,42,.35);color:#fff;font-size:${selected ? 15 : 12}px;line-height:1;"><i class="${icon}" aria-hidden="true"></i></span>`,
+    html: `<span style="display:flex;width:${size}px;height:${size}px;align-items:center;justify-content:center;border-radius:9999px;background:${color};border:2px solid #fff;box-shadow:0 2px 7px rgba(15,23,42,.35);color:#fff;font-size:${selected ? 12 : 10}px;line-height:1;"><i class="${icon}" aria-hidden="true"></i></span>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
     popupAnchor: [0, -size / 2],

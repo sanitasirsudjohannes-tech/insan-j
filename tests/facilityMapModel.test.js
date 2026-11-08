@@ -6,6 +6,7 @@ import {
   coordinatesEqual,
   draftFromFacility,
   filterFacilities,
+  filterVisibleFacilities,
   getMappedCoordinates,
   groupFacilitiesByCategory,
   mergeFacilities,
@@ -130,4 +131,19 @@ test('daftar fasilitas dipisahkan per kategori tanpa mengubah urutan', () => {
   assert.deepEqual(groups.room.map(item => item.name), ['ICU', 'IGD']);
   assert.deepEqual(groups.clean_water.map(item => item.name), ['Bak Utama']);
   assert.deepEqual(groupFacilitiesByCategory(), { room: [], clean_water: [] });
+});
+
+test('filter penanda hanya menampilkan kategori yang aktif atau fasilitas terpilih', () => {
+  const facilities = mergeFacilities(
+    [
+      { id: 'r1', nama_ruangan: 'ICU', latitude: 1, longitude: 1 },
+      { id: 'r2', nama_ruangan: 'IGD', latitude: 2, longitude: 2 },
+    ],
+    [{ id: 'w1', name: 'Bak Utama', is_active: true, latitude: 3, longitude: 3 }],
+  );
+  const selected = facilities[1];
+
+  assert.deepEqual(filterVisibleFacilities(facilities, { room: false, clean_water: false }, selected.key).map(item => item.name), ['ICU']);
+  assert.deepEqual(filterVisibleFacilities(facilities, { room: true, clean_water: false }).map(item => item.name), ['ICU', 'IGD']);
+  assert.deepEqual(filterVisibleFacilities(facilities, { room: false, clean_water: true }).map(item => item.name), ['Bak Utama']);
 });
