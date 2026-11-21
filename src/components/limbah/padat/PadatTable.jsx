@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { EmptyState, MobileListSkeleton, TableRowsSkeleton } from '../../ui/DataStates';
 
 /**
  * PadatTable – tabel data limbah padat (akumulasi harian) + mobile card.
@@ -194,14 +195,9 @@ export default function PadatTable({
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan="7" className="text-center py-8">
-                <i className="fas fa-spinner fa-spin text-blue-500 text-2xl" />
-                <p className="text-gray-500 text-sm mt-2">Memuat data...</p>
-              </td></tr>
+              <TableRowsSkeleton columns={7} />
             ) : data.length === 0 ? (
-              <tr><td colSpan="7" className="text-center py-8 text-gray-400">
-                <i className="fas fa-inbox text-4xl mb-2 block" />Belum ada data.
-              </td></tr>
+              <tr><td colSpan="7"><EmptyState compact title="Belum ada data limbah padat" description="Belum ada data untuk periode yang dipilih." /></td></tr>
             ) : (
               data.map((item, idx) => {
                 const rowNo = (page - 1) * itemsPerPage + idx + 1;
@@ -249,15 +245,9 @@ export default function PadatTable({
       {/* Mobile card list */}
       <div className="md:hidden divide-y divide-gray-100">
         {loading ? (
-          <div className="text-center py-10">
-            <i className="fas fa-spinner fa-spin text-blue-500 text-2xl" />
-            <p className="text-gray-500 text-xs mt-2">Memuat data...</p>
-          </div>
+          <MobileListSkeleton />
         ) : data.length === 0 ? (
-          <div className="text-center py-10 text-gray-400">
-            <i className="fas fa-inbox text-3xl mb-2 block opacity-50" />
-            <p className="text-xs">Belum ada data.</p>
-          </div>
+          <EmptyState compact title="Belum ada data limbah padat" description="Belum ada data untuk periode yang dipilih." />
         ) : (
           data.map((item, idx) => {
             const rowNo = (page - 1) * itemsPerPage + idx + 1;

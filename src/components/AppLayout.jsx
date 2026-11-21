@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
-import OfflineSyncIndicator from './OfflineSyncIndicator';
 import BottomNavigation from './BottomNavigation';
+import OfflineSyncIndicator from './OfflineSyncIndicator';
 
 export default function AppLayout({ children, title, showBackButton }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);

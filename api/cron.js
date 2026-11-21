@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Lakukan query yang sangat ringan (limit 1) untuk memberikan aktivitas pada database
-    const { data, error } = await supabase.from('limbah_padat').select('id').limit(1);
+    const { error } = await supabase.from('limbah_padat').select('id').limit(1);
 
     if (error) {
       console.error('Error pinging Supabase:', error);

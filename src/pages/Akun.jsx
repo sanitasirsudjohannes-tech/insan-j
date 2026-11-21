@@ -4,6 +4,7 @@ import Swal from 'sweetalert2';
 import withReactContent from 'sweetalert2-react-content';
 import { getCurrentUser } from '../lib/api';
 import { supabase } from '../lib/supabase';
+import { resolveLoginEmail } from '../features/login/services/loginEmailResolver';
 
 const MySwal = withReactContent(Swal);
 
@@ -58,17 +59,10 @@ export default function Akun() {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       let loginEmail = authUser?.email;
 
-      // Fallback 1: Cari email via RPC jika belum ada di session local
+      // Fallback: cari email berdasarkan username, termasuk akun lama
+      // yang masih memakai huruf besar.
       if (!loginEmail && user?.username) {
-        const { data: emailRpc } = await supabase.rpc('get_user_email_by_username', {
-          p_username: user.username
-        });
-        if (emailRpc) loginEmail = emailRpc;
-      }
-
-      // Fallback 2: Format email default
-      if (!loginEmail && user?.username) {
-        loginEmail = user.username.includes('@') ? user.username : `${user.username}@rs.com`;
+        loginEmail = await resolveLoginEmail(user.username);
       }
 
       if (!loginEmail) {

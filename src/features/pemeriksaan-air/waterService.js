@@ -1,0 +1,210 @@
+import { supabase } from '../../lib/supabase';
+import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
+import { calculateParameterStatus, monthRange, normalizeParameters } from './waterHelpers';
+
+export async function getCleanWaterLocations({ includeInactive = false } = {}) {
+  let query = supabase
+    .from('water_clean_locations')
+    .select('id, name, description, is_active')
+    .order('name');
+  if (!includeInactive) query = query.eq('is_active', true);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+}
+
+export async function addCleanWaterLocation(name, description = '') {
+  const { data, error } = await supabase
+    .from('water_clean_locations')
+    .insert({ name: name.trim(), description: description.trim() || null })
+    .select('id, name, description, is_active')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateCleanWaterLocation(id, changes) {
+  const payload = { updated_at: new Date().toISOString() };
+  if (changes.name !== undefined) payload.name = changes.name.trim();
+  if (changes.is_active !== undefined) payload.is_active = changes.is_active;
+  const { data, error } = await supabase
+    .from('water_clean_locations')
+    .update(payload)
+    .eq('id', id)
+    .select('id, name, description, is_active')
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteCleanWaterLocation(id) {
+  const { count, error: countError } = await supabase
+    .from('water_examinations')
+    .select('id', { count: 'exact', head: true })
+    .eq('clean_water_location_id', id);
+  if (countError) throw countError;
+  if (count) throw new Error('Lokasi sudah dipakai dalam hasil pemeriksaan. Nonaktifkan agar riwayat tetap utuh.');
+  const { error } = await supabase.from('water_clean_locations').delete().eq('id', id);
+  if (error?.code === '23503') throw new Error('Lokasi sudah dipakai dalam hasil pemeriksaan. Nonaktifkan agar riwayat tetap utuh.');
+  if (error) throw error;
+}
+
+
+// Master baku mutu dan rujukan hanya dapat diubah admin (dijaga juga oleh RLS).
+export async function getWaterRegulations({ includeInactive = false } = {}) {
+  let query = supabase.from('water_regulations')
+    .select('id, title, number, year, is_active')
+    .order('title');
+  if (!includeInactive) query = query.eq('is_active', true);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+}
+
+export async function saveWaterRegulation(values) {
+  const payload = {
+    title: values.title.trim(),
+    number: values.number.trim() || null,
+    year: values.year ? Number(values.year) : null,
+  };
+  const query = values.id
+    ? supabase.from('water_regulations').update(payload).eq('id', values.id)
+    : supabase.from('water_regulations').insert(payload);
+  const { error } = await query;
+  if (error) throw error;
+}
+
+export async function setWaterRegulationActive(id, isActive) {
+  const { error } = await supabase.from('water_regulations')
+    .update({ is_active: isActive }).eq('id', id);
+  if (error) throw error;
+}
+
+export async function getWaterStandards({ includeInactive = false } = {}) {
+  let query = supabase.from('water_parameter_standards')
+    .select('id, water_type, parameter, unit, standard, regulation_id, is_active, water_regulations(title, number, year)')
+    .order('water_type').order('parameter');
+  if (!includeInactive) query = query.eq('is_active', true);
+  const { data, error } = await query;
+  if (error) throw error;
+  return data || [];
+}
+
+export async function saveWaterStandard(values) {
+  const payload = {
+    water_type: values.water_type,
+    parameter: values.parameter.trim(),
+    unit: values.unit.trim(),
+    standard: values.standard.trim(),
+    regulation_id: values.regulation_id || null,
+  };
+  const query = values.id
+    ? supabase.from('water_parameter_standards').update(payload).eq('id', values.id)
+    : supabase.from('water_parameter_standards').insert(payload);
+  const { error } = await query;
+  if (error) throw error;
+}
+
+export async function setWaterStandardActive(id, isActive) {
+  const { error } = await supabase.from('water_parameter_standards')
+    .update({ is_active: isActive }).eq('id', id);
+  if (error) throw error;
+}
+
+export async function getUsedWaterStandardIds() {
+  const { data, error } = await supabase.rpc('get_used_water_standard_ids');
+  if (error) throw error;
+  return (data || []).map(item => item.standard_id);
+}
+
+export async function deleteWaterStandard(id) {
+  const { error } = await supabase.rpc('delete_unused_water_standard', { target_id: id });
+  if (error) throw error;
+}
+
+export async function getWaterExaminations({ month, waterType, sampledAt }) {
+  let query = supabase
+    .from('water_examinations')
+    .select('id, water_type, clean_water_location_id, sample_point, sampled_at, resulted_at, laboratory, report_number, parameters, notes, water_clean_locations(name)')
+    .order('sampled_at', { ascending: false })
+    .order('created_at', { ascending: false });
+  if (sampledAt) query = query.eq('sampled_at', sampledAt);
+  else {
+    const { start, end } = monthRange(month);
+    query = query.gte('sampled_at', start).lt('sampled_at', end);
+  }
+  if (waterType !== 'all') query = query.eq('water_type', waterType);
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data || []).map(record => ({
+    ...record,
+    parameters: (record.parameters || []).map(item => ({
+      ...item,
+      parameter: record.water_type === 'clean' && /^coliform$/i.test(String(item.parameter).trim()) ? 'Total coliform' : item.parameter,
+      status: calculateParameterStatus(item.result, item.standard),
+    })),
+  }));
+}
+
+export async function getWaterExaminationIndex() {
+  const { data: summary, error: summaryError } = await supabase.rpc('get_water_examination_archive_summary');
+  if (!summaryError) return summary || [];
+  // Kompatibilitas sementara untuk database yang belum menjalankan migrasi agregasi.
+  if (summaryError.code !== 'PGRST202' && summaryError.code !== '42883') throw summaryError;
+  return fetchAllSupabaseRows(() => supabase
+    .from('water_examinations')
+    .select('water_type, sampled_at')
+    .order('sampled_at', { ascending: false }));
+}
+
+const examinationPayload = (form) => ({
+    water_type: form.water_type,
+    clean_water_location_id: form.water_type === 'clean' ? form.clean_water_location_id : null,
+    sample_point: form.water_type === 'wastewater' ? form.sample_point : null,
+    sampled_at: form.sampled_at,
+    resulted_at: form.resulted_at || null,
+    laboratory: form.laboratory.trim() || null,
+    report_number: form.report_number.trim() || null,
+    notes: form.notes.trim() || null,
+    parameters: normalizeParameters(form.parameters),
+  });
+
+export async function saveWaterExamination(form, userId) {
+  const payload = examinationPayload(form);
+  const query = form.id
+    ? supabase.from('water_examinations').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', form.id)
+    : supabase.from('water_examinations').insert({ ...payload, created_by: userId });
+  const { error } = await query;
+  if (error) throw error;
+}
+
+// Satu insert dengan banyak baris diproses atomik oleh PostgreSQL: jika satu
+// baris ditolak constraint/trigger, tidak ada baris lain yang tersimpan.
+export async function saveWaterExaminationBatch(forms, userId) {
+  const payloads = forms.map(form => ({ ...examinationPayload(form), created_by: userId }));
+  const { error } = await supabase.from('water_examinations').insert(payloads);
+  if (error) throw error;
+}
+
+export async function getWaterExaminationConflicts(forms = []) {
+  if (!forms.length) return [];
+  const [{ water_type: waterType, sampled_at: sampledAt }] = forms;
+  const { data, error } = await supabase
+    .from('water_examinations')
+    .select('id, water_type, clean_water_location_id, sample_point, sampled_at')
+    .eq('water_type', waterType)
+    .eq('sampled_at', sampledAt);
+  if (error) throw error;
+
+  return forms.filter(form => (data || []).some(record => (
+    record.id !== form.id
+    && (waterType === 'clean'
+      ? record.clean_water_location_id === form.clean_water_location_id
+      : record.sample_point === form.sample_point)
+  )));
+}
+
+export async function deleteWaterExamination(id) {
+  const { error } = await supabase.from('water_examinations').delete().eq('id', id);
+  if (error) throw error;
+}

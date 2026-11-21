@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
-import { fetchDatabaseAggregation, fetchSharedCachedResource } from '../../lib/databaseAggregations';
+import { fetchDashboardAggregation, fetchSharedCachedResource } from '../../lib/databaseAggregations';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, AreaChart, Area
 } from 'recharts';
+import { DashboardSkeleton, EmptyState, ErrorState } from '../ui/DataStates';
+import OfflineDashboardNotice from './OfflineDashboardNotice';
 
 // Jenis limbah anorganik beserta satuan masing-masing
 const ANORGANIK_TYPES = [
@@ -35,6 +37,7 @@ export default function TabAnorganik() {
   const [fetchError, setFetchError] = useState('');
   const [reloadCount, setReloadCount] = useState(0);
   const fetchIdRef = useRef(0);
+  const [dataSource, setDataSource] = useState({ source: 'server', updatedAt: null });
 
   useEffect(() => {
     if (!loading) {
@@ -59,13 +62,15 @@ export default function TabAnorganik() {
         const start = `${y}-${m}-01`;
         const end   = `${y}-${m}-${String(new Date(+y, +m, 0).getDate()).padStart(2, '0')}`;
 
-        const aggregated = await fetchDatabaseAggregation('dashboard_anorganik_summary', {
+        const response = await fetchDashboardAggregation('dashboard_anorganik_summary', {
           requested_month: selectedMonth,
         });
+        const aggregated = response.data;
 
         if (currentFetchId !== fetchIdRef.current) return;
 
         if (aggregated) {
+          setDataSource({ source: response.source, updatedAt: response.updatedAt });
           setSummary(Object.fromEntries(ANORGANIK_TYPES.map(type => [
             type.key,
             Number(aggregated.summary?.[type.key]) || 0,
@@ -203,6 +208,7 @@ export default function TabAnorganik() {
 
   return (
     <div className="animate-fade-in">
+      <OfflineDashboardNotice {...dataSource} />
       {/* ── Month Picker Header ──────────────────────────────────────── */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -227,22 +233,9 @@ export default function TabAnorganik() {
 
       {/* ── Summary Cards ─────────────────────────────────────────────── */}
       {loading ? (
-        <div className="flex justify-center py-16">
-          <i className="fas fa-spinner fa-spin text-cyan-500 text-4xl" />
-        </div>
+        <DashboardSkeleton />
       ) : fetchError ? (
-        <div className="bg-rose-50 border border-rose-200 rounded-2xl px-5 py-8 text-center">
-          <i className="fas fa-exclamation-triangle text-rose-500 text-3xl mb-3" />
-          <p className="font-bold text-rose-800">Data dashboard tidak dapat dimuat</p>
-          <p className="text-sm text-rose-600 mt-1">{fetchError}</p>
-          <button
-            type="button"
-            onClick={() => setReloadCount(value => value + 1)}
-            className="mt-4 bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-xl text-sm font-semibold transition"
-          >
-            <i className="fas fa-redo-alt mr-2" />Coba Lagi
-          </button>
-        </div>
+        <ErrorState description={fetchError} onRetry={() => setReloadCount(value => value + 1)} />
       ) : (
         <>
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
@@ -279,10 +272,7 @@ export default function TabAnorganik() {
               </h3>
               <div className="h-80">
                 {dailyData.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-gray-400">
-                    <i className="fas fa-inbox text-4xl mb-3 opacity-30" />
-                    <p className="text-sm">Belum ada data bulan ini</p>
-                  </div>
+                  <EmptyState compact title="Belum ada data bulan ini" description="Data grafik akan muncul setelah ada pengisian." icon="fas fa-chart-bar" />
                 ) : chartReady ? (
                   <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
                     <BarChart data={dailyData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
@@ -316,10 +306,7 @@ export default function TabAnorganik() {
               </h3>
               <div className="h-80">
                 {monthlyData.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-gray-400">
-                    <i className="fas fa-inbox text-4xl mb-3 opacity-30" />
-                    <p className="text-sm">Belum ada data</p>
-                  </div>
+                  <EmptyState compact title="Belum ada data tren" description="Tren akan muncul setelah data tersedia." icon="fas fa-chart-area" />
                 ) : chartReady ? (
                   <ResponsiveContainer width="99%" height="100%" minWidth={1} minHeight={1}>
                     <AreaChart data={monthlyData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>

@@ -1,24 +1,26 @@
 import { useState, useEffect, useRef } from 'react';
-import { supabase } from '../../lib/supabase';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, LineChart, Line, ReferenceLine
 } from 'recharts';
 
-import { fetchWasteRows } from '../../lib/wasteQueries';
-import { fetchAllSupabaseRows } from '../../lib/supabasePagination';
-import { fetchDatabaseAggregation } from '../../lib/databaseAggregations';
+import { fetchDashboardAggregation } from '../../lib/databaseAggregations';
+import { DashboardSkeleton, EmptyState, ErrorState } from '../ui/DataStates';
+import OfflineDashboardNotice from './OfflineDashboardNotice';
+import { getWitaDateString } from '../../lib/localDate';
 
 export default function TabPengangkutan() {
   const [chartData, setChartData] = useState([]);
   const [selectedMonth, setSelectedMonth] = useState('');
   const [availableMonths, setAvailableMonths] = useState([]);
-  const [summary, setSummary] = useState({ masuk: 0, diangkut: 0, sisa: 0 });
+  const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [chartReady, setChartReady] = useState(false);
-  const legacyRowsRef = useRef(null);
   const loadedMonthRef = useRef(null);
   const fetchIdRef = useRef(0);
+  const [fetchError, setFetchError] = useState('');
+  const [reloadCount, setReloadCount] = useState(0);
+  const [dataSource, setDataSource] = useState({ source: 'server', updatedAt: null });
 
   useEffect(() => {
     if (!loading) {
@@ -30,26 +32,22 @@ export default function TabPengangkutan() {
   }, [loading]);
 
   useEffect(() => {
-    if (legacyRowsRef.current) {
-      setChartData(selectedMonth === 'semua'
-        ? legacyRowsRef.current
-        : legacyRowsRef.current.filter(item => item.bulanTahun === selectedMonth));
-      return;
-    }
-
     if (loadedMonthRef.current === selectedMonth) return;
 
     const currentFetchId = ++fetchIdRef.current;
     const fetchAll = async () => {
       setLoading(true);
+      setFetchError('');
       try {
-        const aggregated = await fetchDatabaseAggregation('dashboard_pengangkutan_summary', {
+        const response = await fetchDashboardAggregation('dashboard_pengangkutan_summary', {
           requested_month: selectedMonth || null,
         });
+        const aggregated = response.data;
 
         if (currentFetchId !== fetchIdRef.current) return;
 
         if (aggregated) {
+          setDataSource({ source: response.source, updatedAt: response.updatedAt });
           const resolvedMonth = aggregated.selectedMonth || '';
           const formattedRows = (aggregated.daily || []).map(row => {
             const date = new Date(row.tanggal);
@@ -66,91 +64,17 @@ export default function TabPengangkutan() {
           loadedMonthRef.current = resolvedMonth;
           setAvailableMonths(aggregated.availableMonths || []);
           setChartData(formattedRows);
-          setSummary({
-            masuk: Math.round(Number(aggregated.summary?.masuk) || 0),
-            diangkut: Math.round(Number(aggregated.summary?.diangkut) || 0),
-            sisa: Math.round(Number(aggregated.summary?.sisa) || 0),
-          });
+          setSummary(aggregated.annualSummary || null);
           if (resolvedMonth !== selectedMonth) setSelectedMonth(resolvedMonth);
           return;
         }
 
-        const [{ padatRows: limbahPadatRows, ruanganRows: limbahRuanganRows }, angkutRows] = await Promise.all([
-          fetchWasteRows(),
-          fetchAllSupabaseRows(() => supabase
-            .from('pengangkutan_limbah')
-            .select('tanggal, jumlah_kg')
-            .order('tanggal', { ascending: true })
-            .order('id', { ascending: true })),
-        ]);
-
-        // Gabungkan limbah_padat + limbah_ruangan, dijumlahkan per tanggal
-        const limbahMap = {};
-        const accumulateLimbah = (rows) => {
-          (rows || []).forEach(row => {
-            const key = row.tanggal;
-            if (!key) return;
-            const total = (parseFloat(row.infeksius) || 0) + (parseFloat(row.jarum_suntik) || 0) + (parseFloat(row.botol_obat) || 0) + (parseFloat(row.sitotoksik) || 0);
-            limbahMap[key] = (limbahMap[key] || 0) + total;
-          });
-        };
-        accumulateLimbah(limbahPadatRows);
-        accumulateLimbah(limbahRuanganRows);
-
-        const angkutMap = {};
-        (angkutRows || []).forEach(row => {
-          angkutMap[row.tanggal] = (angkutMap[row.tanggal] || 0) + (parseFloat(row.jumlah_kg) || 0);
-        });
-
-        const allDates = [...new Set([...Object.keys(limbahMap), ...Object.keys(angkutMap)])].sort();
-
-        let kumulatifSisa = 0;
-        const combined = allDates.map(date => {
-          const masuk = limbahMap[date] || 0;
-          const diangkut = angkutMap[date] || 0;
-
-          kumulatifSisa += masuk - diangkut;
-
-          const d = new Date(date);
-
-          return {
-            fullDate: date,
-            bulanTahun: `${d.getFullYear()}-${String(
-              d.getMonth() + 1
-            ).padStart(2, '0')}`,
-            tanggal: d.toLocaleDateString('id-ID', {
-              day: 'numeric',
-              month: 'short'
-            }),
-            masuk: Math.round(masuk),
-            diangkut: Math.round(diangkut),
-            sisa: Math.round(kumulatifSisa),
-          };
-        });
-
-        if (currentFetchId !== fetchIdRef.current) return;
-
-        legacyRowsRef.current = combined;
-        setAvailableMonths([...new Set(combined.map(item => item.bulanTahun))]);
-
-        if (combined.length > 0) {
-          const latestMonth = combined[combined.length - 1].bulanTahun;
-          setSelectedMonth(latestMonth);
-
-          setChartData(
-            combined.filter(item => item.bulanTahun === latestMonth)
-          );
-        }
-        const totalMasuk = Object.values(limbahMap).reduce((a, b) => a + b, 0);
-        const totalAngkut = Object.values(angkutMap).reduce((a, b) => a + b, 0);
-        setSummary({
-          masuk: Math.round(totalMasuk),
-          diangkut: Math.round(totalAngkut),
-          sisa: Math.round(totalMasuk - totalAngkut)
-        });
+        throw new Error('Optimasi dashboard belum tersedia. Jalankan SQL agregasi Supabase lalu coba kembali.');
       } catch (err) {
         if (currentFetchId !== fetchIdRef.current) return;
         console.error(err);
+        setChartData([]);
+        setFetchError(err.message || 'Data pengangkutan tidak dapat dimuat.');
       } finally {
         if (currentFetchId === fetchIdRef.current) setLoading(false);
       }
@@ -160,34 +84,41 @@ export default function TabPengangkutan() {
     return () => {
       fetchIdRef.current += 1;
     };
-  }, [selectedMonth]);
+  }, [selectedMonth, reloadCount]);
 
+  const year = summary?.year || Number(getWitaDateString().slice(0, 4));
+  const formatWeight = value => value == null ? '—' : `${Number(value).toLocaleString('id-ID', { maximumFractionDigits: 0 })} kg`;
+  const asOfDate = summary?.asOfDate;
+  const dateLabel = asOfDate ? new Date(`${asOfDate}T00:00:00+08:00`).toLocaleDateString('id-ID', { timeZone: 'Asia/Makassar', day: 'numeric', month: 'long', year: 'numeric' }) : '';
   const cards = [
-    { label: 'Total Limbah Masuk', value: `${summary.masuk} Kg`, icon: 'fa-plus-circle', color: 'border-blue-500', iconBg: 'bg-blue-100 text-blue-500' },
-    { label: 'Total Diangkut', value: `${summary.diangkut} Kg`, icon: 'fa-truck', color: 'border-orange-500', iconBg: 'bg-orange-100 text-orange-500' },
-    { label: 'Sisa Limbah', value: `${summary.sisa} Kg`, icon: 'fa-biohazard', color: parseFloat(summary.sisa) > 0 ? 'border-red-500' : 'border-green-500', iconBg: parseFloat(summary.sisa) > 0 ? 'bg-red-100 text-red-500' : 'bg-green-100 text-green-500' },
+    { label: `Sisa Akhir ${year - 1}`, detail: `Sampai 31 Desember ${year - 1}`, value: formatWeight(summary?.opening), icon: 'fa-box-archive', color: 'border-violet-500', iconBg: 'bg-violet-100 text-violet-500' },
+    { label: `Timbulan ${year}`, detail: `1 Januari – ${dateLabel || 'tanggal data'}`, value: formatWeight(summary?.masuk), icon: 'fa-plus-circle', color: 'border-blue-500', iconBg: 'bg-blue-100 text-blue-500' },
+    { label: `Pengangkutan ${year}`, detail: `1 Januari – ${dateLabel || 'tanggal data'}`, value: formatWeight(summary?.diangkut), icon: 'fa-truck', color: 'border-orange-500', iconBg: 'bg-orange-100 text-orange-500' },
+    { label: dataSource.source === 'offline' || (asOfDate && asOfDate !== getWitaDateString()) ? 'Sisa Limbah Tercatat' : 'Sisa Limbah Saat Ini', detail: dateLabel ? `Per ${dateLabel}` : 'Menunggu ringkasan', value: formatWeight(summary?.sisa), icon: 'fa-biohazard', color: 'border-emerald-500', iconBg: 'bg-emerald-100 text-emerald-600' },
   ];
 
   if (loading) {
-    return (
-      <div className="flex justify-center py-20">
-        <i className="fas fa-spinner fa-spin text-blue-500 text-4xl"></i>
-      </div>
-    );
+    return <DashboardSkeleton cards={4} />;
+  }
+
+  if (fetchError) {
+    return <ErrorState description={fetchError} onRetry={() => setReloadCount(value => value + 1)} />;
   }
 
   return (
     <div className="animate-fade-in">
+      <OfflineDashboardNotice {...dataSource} />
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-3">
         {cards.map(c => (
-          <div key={c.label} className={`bg-white p-6 rounded-lg shadow-sm border-b-4 ${c.color} hover:shadow-md transition-shadow`}>
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-xs text-gray-500 font-bold uppercase tracking-wider">{c.label}</p>
-                <h3 className="text-2xl font-black text-gray-800 mt-1">{c.value}</h3>
+          <div key={c.label} className={`bg-white p-4 sm:p-6 rounded-lg shadow-sm border-b-4 ${c.color} ${c.mobileSpan || ''} hover:shadow-md transition-shadow`}>
+            <div className="flex justify-between items-center gap-2">
+              <div className="min-w-0">
+                <p className="text-[10px] sm:text-xs text-gray-500 font-bold uppercase tracking-wide sm:tracking-wider leading-tight">{c.label}</p>
+                <h3 className="text-lg sm:text-2xl font-black text-gray-800 mt-1 break-words">{c.value}</h3>
+                <p className="text-xs text-gray-500 mt-2">{c.detail}</p>
               </div>
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center text-xl shadow-inner ${c.iconBg}`}>
+              <div className={`w-9 h-9 sm:w-12 sm:h-12 shrink-0 rounded-full flex items-center justify-center text-base sm:text-xl shadow-inner ${c.iconBg}`}>
                 <i className={`fas ${c.icon}`}></i>
               </div>
             </div>
@@ -195,10 +126,15 @@ export default function TabPengangkutan() {
         ))}
       </div>
 
+      <div className="mb-8 text-xs text-gray-600 space-y-2" role="status">
+        {summary ? <>
+          {Number(summary.sisa) < 0 && <p className="text-red-700">Sisa limbah negatif. Periksa kelengkapan timbulan dan catatan pengangkutan.</p>}
+        </> : <p>Ringkasan tahunan belum tersedia. {dataSource.source === 'offline' ? 'Hubungkan internet untuk memuat ringkasan terbaru.' : 'Administrator perlu memperbarui agregasi dashboard Supabase.'}</p>}
+      </div>
+
       {chartData.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm p-8 text-center border border-gray-100">
-          <i className="fas fa-inbox text-gray-300 text-5xl mb-4"></i>
-          <p className="text-gray-500 font-medium">Belum ada data limbah.</p>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100">
+          <EmptyState title="Belum ada data pengangkutan" description="Grafik akan muncul setelah limbah masuk dan pengangkutan dicatat." icon="fas fa-truck" />
         </div>
       ) : (
         <>
@@ -218,7 +154,6 @@ export default function TabPengangkutan() {
                 onChange={(e) => setSelectedMonth(e.target.value)}
                 className="appearance-none w-full sm:w-auto bg-blue-50/50 border border-blue-200 text-blue-700 font-bold px-5 py-2.5 pr-12 rounded-xl shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all cursor-pointer hover:bg-blue-100/50"
               >
-                <option value="semua" className="bg-white text-gray-700 font-medium">Semua Waktu</option>
                 {availableMonths.map(month => {
                   const [year, monthNum] = month.split('-');
                   const label = new Date(Number(year), Number(monthNum) - 1).toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });

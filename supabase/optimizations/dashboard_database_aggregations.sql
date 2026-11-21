@@ -40,7 +40,10 @@ STABLE
 SECURITY INVOKER
 SET search_path = public
 AS $$
-  WITH movements AS (
+  WITH period AS (
+    SELECT (CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Makassar')::date AS as_of_date,
+      date_trunc('year', CURRENT_TIMESTAMP AT TIME ZONE 'Asia/Makassar')::date AS year_start
+  ), movements AS (
     SELECT
       tanggal::date AS tanggal,
       COALESCE(infeksius, 0)::numeric
@@ -98,6 +101,18 @@ AS $$
       'masuk', COALESCE((SELECT SUM(masuk) FROM balances), 0),
       'diangkut', COALESCE((SELECT SUM(diangkut) FROM balances), 0),
       'sisa', COALESCE((SELECT SUM(masuk - diangkut) FROM balances), 0)
+    ),
+    'annualSummary', (
+      SELECT jsonb_build_object(
+        'year', EXTRACT(YEAR FROM p.year_start)::integer,
+        'asOfDate', p.as_of_date,
+        'opening', COALESCE(SUM(b.masuk - b.diangkut) FILTER (WHERE b.tanggal < p.year_start), 0),
+        'masuk', COALESCE(SUM(b.masuk) FILTER (WHERE b.tanggal >= p.year_start), 0),
+        'diangkut', COALESCE(SUM(b.diangkut) FILTER (WHERE b.tanggal >= p.year_start), 0),
+        'sisa', COALESCE(SUM(b.masuk - b.diangkut), 0)
+      )
+      FROM period p LEFT JOIN balances b ON b.tanggal <= p.as_of_date
+      GROUP BY p.year_start, p.as_of_date
     ),
     'daily', COALESCE((
       SELECT jsonb_agg(

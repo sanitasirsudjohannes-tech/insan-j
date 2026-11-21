@@ -1,0 +1,9 @@
+export const QUEUE_KEY = 'insan_j_offline_queue';
+export const SYNCED_IDS_KEY = 'insan_j_offline_synced_ids';
+export const RECORD_CACHE_KEY = 'insan_j_offline_record_cache';
+export const SYNC_LOCK_KEY = 'insan_j_offline_sync_lock';
+export const MAX_SYNCED_IDS_PER_USER = 200;
+export const MAX_CACHED_ROWS_PER_TABLE = 500;
+export const SYNC_LOCK_TTL_MS = 45000;
+export const SYNC_RETRY_DELAYS_MS = [60_000, 5 * 60_000, 15 * 60_000];
+export const LOCAL_STORAGE_WARNING_BYTES = 4 * 1024 * 1024;

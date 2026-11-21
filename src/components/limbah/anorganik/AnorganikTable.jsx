@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react';
+import { getLocalDateString } from '../../../lib/localDate';
 import SearchableBottomSheet from '../../SearchableBottomSheet';
 import { JENIS_FIELDS } from './AnorganikForm';
+import { EmptyState, MobileListSkeleton, TableRowsSkeleton } from '../../ui/DataStates';
 
 /**
  * AnorganikTable – tabel data limbah anorganik (desktop + mobile card).
  *
  * Props:
  *  data, loading, page, itemsPerPage,
- *  filterMonth, filterRuangan, ruanganList,
+ *  filterMonth, filterDate, filterRuangan, ruanganList,
  *  totalData,
- *  setFilterMonth, setFilterRuangan, setPage,
+ *  setFilterMonth, setFilterDate, setFilterRuangan, setPage,
  *  onEdit, onDelete
  */
 export default function AnorganikTable({
@@ -18,10 +20,12 @@ export default function AnorganikTable({
   page,
   itemsPerPage,
   filterMonth,
+  filterDate,
   filterRuangan,
   ruanganList,
   totalData,
   setFilterMonth,
+  setFilterDate,
   setFilterRuangan,
   setPage,
   onEdit,
@@ -30,7 +34,7 @@ export default function AnorganikTable({
 }) {
   const [showFilter, setShowFilter] = useState(false);
   const [showRuanganFilterSheet, setShowRuanganFilterSheet] = useState(false);
-  const activeFilterCount = [filterMonth, filterRuangan].filter(Boolean).length;
+  const activeFilterCount = [filterMonth, filterDate, filterRuangan].filter(Boolean).length;
 
   useEffect(() => {
     if (!showFilter) return undefined;
@@ -43,6 +47,7 @@ export default function AnorganikTable({
 
   const handleClearFilters = () => {
     setFilterMonth('');
+    setFilterDate('');
     setFilterRuangan('');
     setPage(1);
   };
@@ -144,15 +149,44 @@ export default function AnorganikTable({
                 <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5">
                   <i className="fas fa-calendar mr-1.5 text-blue-500" />Periode
                 </label>
-                <input
-                  type="month"
-                  value={filterMonth}
-                  onChange={(event) => {
-                    setFilterMonth(event.target.value);
-                    setPage(1);
-                  }}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
-                />
+                <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-2.5">
+                  <button
+                    type="button"
+                    onClick={() => { setFilterDate(''); setPage(1); }}
+                    className={`flex-1 text-xs py-2 rounded-lg font-semibold transition ${!filterDate ? 'bg-white shadow-sm text-blue-700' : 'text-gray-400 hover:text-gray-600'}`}
+                  >
+                    <i className="fas fa-calendar-alt mr-1" />Per Bulan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setFilterMonth(''); if (!filterDate) setFilterDate(getLocalDateString()); setPage(1); }}
+                    className={`flex-1 text-xs py-2 rounded-lg font-semibold transition ${filterDate ? 'bg-white shadow-sm text-blue-700' : 'text-gray-400 hover:text-gray-600'}`}
+                  >
+                    <i className="fas fa-calendar-day mr-1" />Per Tanggal
+                  </button>
+                </div>
+
+                {!filterDate ? (
+                  <input
+                    type="month"
+                    value={filterMonth}
+                    onChange={(event) => {
+                      setFilterMonth(event.target.value);
+                      setPage(1);
+                    }}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                  />
+                ) : (
+                  <input
+                    type="date"
+                    value={filterDate}
+                    onChange={(event) => {
+                      setFilterDate(event.target.value);
+                      setPage(1);
+                    }}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                  />
+                )}
               </div>
 
               {activeFilterCount > 0 && (
@@ -162,6 +196,11 @@ export default function AnorganikTable({
                     {filterMonth && (
                       <span className="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full font-semibold">
                         📅 {filterMonth}
+                      </span>
+                    )}
+                    {filterDate && (
+                      <span className="text-xs bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full font-semibold">
+                        📆 {new Date(filterDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </span>
                     )}
                     {filterRuangan && (
@@ -221,14 +260,9 @@ export default function AnorganikTable({
           </thead>
           <tbody className="divide-y divide-gray-100 text-xs">
             {loading ? (
-              <tr><td colSpan={JENIS_FIELDS.length + 6} className="text-center py-10">
-                <i className="fas fa-spinner fa-spin text-cyan-500 text-2xl mb-2 block" />
-                <span className="text-gray-500 text-xs font-semibold">Memuat data...</span>
-              </td></tr>
+              <TableRowsSkeleton columns={JENIS_FIELDS.length + 6} />
             ) : data.length === 0 ? (
-              <tr><td colSpan={JENIS_FIELDS.length + 6} className="text-center py-12 text-gray-400">
-                <i className="fas fa-inbox text-4xl mb-3 block opacity-40" />Belum ada data limbah anorganik.
-              </td></tr>
+              <tr><td colSpan={JENIS_FIELDS.length + 6}><EmptyState compact title="Belum ada data limbah anorganik" description="Coba ubah bulan atau filter ruangan." icon="fas fa-recycle" /></td></tr>
             ) : (
               data.map((item, idx) => {
                 const rowNo = (page - 1) * itemsPerPage + idx + 1;
@@ -269,15 +303,9 @@ export default function AnorganikTable({
       {/* Mobile card list */}
       <div className="md:hidden divide-y divide-gray-100">
         {loading ? (
-          <div className="text-center py-10">
-            <i className="fas fa-spinner fa-spin text-cyan-500 text-2xl" />
-            <p className="text-gray-500 text-xs mt-2">Memuat data...</p>
-          </div>
+          <MobileListSkeleton />
         ) : data.length === 0 ? (
-          <div className="text-center py-10 text-gray-400">
-            <i className="fas fa-inbox text-3xl mb-2 block opacity-50" />
-            <p className="text-xs">Belum ada data limbah anorganik.</p>
-          </div>
+          <EmptyState compact title="Belum ada data limbah anorganik" description="Coba ubah bulan atau filter ruangan." icon="fas fa-recycle" />
         ) : (
           data.map((item, idx) => {
             const rowNo = (page - 1) * itemsPerPage + idx + 1;

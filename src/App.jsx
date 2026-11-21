@@ -1,21 +1,34 @@
 import { lazy, Suspense } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
+import RoleGate from './features/session/RoleGate';
+import { loadAdminPage, loadRekapPage } from './features/navigation/routeModules';
+import { getCachedUser } from './lib/session';
 
 // Lazy loading components
+const LandingPage = lazy(() => import('./pages/LandingPage'));
 const Login = lazy(() => import('./pages/Login'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
+const PetaFasilitas = lazy(() => import('./pages/PetaFasilitas'));
 const Akun = lazy(() => import('./pages/Akun'));
 const Riwayat = lazy(() => import('./pages/Riwayat'));
-const KelolaAdmin = lazy(() => import('./pages/KelolaAdmin'));
+const KelolaAdmin = lazy(loadAdminPage);
+const KelolaLandingPage = lazy(() => import('./pages/KelolaLandingPage'));
 const Inspeksi = lazy(() => import('./pages/Inspeksi'));
-const LimbahPadat = lazy(() => import('./pages/LimbahPadat'));
-const LimbahRuangan = lazy(() => import('./pages/LimbahRuangan'));
 const LimbahDihasilkan = lazy(() => import('./pages/LimbahDihasilkan'));
 const PengangkutanLimbah = lazy(() => import('./pages/PengangkutanLimbah'));
-const RekapLimbah = lazy(() => import('./pages/RekapLimbah'));
+const RekapLimbah = lazy(loadRekapPage);
+const PemeriksaanAir = lazy(() => import('./pages/PemeriksaanAir'));
+const AsistenLaporan = lazy(() => import('./pages/AsistenLaporan'));
 
 // Loading component
+const EntryRoute = () => {
+  // Jika pengguna sudah memiliki sesi/cache login, buka aplikasi langsung
+  // ke dashboard seperti alur sebelum landing page ditambahkan.
+  const cachedUser = getCachedUser();
+  return cachedUser ? <Navigate to="/dashboard" replace /> : <LandingPage />;
+};
+
 const LoadingScreen = () => (
   <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
     <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
@@ -28,43 +41,56 @@ function App() {
     <HashRouter>
       <Suspense fallback={<LoadingScreen />}>
         <Routes>
-          <Route path="/" element={<Login />} />
+          <Route path="/" element={<EntryRoute />} />
+          <Route path="/login" element={<Login />} />
 
-          {/* Protected Routes */}
+          <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={
-            <ProtectedRoute>
+            <RoleGate>
               <Dashboard />
-            </ProtectedRoute>
+            </RoleGate>
+          } />
+
+          <Route path="/peta" element={
+            <RoleGate allowedRoles={['admin', 'petugas', 'user', 'mahasiswa']}>
+              <PetaFasilitas />
+            </RoleGate>
           } />
 
           <Route path="/akun" element={
-            <ProtectedRoute>
+            <RoleGate>
               <Akun />
-            </ProtectedRoute>
+            </RoleGate>
           } />
 
           <Route path="/riwayat" element={
-            <ProtectedRoute deniedRoles={['mahasiswa']}>
+            <RoleGate deniedRoles={['mahasiswa']}>
               <Riwayat />
-            </ProtectedRoute>
+            </RoleGate>
           } />
 
           <Route path="/kelola-admin" element={
-            <ProtectedRoute requiredRole="admin">
+            <RoleGate requiredRole="admin">
               <KelolaAdmin />
-            </ProtectedRoute>
+            </RoleGate>
+          } />
+
+          <Route path="/kelola-landing" element={
+            <RoleGate requiredRole="admin">
+              <KelolaLandingPage />
+            </RoleGate>
           } />
 
           <Route path="/inspeksi" element={
-            <ProtectedRoute deniedRoles={['mahasiswa']}>
+            <RoleGate deniedRoles={['mahasiswa']}>
               <Inspeksi />
-            </ProtectedRoute>
+            </RoleGate>
           } />
 
           <Route path="/limbah-dihasilkan" element={
-            <ProtectedRoute allowedRoles={['petugas', 'mahasiswa', 'user']}>
+            <RoleGate allowedRoles={['petugas', 'mahasiswa', 'user']}>
               <LimbahDihasilkan />
-            </ProtectedRoute>
+            </RoleGate>
           } />
 
           {/* Redirect route lama ke route baru */}
@@ -72,16 +98,30 @@ function App() {
           <Route path="/limbah-ruangan" element={<Navigate to="/limbah-dihasilkan" replace />} />
 
           <Route path="/pengangkutan" element={
-            <ProtectedRoute deniedRoles={['mahasiswa']}>
+            <RoleGate deniedRoles={['mahasiswa']}>
               <PengangkutanLimbah />
-            </ProtectedRoute>
+            </RoleGate>
           } />
 
           <Route path="/rekap-limbah" element={
-            <ProtectedRoute deniedRoles={['mahasiswa']}>
+            <RoleGate deniedRoles={['mahasiswa']}>
               <RekapLimbah />
-            </ProtectedRoute>
+            </RoleGate>
           } />
+
+          <Route path="/asisten-laporan" element={
+            <RoleGate deniedRoles={['mahasiswa']}>
+              <AsistenLaporan />
+            </RoleGate>
+          } />
+
+          <Route path="/pemeriksaan-air" element={
+            <RoleGate allowedRoles={['petugas', 'user']}>
+              <PemeriksaanAir />
+            </RoleGate>
+          } />
+
+          </Route>
 
           {/* Catch all */}
           <Route path="*" element={<Navigate to="/" replace />} />

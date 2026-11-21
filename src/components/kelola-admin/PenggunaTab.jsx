@@ -69,7 +69,7 @@ export default function PenggunaTab({
             className="w-full appearance-none rounded-xl border border-indigo-200 bg-white px-4 py-3 pr-10 text-sm font-semibold text-gray-800 outline-none transition focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 disabled:cursor-not-allowed disabled:opacity-60"
           >
             <option value="">-- Pilih Kepala Unit Sanitasi --</option>
-            {users.map((item) => (
+            {users.filter(item => item.role?.toLowerCase() !== 'mahasiswa').map((item) => (
               <option key={item.id} value={item.id}>
                 {item.nama} ({item.username})
               </option>

@@ -1,0 +1,67 @@
+import { useMemo, useState } from 'react';
+
+const TEXT_LIMIT = 8;
+
+function Understanding({ value, onEdit }) {
+  if (!value) return null;
+  const details = [value.intent, value.period, value.room, value.type].filter(Boolean);
+  return <div className={`mb-3 rounded-xl border px-3 py-2 text-[10px] ${value.status === 'clarification' ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-blue-100 bg-blue-50 text-blue-700'}`}><span className="font-black uppercase tracking-wide">{value.status === 'clarification' ? 'Perlu konfirmasi' : 'Dipahami sebagai'}</span><div className="mt-2 flex flex-wrap gap-1.5">{details.map((detail, index) => <span key={index} className="rounded-full border border-current/15 bg-white/80 px-2 py-1 text-xs">{detail}</span>)}</div>{onEdit && <button type="button" onClick={onEdit} className="mt-2 min-h-9 text-xs font-bold underline underline-offset-2">Ubah pertanyaan</button>}</div>;
+}
+
+function DataStatus({ value }) {
+  if (!value) return null;
+  const date = new Date(value.fetchedAt);
+  const validTime = !Number.isNaN(date.getTime());
+  const time = validTime ? new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Makassar' }).format(date) : null;
+  const incomplete = !value.online || value.pendingCount > 0;
+  return <p className={`mt-2 rounded-xl px-3 py-2 text-[10px] leading-relaxed ${incomplete ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}><i className={`fas ${incomplete ? 'fa-triangle-exclamation' : 'fa-circle-check'} mr-1.5`} />{value.online ? (validTime ? `Data server diperiksa ${time} WITA.` : 'Data server sudah diperiksa; waktu pemeriksaan tidak tersedia.') : 'Perangkat sedang offline.'}{value.pendingCount > 0 ? ` ${value.pendingCount} data masih menunggu sinkronisasi dan belum masuk dalam jawaban.` : ''}</p>;
+}
+
+function MiniBars({ data }) {
+  const items = Array.isArray(data?.items) ? data.items.filter(item => Number.isFinite(Number(item?.value))) : [];
+  if (!items.length) return null;
+  const max = Math.max(1, ...items.map(item => Math.max(Number(item.value), 0)));
+  return <div className="mt-3 rounded-2xl bg-slate-50 p-3"><p className="mb-2 text-[11px] font-black uppercase tracking-wide text-slate-500">{data.title}</p><div className="space-y-2">{items.slice(0, 8).map((item, index) => <div key={`${item.label}-${index}`} className="grid grid-cols-[minmax(72px,1fr)_2fr_auto] items-center gap-2 text-[11px]"><span className="truncate text-slate-600">{item.label}</span><span className="h-2 overflow-hidden rounded-full bg-slate-200"><span className="block h-full rounded-full bg-blue-500" style={{ width: `${(Math.max(Number(item.value), 0) / max) * 100}%` }} /></span><span className="font-bold text-slate-700">{new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(item.value || 0)}</span></div>)}</div></div>;
+}
+
+const statusStyle = value => value === 'Tidak memenuhi'
+  ? 'bg-red-50 text-red-700 ring-red-200'
+  : value === 'Memenuhi'
+    ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+    : 'bg-slate-100 text-slate-600 ring-slate-200';
+
+function ResultTable({ data }) {
+  if (!data?.columns?.length || !data?.rows?.length) return null;
+  return <div className="mt-3 overflow-hidden rounded-xl border border-slate-200"><p className="bg-slate-50 px-3 py-2 text-[11px] font-black uppercase tracking-wide text-slate-500">{data.title}</p><div className="overflow-x-auto"><table className="min-w-full text-left text-[11px]"><thead className="border-y border-slate-200 bg-white text-slate-500"><tr>{data.columns.map(column => <th key={column.key} scope="col" className="whitespace-nowrap px-3 py-2 font-bold">{column.label}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{data.rows.map((row, rowIndex) => <tr key={row.id || rowIndex} className="bg-white">{data.columns.map(column => <td key={column.key} className="whitespace-nowrap px-3 py-2 text-slate-700">{column.key === 'status' ? <span className={`inline-flex rounded-full px-2 py-1 font-bold ring-1 ring-inset ${statusStyle(row[column.key])}`}>{row[column.key]}</span> : row[column.key] ?? '-'}</td>)}</tr>)}</tbody></table></div></div>;
+}
+
+export default function WasteChatAnswer({ message, onAsk, onReport, onNavigate, onEdit, onFavorite, isFavorite = false, busy = false }) {
+  const [expanded, setExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const lines = useMemo(() => String(message.text || '').split('\n'), [message.text]);
+  const truncated = lines.length > TEXT_LIMIT;
+  const visibleText = !expanded && truncated ? `${lines.slice(0, TEXT_LIMIT).join('\n')}\n…` : message.text;
+  const copy = async () => { try { await navigator.clipboard.writeText(message.text); setCopied(true); window.setTimeout(() => setCopied(false), 1200); } catch { /* Browser dapat memblokir clipboard. */ } };
+  const download = () => {
+    const blobUrl = URL.createObjectURL(new Blob([message.text], { type: 'text/plain;charset=utf-8' }));
+    const link = document.createElement('a'); link.href = blobUrl; link.download = `Tanya_INSAN-J_${new Date().toISOString().slice(0, 10)}.txt`; link.click(); window.setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+  };
+  return <div>
+    <Understanding value={message.understanding} onEdit={onEdit && message.question && !busy ? () => onEdit(message.question) : null} />
+    {message.cards?.length > 0 && <div className="mb-3 grid grid-cols-1 min-[380px]:grid-cols-3 gap-1.5">{message.cards.map(card => <div key={card.label} className="rounded-xl border border-slate-200 bg-linear-to-br from-blue-50 to-white px-3 py-3"><span className="block text-[9px] font-bold uppercase text-slate-400">{card.label}</span><span className="mt-0.5 block break-words text-base font-black text-slate-800">{card.value}</span></div>)}</div>}
+    <div className="whitespace-pre-line">{visibleText}</div>
+    {truncated && <button type="button" onClick={() => setExpanded(value => !value)} className="mt-2 text-xs font-bold text-blue-600">{expanded ? 'Ringkas kembali' : `Tampilkan semua (${lines.length} baris)`}</button>}
+    <ResultTable data={message.table} />
+    {message.visualization?.items?.length > 0 && <MiniBars data={message.visualization} />}
+    {message.warnings?.map(item => <p key={item} className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800"><i className="fas fa-triangle-exclamation mr-1.5" />{item}</p>)}
+    {message.context?.calculation && <details className="mt-3 text-xs text-slate-600"><summary className="cursor-pointer py-2 font-semibold">Cara menghitung</summary><p className="whitespace-pre-line">{message.context.calculation}</p></details>}
+    {message.favoriteQuestion && onFavorite && <button type="button" onClick={() => onFavorite(message.favoriteQuestion)} aria-pressed={isFavorite} className="mt-2 text-xs font-bold text-blue-600">{isFavorite ? '★ Hapus dari favorit' : '☆ Simpan pertanyaan'}</button>}
+    <DataStatus value={message.dataStatus} />
+    {message.source && <details className="mt-3 border-t border-slate-100 pt-2 text-xs text-slate-500"><summary className="cursor-pointer py-2 font-semibold">Sumber dan periode data</summary><p className="pb-2 leading-relaxed">{message.source}</p></details>}
+    {message.actions?.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{message.actions.map(action => <button key={action.label} type="button" disabled={busy} onClick={() => onAsk(action.question)} className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">{action.label}</button>)}</div>}
+    {message.followUps?.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5 pb-1">{message.followUps.map(action => <button key={action.label} type="button" disabled={busy} onClick={() => onAsk(action.question)} className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-bold text-slate-600">{action.label}</button>)}</div>}
+    {message.sourceLinks?.map(link => <button key={link.to} type="button" disabled={busy} onClick={() => onNavigate(link.to)} className="block mt-2 text-xs font-bold text-blue-600 disabled:opacity-50">{link.label}</button>)}
+    {message.sourceLink && <button type="button" disabled={busy} onClick={() => onNavigate(message.sourceLink.to)} className="mt-2 text-[11px] font-bold text-blue-600 disabled:cursor-wait disabled:opacity-50"><i className="fas fa-arrow-up-right-from-square mr-1" />{message.sourceLink.label}</button>}
+    {message.reportPayload && <div className="mt-3 flex items-center gap-3 border-t border-slate-100 pt-2 text-[11px] font-bold text-slate-500"><button type="button" disabled={busy} onClick={copy}><i className="far fa-copy mr-1" />{copied ? 'Tersalin' : 'Salin'}</button><button type="button" disabled={busy} onClick={download}><i className="fas fa-download mr-1" />Unduh</button><button type="button" disabled={busy} onClick={() => onReport(message)}><i className="fas fa-file-lines mr-1" />Ke Laporan</button></div>}
+  </div>;
+}

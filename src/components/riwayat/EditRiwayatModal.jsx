@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { CHECKLIST_ITEMS } from '../../lib/constants';
-import { fetchDaftarRuangan } from '../../lib/api';
+import { fetchDaftarRuangan, getCachedRuangan } from '../../lib/api';
 import {
   getOfflineQueue,
   getSyncedServerId,
@@ -22,13 +22,16 @@ const MySwal = withReactContent(Swal);
 
 export default function EditRiwayatModal({ isOpen, onClose, item, onSuccess }) {
   const [editFormData, setEditFormData] = useState({});
-  const [ruanganList, setRuanganList] = useState([]);
+  const [ruanganList, setRuanganList] = useState(getCachedRuangan);
   const [isSubmittingEdit, setIsSubmittingEdit] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [showRuanganSheet, setShowRuanganSheet] = useState(false);
 
   useEffect(() => {
+    const update = event => setRuanganList(event.detail);
+    window.addEventListener('insan-j-ruangan-updated', update);
     fetchDaftarRuangan().then(list => setRuanganList(list));
+    return () => window.removeEventListener('insan-j-ruangan-updated', update);
   }, []);
 
   useEffect(() => {

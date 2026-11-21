@@ -1,3 +1,4 @@
+import WelcomeBanner from './WelcomeBanner';
 import { Link } from 'react-router-dom';
 import AppLayout from '../AppLayout';
 
@@ -5,13 +6,7 @@ export default function DashboardMahasiswa({ user }) {
   return (
     <AppLayout title="Dashboard Mahasiswa Praktik">
       <div className="container mx-auto max-w-4xl px-4 py-8">
-        <div className="mb-6 rounded-2xl border border-cyan-100 bg-white p-6 shadow-sm sm:p-8">
-          <span className="inline-flex rounded-full bg-cyan-100 px-3 py-1 text-xs font-bold text-cyan-700">MAHASISWA PRAKTIK</span>
-          <h2 className="mt-3 text-2xl font-extrabold text-gray-800">Hallo, {user?.nama}! 👋</h2>
-          <p className="mt-2 text-sm font-medium text-gray-500">
-            Anda dapat mencatat dan mengelola data limbah per ruangan serta limbah anorganik yang Anda input sendiri.
-          </p>
-        </div>
+        <WelcomeBanner user={user} student />
 
         <Link
           to="/limbah-dihasilkan"

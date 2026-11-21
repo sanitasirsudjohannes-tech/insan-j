@@ -2,6 +2,7 @@ import { getCurrentUser } from '../lib/api';
 import DashboardUser from '../components/dashboard/DashboardUser';
 import DashboardAdmin from '../components/dashboard/DashboardAdmin';
 import DashboardMahasiswa from '../components/dashboard/DashboardMahasiswa';
+import WasteDataChatLauncher from '../components/chat/WasteDataChatLauncher';
 
 export default function Dashboard() {
   const user = getCurrentUser();
@@ -9,12 +10,22 @@ export default function Dashboard() {
   const isMahasiswa = user?.role?.toLowerCase() === 'mahasiswa';
 
   if (isAdmin) {
-    return <DashboardAdmin user={user} />;
+    return (
+      <>
+        <DashboardAdmin user={user} />
+        <WasteDataChatLauncher />
+      </>
+    );
   }
 
   if (isMahasiswa) {
     return <DashboardMahasiswa user={user} />;
   }
 
-  return <DashboardUser user={user} />;
+  return (
+    <>
+      <DashboardUser user={user} />
+      <WasteDataChatLauncher />
+    </>
+  );
 }

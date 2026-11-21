@@ -1,5 +1,4 @@
-import React from 'react';
-import { MONTH_NAMES } from '../../../lib/rekapQueries';
+import { MONTH_NAMES } from '../../../features/rekap/domain/rekapCalculations';
 
 export default function RekapFilter({
   selectedYear,
@@ -8,7 +7,8 @@ export default function RekapFilter({
   setSelectedMonth,
   availableYears,
   onPrint,
-  isPrinting
+  isPrinting,
+  printDisabled = false
 }) {
   return (
     <div className="bg-white rounded-2xl p-4 md:p-5 shadow-sm border border-slate-100 mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -39,7 +39,7 @@ export default function RekapFilter({
 
         <div className="flex items-center gap-2">
           <label htmlFor="select-periode" className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-            Periode:
+            Bulan Akhir:
           </label>
           <div className="relative">
             <select
@@ -48,7 +48,6 @@ export default function RekapFilter({
               onChange={(e) => setSelectedMonth(e.target.value)}
               className="appearance-none bg-slate-50 border border-slate-200 text-slate-800 font-semibold text-sm rounded-xl px-4 py-2 pr-9 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer hover:bg-slate-100 transition-all"
             >
-              <option value="semua">Semua Bulan</option>
               {MONTH_NAMES.map((name, idx) => (
                 <option key={idx + 1} value={String(idx + 1)}>
                   {name}
@@ -65,7 +64,7 @@ export default function RekapFilter({
       {/* Action Button */}
       <button
         onClick={onPrint}
-        disabled={isPrinting}
+        disabled={isPrinting || printDisabled}
         className="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-200 disabled:opacity-50 cursor-pointer"
       >
         <i className={`fas ${isPrinting ? 'fa-spinner fa-spin' : 'fa-print'}`}></i>
