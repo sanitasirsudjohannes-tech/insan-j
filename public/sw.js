@@ -1,4 +1,4 @@
-const CACHE_NAME = 'insan-j-cache-v2';
+const CACHE_NAME = 'insan-j-cache-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -8,6 +8,18 @@ const ASSETS_TO_CACHE = [
   '/img/logo.webp',
   '/img/logo_provinsi.png'
 ];
+
+// Chunk berat ini tidak wajib untuk membuka form pengisian data secara offline.
+// Aset tetap tersedia lewat cache runtime setelah pengguna membuka fiturnya online.
+const DEFERRED_PRECACHE_PATTERNS = [
+  /node_modules[\\/]xlsx[\\/]/,
+  /three\.module/,
+  /createLoginScene/,
+  /createWelcomeWave/,
+  /exporters[\\/]docxBuilder/
+];
+
+const isDeferredPrecacheEntry = (key) => DEFERRED_PRECACHE_PATTERNS.some((pattern) => pattern.test(key));
 
 const getAppShellAssets = async () => {
   const [response, manifestResponse] = await Promise.all([
@@ -29,7 +41,8 @@ const getAppShellAssets = async () => {
     }
   }
 
-  for (const entry of Object.values(manifest)) {
+  for (const [key, entry] of Object.entries(manifest)) {
+    if (isDeferredPrecacheEntry(key)) continue;
     const entryAssets = [entry.file, ...(entry.css || [])].filter(Boolean);
     for (const asset of entryAssets) {
       const assetUrl = new URL(asset, `${self.location.origin}/`);

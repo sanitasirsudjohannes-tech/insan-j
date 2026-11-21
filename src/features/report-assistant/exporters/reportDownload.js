@@ -1,7 +1,6 @@
 import Swal from 'sweetalert2';
 import { getLocalDateString } from '../../../lib/localDate';
 import { REPORT_TYPES } from '../constants/reportTypes.js';
-import { buildDocxBlob } from './docxBuilder.js';
 import { createReportChartPngs } from './reportChartRenderer.js';
 import { buildMedicalWasteTableModels } from '../../../lib/reportTableData';
 import { buildWaterTableModels } from './waterTableData.js';
@@ -16,6 +15,8 @@ async function createWordFile(draft, reportType, chartImages = [], facts = {}, c
   const appendixTitle = reportType === 'medical_waste'
     ? 'LAMPIRAN TABEL REKAPITULASI LIMBAH MEDIS'
     : 'LAMPIRAN TABEL DATA PEMERIKSAAN';
+  // Pustaka pembuat Word berat dan hanya dipakai saat tombol unduh ditekan.
+  const { buildDocxBlob } = await import('./docxBuilder.js');
   const blob = await buildDocxBlob(draft, chartImages, tables, appendixTitle);
   return new File([blob], filename, {
     type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
