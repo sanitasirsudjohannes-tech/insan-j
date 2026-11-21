@@ -30,10 +30,33 @@ export default function WaterRecordsSection({
 }) {
   const selectedMonth = monthGroups.find(item => item.month === month);
 
-  if (!month) return <section className="space-y-4">
-    <div className="flex items-center justify-between"><div><h2 className="font-black text-slate-800">Arsip Pemeriksaan</h2><p className="mt-1 text-xs text-slate-500">Pilih bulan untuk melihat pemeriksaan yang tersedia.</p></div><button onClick={onRefresh} className="rounded-xl bg-slate-800 px-3 py-2 text-xs font-bold text-white"><i className="fas fa-rotate mr-2" />Segarkan</button></div>
-    {indexLoading ? <div className="py-12 text-center text-slate-400"><i className="fas fa-spinner fa-spin mr-2" />Memuat daftar bulan...</div> : monthGroups.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-12 text-center text-sm text-slate-400">Belum ada pemeriksaan air yang tersimpan.</div> : <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{monthGroups.map(item => <button key={item.month} type="button" onClick={() => onSelectMonth(item.month)} className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md"><div className="flex items-center justify-between"><span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><i className="fas fa-calendar" /></span><i className="fas fa-chevron-right text-xs text-slate-300" /></div><h3 className="mt-3 font-black capitalize text-slate-800">{formatMonth(item.month)}</h3><p className="mt-1 text-xs text-slate-500">{item.clean} air bersih • {item.wastewater} air limbah</p></button>)}</div>}
-  </section>;
+  if (!month) {
+    const monthContent = indexLoading
+      ? <div className="py-12 text-center text-slate-400"><i className="fas fa-spinner fa-spin mr-2" />Memuat daftar bulan...</div>
+      : monthGroups.length === 0
+        ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-12 text-center text-sm text-slate-400">Belum ada pemeriksaan air yang tersimpan.</div>
+        : <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {monthGroups.map(item => (
+            <button
+              key={item.month}
+              type="button"
+              onClick={() => onSelectMonth(item.month)}
+              className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-blue-300 hover:shadow-md"
+            >
+              <div className="flex items-center justify-between">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><i className="fas fa-calendar" /></span>
+                <i className="fas fa-chevron-right text-xs text-slate-300" />
+              </div>
+              <h3 className="mt-3 font-black capitalize text-slate-800">{formatMonth(item.month)}</h3>
+              <p className="mt-1 text-xs text-slate-500">{item.clean} air bersih • {item.wastewater} air limbah</p>
+            </button>
+          ))}
+        </div>;
+    return <section className="space-y-4">
+      <div className="flex items-center justify-between"><div><h2 className="font-black text-slate-800">Arsip Pemeriksaan</h2><p className="mt-1 text-xs text-slate-500">Pilih bulan untuk melihat pemeriksaan yang tersedia.</p></div><button onClick={onRefresh} className="rounded-xl bg-slate-800 px-3 py-2 text-xs font-bold text-white"><i className="fas fa-rotate mr-2" />Segarkan</button></div>
+      {monthContent}
+    </section>;
+  }
 
   if (!selectedDate) return <section className="space-y-4">
     <BackButton onClick={() => onSelectMonth('')}>Semua bulan</BackButton>
@@ -47,9 +70,28 @@ export default function WaterRecordsSection({
     </div>)}</div>
   </section>;
 
+  const recordsContent = loading
+    ? <div className="py-12 text-center text-slate-400"><i className="fas fa-spinner fa-spin mr-2" />Memuat rincian...</div>
+    : records.length === 0
+      ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-12 text-center text-sm text-slate-400">Rincian pemeriksaan tidak ditemukan.</div>
+      : <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <table className="w-full table-fixed text-left">
+          <thead className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 sm:text-xs">
+            <tr>
+              <th className="w-[30%] px-2 py-3 sm:px-4">Titik & Dokumen</th>
+              <th className="w-[55%] px-2 py-3 sm:px-4">Hasil Pemeriksaan</th>
+              <th className="w-[15%] px-1 py-3 text-right sm:px-4">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {records.map(record => <RecordRow key={record.id} record={record} onEdit={onEdit} onRemove={onRemove} />)}
+          </tbody>
+        </table>
+      </div>;
+
   return <section className="space-y-4">
     <BackButton onClick={onBackToDates}>Daftar tanggal</BackButton>
     <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="font-black text-slate-800">{WATER_TYPES[waterType]}</h2><p className="mt-1 text-sm font-bold text-slate-500">Pengambilan sampel {formatDate(selectedDate)}</p></div><p className="text-xs text-slate-400">{records.length} rincian pemeriksaan</p></div>
-    {loading ? <div className="py-12 text-center text-slate-400"><i className="fas fa-spinner fa-spin mr-2" />Memuat rincian...</div> : records.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-12 text-center text-sm text-slate-400">Rincian pemeriksaan tidak ditemukan.</div> : <div className="rounded-2xl border border-slate-200 bg-white shadow-sm"><table className="w-full table-fixed text-left"><thead className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500 sm:text-xs"><tr><th className="w-[30%] px-2 py-3 sm:px-4">Titik & Dokumen</th><th className="w-[55%] px-2 py-3 sm:px-4">Hasil Pemeriksaan</th><th className="w-[15%] px-1 py-3 text-right sm:px-4">Aksi</th></tr></thead><tbody>{records.map(record => <RecordRow key={record.id} record={record} onEdit={onEdit} onRemove={onRemove} />)}</tbody></table></div>}
+    {recordsContent}
   </section>;
 }

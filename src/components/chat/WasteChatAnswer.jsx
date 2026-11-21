@@ -32,7 +32,35 @@ const statusStyle = value => value === 'Tidak memenuhi'
 
 function ResultTable({ data }) {
   if (!data?.columns?.length || !data?.rows?.length) return null;
-  return <div className="mt-3 overflow-hidden rounded-xl border border-slate-200"><p className="bg-slate-50 px-3 py-2 text-[11px] font-black uppercase tracking-wide text-slate-500">{data.title}</p><div className="overflow-x-auto"><table className="min-w-full text-left text-[11px]"><thead className="border-y border-slate-200 bg-white text-slate-500"><tr>{data.columns.map(column => <th key={column.key} scope="col" className="whitespace-nowrap px-3 py-2 font-bold">{column.label}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{data.rows.map((row, rowIndex) => <tr key={row.id || rowIndex} className="bg-white">{data.columns.map(column => <td key={column.key} className="whitespace-nowrap px-3 py-2 text-slate-700">{column.key === 'status' ? <span className={`inline-flex rounded-full px-2 py-1 font-bold ring-1 ring-inset ${statusStyle(row[column.key])}`}>{row[column.key]}</span> : row[column.key] ?? '-'}</td>)}</tr>)}</tbody></table></div></div>;
+  return (
+    <div className="mt-3 overflow-hidden rounded-xl border border-slate-200">
+      <p className="bg-slate-50 px-3 py-2 text-[11px] font-black uppercase tracking-wide text-slate-500">{data.title}</p>
+      <div className="overflow-x-auto">
+        <table className="min-w-full text-left text-[11px]">
+          <thead className="border-y border-slate-200 bg-white text-slate-500">
+            <tr>
+              {data.columns.map(column => (
+                <th key={column.key} scope="col" className="whitespace-nowrap px-3 py-2 font-bold">{column.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {data.rows.map((row, rowIndex) => (
+              <tr key={row.id || rowIndex} className="bg-white">
+                {data.columns.map(column => (
+                  <td key={column.key} className="whitespace-nowrap px-3 py-2 text-slate-700">
+                    {column.key === 'status'
+                      ? <span className={`inline-flex rounded-full px-2 py-1 font-bold ring-1 ring-inset ${statusStyle(row[column.key])}`}>{row[column.key]}</span>
+                      : row[column.key] ?? '-'}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 export default function WasteChatAnswer({ message, onAsk, onReport, onNavigate, onEdit, onFavorite, isFavorite = false, busy = false }) {

@@ -6,7 +6,7 @@ import { calculateRekapitulasi } from '../src/features/rekap/domain/rekapCalcula
 import { readDataFilters } from '../src/features/rekap/domain/rekapFilters.js';
 
 const source = readFileSync(new URL('../src/features/rekap/services/rekapService.js', import.meta.url), 'utf8')
-  .replace(/^import .*;\n/gm, '').replaceAll('export ', '');
+  .replace(/^import .*;\r?\n/gm, '').replaceAll('export ', '');
 function setup({ aggregate = async () => null, online = true, fetchRows, unsynced = [], deleted = [] } = {}) {
   return vm.runInNewContext(source + '\nfetchAllRekapData', {
     supabase: {}, navigator: { onLine: online }, console: { warn() {} },

@@ -88,7 +88,67 @@ export function buildLocalReport(payload = {}) {
     ? 'Informasi dalam laporan berasal dari catatan lokasi dan waktu pengambilan sampel serta hasil pemeriksaan sampel di laboratorium sesuai dengan tanggal yang dipilih.'
     : 'Data bersumber dari catatan petugas dan rekap INSAN-J sesuai dengan periode yang dipilih.';
 
-  return `LAPORAN ${config.label.toUpperCase()}\nRSUD PROF. DR. W.Z. JOHANNES KUPANG\nPeriode: ${period}\n\nBAB I\nPENDAHULUAN\n\n1.1 Latar Belakang\n${narrative.background}\n\n${reportBasis}\n\n1.2 Tujuan\n1. Mendokumentasikan pelaksanaan dan hasil ${config.label.toLowerCase()} selama periode pelaporan.\n2. Mengetahui capaian serta mengidentifikasi kondisi yang masih memerlukan perhatian.\n3. Menjadi dasar dalam menentukan tindakan perbaikan dan pemantauan selanjutnya.\n\n1.3 Manfaat\n${narrative.benefit}\n\nBAB II\nHASIL DAN PEMBAHASAN\n\n2.1 Waktu dan Ruang Lingkup\nKegiatan yang dilaporkan berlangsung pada periode ${period}. ${narrative.scope} ${sourceDescription}\n\n2.2 Hasil Kegiatan\nBerdasarkan hasil pemeriksaan yang telah dilakukan, diperoleh hasil sebagai berikut:\n\n${detailLines}\n\n2.3 Analisis dan Evaluasi\n${analysis}\n\n2.4 Kendala dan Temuan\nDalam pelaksanaan kegiatan, kendala atau temuan yang dicatat adalah sebagai berikut:\n${constraints}\n\n2.5 Tindak Lanjut dan Rekomendasi\n${recommendationSection}\n\n2.6 Catatan Tambahan\n${notes}\n\n2.7 Penyajian Tabel dan Grafik\n${presentationText}\n\nBAB III\nPENUTUP\n\n3.1 Kesimpulan\n${conclusion}\n\n3.2 Saran\n1. Data dan uraian dalam laporan perlu diperiksa kembali sebelum disahkan atau digunakan sebagai dokumen resmi.\n2. Informasi yang masih bertanda [PERLU DILENGKAPI] agar dilengkapi berdasarkan catatan atau bukti pelaksanaan yang tersedia.\n3. Tindak lanjut yang telah ditetapkan perlu didokumentasikan dan dievaluasi kembali pada periode berikutnya.\n\nCatatan: Dokumen ini masih berupa draf dan harus diperiksa oleh petugas Unit Sanitasi sebelum digunakan.`;
+  return [
+    `LAPORAN ${config.label.toUpperCase()}`,
+    'RSUD PROF. DR. W.Z. JOHANNES KUPANG',
+    `Periode: ${period}`,
+    '',
+    'BAB I',
+    'PENDAHULUAN',
+    '',
+    '1.1 Latar Belakang',
+    narrative.background,
+    '',
+    reportBasis,
+    '',
+    '1.2 Tujuan',
+    `1. Mendokumentasikan pelaksanaan dan hasil ${config.label.toLowerCase()} selama periode pelaporan.`,
+    '2. Mengetahui capaian serta mengidentifikasi kondisi yang masih memerlukan perhatian.',
+    '3. Menjadi dasar dalam menentukan tindakan perbaikan dan pemantauan selanjutnya.',
+    '',
+    '1.3 Manfaat',
+    narrative.benefit,
+    '',
+    'BAB II',
+    'HASIL DAN PEMBAHASAN',
+    '',
+    '2.1 Waktu dan Ruang Lingkup',
+    `Kegiatan yang dilaporkan berlangsung pada periode ${period}. ${narrative.scope} ${sourceDescription}`,
+    '',
+    '2.2 Hasil Kegiatan',
+    'Berdasarkan hasil pemeriksaan yang telah dilakukan, diperoleh hasil sebagai berikut:',
+    '',
+    detailLines,
+    '',
+    '2.3 Analisis dan Evaluasi',
+    analysis,
+    '',
+    '2.4 Kendala dan Temuan',
+    'Dalam pelaksanaan kegiatan, kendala atau temuan yang dicatat adalah sebagai berikut:',
+    constraints,
+    '',
+    '2.5 Tindak Lanjut dan Rekomendasi',
+    recommendationSection,
+    '',
+    '2.6 Catatan Tambahan',
+    notes,
+    '',
+    '2.7 Penyajian Tabel dan Grafik',
+    presentationText,
+    '',
+    'BAB III',
+    'PENUTUP',
+    '',
+    '3.1 Kesimpulan',
+    conclusion,
+    '',
+    '3.2 Saran',
+    '1. Data dan uraian dalam laporan perlu diperiksa kembali sebelum disahkan atau digunakan sebagai dokumen resmi.',
+    '2. Informasi yang masih bertanda [PERLU DILENGKAPI] agar dilengkapi berdasarkan catatan atau bukti pelaksanaan yang tersedia.',
+    '3. Tindak lanjut yang telah ditetapkan perlu didokumentasikan dan dievaluasi kembali pada periode berikutnya.',
+    '',
+    'Catatan: Dokumen ini masih berupa draf dan harus diperiksa oleh petugas Unit Sanitasi sebelum digunakan.',
+  ].join('\n');
 }
 
 export function buildAutomaticAnalysis(payload = {}) {
@@ -116,7 +176,13 @@ export function buildAutomaticAnalysis(payload = {}) {
       : difference < 0
         ? `Perhitungan menunjukkan ketidaksesuaian sebesar ${formatNumberId(Math.abs(difference))} kg karena pengangkutan melebihi sisa awal ditambah timbulan periode berjalan. Data perlu dicocokkan kembali dengan catatan TPS.`
         : `Setelah sisa limbah awal periode sebesar ${formatNumberId(opening)} kg diperhitungkan, jumlah limbah yang dikelola dan jumlah yang diangkut berada dalam keadaan seimbang.`;
-    return `Selama periode pelaporan, timbulan limbah medis tercatat sebanyak ${formatNumberId(generated)} kg. Dari jumlah tersebut, limbah yang telah diangkut mencapai ${formatNumberId(transported)} kg atau sekitar ${formatNumberId(transportedPercent)}% dari total timbulan. ${balanceText}\n\nDitinjau dari jenisnya, ${dominantName} merupakan komponen terbesar, yaitu ${formatNumberId(dominantValue)} kg atau sekitar ${formatNumberId(dominantPercent)}% dari keseluruhan timbulan. Besarnya proporsi tersebut perlu diperhatikan dalam penyediaan wadah, pengaturan ruang penyimpanan sementara, serta pelaksanaan pengangkutan. Pemilahan di setiap ruangan juga perlu terus dipantau agar limbah ditempatkan sesuai dengan jenisnya.\n\nSecara umum, data tersebut memberikan gambaran mengenai hubungan antara timbulan dan pengangkutan selama periode berjalan. Apabila terdapat selisih, petugas perlu mencocokkannya dengan catatan stok di TPS limbah medis dan dokumen pengangkutan.`;
+    return [
+      `Selama periode pelaporan, timbulan limbah medis tercatat sebanyak ${formatNumberId(generated)} kg. Dari jumlah tersebut, limbah yang telah diangkut mencapai ${formatNumberId(transported)} kg atau sekitar ${formatNumberId(transportedPercent)}% dari total timbulan. ${balanceText}`,
+      '',
+      `Ditinjau dari jenisnya, ${dominantName} merupakan komponen terbesar, yaitu ${formatNumberId(dominantValue)} kg atau sekitar ${formatNumberId(dominantPercent)}% dari keseluruhan timbulan. Besarnya proporsi tersebut perlu diperhatikan dalam penyediaan wadah, pengaturan ruang penyimpanan sementara, serta pelaksanaan pengangkutan. Pemilahan di setiap ruangan juga perlu terus dipantau agar limbah ditempatkan sesuai dengan jenisnya.`,
+      '',
+      'Secara umum, data tersebut memberikan gambaran mengenai hubungan antara timbulan dan pengangkutan selama periode berjalan. Apabila terdapat selisih, petugas perlu mencocokkannya dengan catatan stok di TPS limbah medis dan dokumen pengangkutan.',
+    ].join('\n');
   }
   if (payload.reportType === 'lighting') {
     const total = Number(facts.totalPoints) || 0;

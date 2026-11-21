@@ -32,5 +32,16 @@ export function buildGeneratedDifferenceAnswer(parsed, recap, previousRecap) {
   const manual = !parsed.sameRoomsOnly && !parsed.roomName && !parsed.type
     ? `\n• Catatan manual: ${deltaText((Number(after.recap.facts.manualGeneratedKg) || 0) - (Number(before.recap.facts.manualGeneratedKg) || 0))}.` : '';
   const typeLines = !parsed.roomName && !parsed.type && !parsed.sameRoomsOnly ? [['Infeksius', 'infectiousKg'], ['Jarum', 'sharpsKg'], ['Botol', 'bottleKg'], ['Sitotoksik', 'cytotoxicKg']].map(([label, field]) => `• ${label}: ${deltaText((Number(after.recap.facts[field]) || 0) - (Number(before.recap.facts[field]) || 0))}.`).join('\n') : '';
-  return `Rincian selisih ${parsed.type?.label || 'timbulan'}${parsed.roomName ? ` — ${parsed.roomName}` : ''}${parsed.sameRoomsOnly ? ' — hanya ruangan tercatat pada kedua periode (tanpa catatan manual)' : ''}\n\n• ${before.period.label}: ${format(a)} kg.\n• ${after.period.label}: ${format(b)} kg.\n• Selisih: ${deltaText(b - a)}.${manual}\n\nPerubahan catatan ruangan${parsed.changeDirection ? ` (${parsed.changeDirection === 'up' ? 'kenaikan' : 'penurunan'})` : ''}\n${lines.length ? lines.join('\n') : '• Tidak ditemukan perubahan berat per ruangan sesuai filter.'}${typeLines ? `\n\nPerubahan jenis\n${typeLines}` : ''}\n\nTidak adanya catatan bukan berarti limbah pasti nol. Angka di atas menjelaskan sumber selisih pencatatan; penyebab operasional belum dapat ditentukan dari data yang tersedia.`;
+  return [
+    `Rincian selisih ${parsed.type?.label || 'timbulan'}${parsed.roomName ? ` — ${parsed.roomName}` : ''}${parsed.sameRoomsOnly ? ' — hanya ruangan tercatat pada kedua periode (tanpa catatan manual)' : ''}`,
+    '',
+    `• ${before.period.label}: ${format(a)} kg.`,
+    `• ${after.period.label}: ${format(b)} kg.`,
+    `• Selisih: ${deltaText(b - a)}.${manual}`,
+    '',
+    `Perubahan catatan ruangan${parsed.changeDirection ? ` (${parsed.changeDirection === 'up' ? 'kenaikan' : 'penurunan'})` : ''}`,
+    `${lines.length ? lines.join('\n') : '• Tidak ditemukan perubahan berat per ruangan sesuai filter.'}${typeLines ? `\n\nPerubahan jenis\n${typeLines}` : ''}`,
+    '',
+    'Tidak adanya catatan bukan berarti limbah pasti nol. Angka di atas menjelaskan sumber selisih pencatatan; penyebab operasional belum dapat ditentukan dari data yang tersedia.',
+  ].join('\n');
 }
